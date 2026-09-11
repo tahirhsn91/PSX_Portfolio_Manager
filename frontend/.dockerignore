@@ -1,0 +1,22 @@
+# frontend/.dockerignore
+# Applied when docker-compose builds with context: ./frontend
+
+node_modules
+dist
+dist-ssr
+*.local
+*.log
+npm-debug.log*
+
+.env
+.env.local
+.env.*.local
+
+.vscode
+.idea
+.DS_Store
+*.suo
+*.sw?
+Thumbs.db
+
+coverage

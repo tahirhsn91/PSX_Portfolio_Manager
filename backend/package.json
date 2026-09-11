@@ -1,0 +1,19 @@
+{
+  "name": "psx-market-proxy",
+  "version": "1.0.0",
+  "description": "Market data proxy — Yahoo Finance (free) or Capital Stake (paid) as provider",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.1",
+    "node-fetch": "^2.7.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

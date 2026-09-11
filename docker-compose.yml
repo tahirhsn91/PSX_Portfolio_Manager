@@ -1,0 +1,154 @@
+# =============================================================================
+# PSX Portfolio Manager — Docker Compose
+#
+# Monorepo layout:
+#   frontend/  — React + Vite app (served by Vite dev or Nginx prod)
+#   backend/   — Express market-data proxy (forwards to Capital Stake API)
+#
+# Two profiles:
+#   dev   → Vite dev server with HMR on http://localhost:3000
+#            + proxy on http://localhost:4000
+#   prod  → Multi-stage Nginx build on http://localhost:80
+#            + proxy on http://localhost:4000
+#
+# Quick start (mock data — fully offline):
+#   docker compose --profile dev up --build
+#
+# Quick start (live PSX data — FREE, no API key needed):
+#   cp .env.example .env.local    # set VITE_MARKET_PROVIDER=yahoo
+#   docker compose --profile dev up --build
+#
+# Quick start (Capital Stake live data — paid):
+#   cp .env.example .env.local    # set CAPITALSTAKE_API_KEY + VITE_MARKET_PROVIDER=capitalstake
+#   docker compose --profile dev up --build
+# =============================================================================
+
+name: psx-portfolio-manager
+
+services:
+
+  # ── Development: React app (Vite HMR) ─────────────────────────────────────
+  app-dev:
+    profiles: [dev]
+    container_name: psx-dev
+    build:
+      context: ./frontend        # build context is the frontend/ subfolder
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:5173"              # host:3000 → container:5173 (Vite default)
+    volumes:
+      # Bind-mount frontend source only — edits reflect instantly via HMR
+      - ./frontend:/app
+      # Isolate node_modules inside the container (don't override with host copy)
+      - node_modules_dev:/app/node_modules
+    environment:
+      - NODE_ENV=development
+      # File-system polling — required for HMR inside Docker on Windows / WSL2
+      - CHOKIDAR_USEPOLLING=true
+      # VITE_* vars (VITE_MARKET_PROVIDER, VITE_PROXY_BASE_URL, VITE_PSX_SCRAPER_URL) come
+      # exclusively from env_file (.env.local) so that .env.local is the single source of truth.
+      # Without .env.local the Vite code defaults: provider=mock, proxy=localhost:4000, scraper=localhost:4001
+    env_file:
+      - path: .env.local
+        required: false          # optional — app works without it (mock data)
+    depends_on:
+      proxy-dev:
+        condition: service_healthy
+        required: false          # proxy is optional — app silently uses mock if absent
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:5173/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ── Development: Market data proxy ────────────────────────────────────────
+  proxy-dev:
+    profiles: [dev]
+    container_name: psx-proxy-dev
+    build:
+      context: ./backend         # build context is the backend/ subfolder
+      dockerfile: Dockerfile
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Linux Docker support (no-op on Docker Desktop)
+    ports:
+      - "4000:4000"              # host:4000 → proxy → scraper / csapis.com
+    environment:
+      - PROXY_PORT=4000
+      - CAPITALSTAKE_API_KEY=${CAPITALSTAKE_API_KEY:-}
+      - ALLOWED_ORIGIN=http://localhost:3000
+      # PSX scraper URL — reachable from inside Docker via host.docker.internal
+      - PSX_SCRAPER_URL=${PSX_SCRAPER_URL:-http://host.docker.internal:4001}
+    env_file:
+      - path: .env.local
+        required: false
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── Production: React app (multi-stage → Nginx) ───────────────────────────
+  app-prod:
+    profiles: [prod]
+    container_name: psx-prod
+    build:
+      context: ./frontend        # build context is the frontend/ subfolder
+      dockerfile: Dockerfile
+      # VITE_* vars must be baked at build time (Vite bundles them into JS)
+      args:
+        VITE_MARKET_PROVIDER: ${VITE_MARKET_PROVIDER:-mock}
+        VITE_PROXY_BASE_URL: ${VITE_PROXY_BASE_URL:-http://localhost:4000}
+    ports:
+      - "80:80"                  # host:80 → Nginx
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - path: .env.local
+        required: false
+    depends_on:
+      proxy-prod:
+        condition: service_healthy
+        required: false
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:80/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── Production: Market data proxy ─────────────────────────────────────────
+  proxy-prod:
+    profiles: [prod]
+    container_name: psx-proxy-prod
+    build:
+      context: ./backend         # build context is the backend/ subfolder
+      dockerfile: Dockerfile
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Linux Docker support (no-op on Docker Desktop)
+    ports:
+      - "4000:4000"
+    environment:
+      - PROXY_PORT=4000
+      - CAPITALSTAKE_API_KEY=${CAPITALSTAKE_API_KEY:-}
+      - ALLOWED_ORIGIN=http://localhost:80
+      - PSX_SCRAPER_URL=${PSX_SCRAPER_URL:-http://host.docker.internal:4001}
+    env_file:
+      - path: .env.local
+        required: false
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+# ── Named volumes ──────────────────────────────────────────────────────────
+volumes:
+  node_modules_dev:
+    name: psx_node_modules_dev

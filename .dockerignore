@@ -1,0 +1,23 @@
+# Root .dockerignore
+# Each sub-project (frontend/, backend/) has its own .dockerignore
+# that Docker uses when the build context is that subfolder.
+# This root file is a fallback / reference only.
+
+node_modules
+frontend/node_modules
+backend/node_modules
+
+dist
+*.log
+
+.env
+.env.local
+.env.*.local
+
+.git
+.gitignore
+.vscode
+.idea
+.DS_Store
+
+restructure.ps1

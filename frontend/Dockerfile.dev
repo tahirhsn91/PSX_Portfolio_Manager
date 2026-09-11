@@ -1,0 +1,39 @@
+# =============================================================================
+# PSX Portfolio Manager — Development Dockerfile
+#
+# Runs Vite dev server with hot module replacement (HMR).
+# Source files are bind-mounted from the host so edits reflect instantly.
+#
+# Do NOT use this image in production — it includes all dev dependencies
+# and exposes Vite's dev server directly.
+#
+# Used by:  docker-compose --profile dev up
+# =============================================================================
+
+FROM node:20-alpine
+
+# Build tools for native npm packages
+RUN apk add --no-cache libc6-compat
+
+WORKDIR /app
+
+# ① Copy manifests — cached until package*.json changes
+COPY package.json package-lock.json* ./
+
+# ② Install ALL dependencies (devDeps required for Vite, TypeScript, etc.)
+# npm install is used instead of npm ci so a pre-existing lockfile is not required.
+# Once you have committed package-lock.json you can switch back to npm ci for faster, reproducible installs.
+RUN npm install --ignore-scripts
+
+# ③ Source code is NOT copied here — it will be bind-mounted by docker-compose
+#    so that edits on the host are reflected immediately inside the container.
+
+# Vite dev server listens on 5173 by default; expose it
+EXPOSE 5173
+
+# Signal to vite.config.ts that we are inside Docker
+# (disables browser auto-open, enables polling watcher)
+ENV DOCKER=true
+
+# Allow HMR websocket connections from outside the container
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]

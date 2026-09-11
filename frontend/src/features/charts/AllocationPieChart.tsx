@@ -1,0 +1,80 @@
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { formatCurrency, formatPercent } from '@/utils';
+import { CHART_COLORS } from '@/constants';
+
+interface AllocationData {
+  name: string;
+  value: number;
+  percent: number;
+  color?: string;
+}
+
+interface AllocationPieChartProps {
+  data: AllocationData[];
+  title?: string;
+  valueLabel?: string;
+}
+
+const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: { name: string; value: number; payload: AllocationData }[] }) => {
+  if (!active || !payload?.length) return null;
+  const item = payload[0].payload;
+  return (
+    <div className="rounded-lg border bg-background p-3 shadow-lg text-sm">
+      <p className="font-semibold">{item.name}</p>
+      <p className="text-muted-foreground">{formatCurrency(item.value, true)}</p>
+      <p className="text-muted-foreground">{formatPercent(item.percent, false)} of portfolio</p>
+    </div>
+  );
+};
+
+const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: { cx: number; cy: number; midAngle: number; innerRadius: number; outerRadius: number; percent: number }) => {
+  if (percent < 0.05) return null;
+  const RADIAN = Math.PI / 180;
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  return (
+    <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight="bold">
+      {`${(percent * 100).toFixed(0)}%`}
+    </text>
+  );
+};
+
+export function AllocationPieChart({ data, title = 'Portfolio Allocation' }: AllocationPieChartProps) {
+  const chartData = data.map((d, i) => ({ ...d, color: d.color ?? CHART_COLORS[i % CHART_COLORS.length] }));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={280}>
+          <PieChart>
+            <Pie
+              data={chartData}
+              cx="50%"
+              cy="50%"
+              labelLine={false}
+              label={CustomLabel as unknown as boolean}
+              outerRadius={110}
+              dataKey="value"
+              nameKey="name"
+            >
+              {chartData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.color} />
+              ))}
+            </Pie>
+            <Tooltip content={<CustomTooltip />} />
+            <Legend
+              formatter={(value) => (
+                <span className="text-xs text-foreground">{value}</span>
+              )}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}

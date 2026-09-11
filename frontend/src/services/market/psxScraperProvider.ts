@@ -1,0 +1,543 @@
+/**
+ * PSX Scraper Provider — integrates with the custom PSX scraper API.
+ *
+ * The scraper runs locally (typically http://localhost:4001).
+ * To avoid CORS issues the provider does NOT call the scraper directly from the
+ * browser; instead it calls the backend proxy (http://localhost:4000/api/psx/*),
+ * which in turn reaches the scraper via host.docker.internal:4001 inside Docker.
+ *
+ * URL flow:
+ *   Browser → proxy (localhost:4000/api/psx/api/v1/...) → scraper (localhost:4001/api/v1/...)
+ *
+ * Configured via:
+ *   VITE_PROXY_BASE_URL  — backend proxy URL  (default: http://localhost:4000)
+ *   PSX_SCRAPER_URL      — scraper URL used by the backend  (default: host.docker.internal:4001)
+ *
+ * ── Data quality notes from live API probing ──────────────────────────────────
+ * - `volume` can be negative in the live snapshot row (scraper bug) → Math.abs()
+ * - `high` / `low` are null in historical rows  → fall back to `close`
+ * - `close` === `currentPrice` in every row (scraper stores last known price as both)
+ * - History is returned newest-first → reversed here so charts get oldest-first
+ * - `previousClose` is derived as `currentPrice - change` (not in API response)
+ * - Only tracked stocks return data; untracked symbols return 404
+ *   → on 404 the provider auto-adds via POST /api/v1/stocks then returns a
+ *     zeroed placeholder while the background sync job populates history
+ */
+
+import type {
+  IMarketDataProvider,
+  StockQuote,
+  StockDetail,
+  HistoricalDataPoint,
+  KSE100Data,
+  SectorPerformance,
+  MarketStatus,
+  PSXCompany,
+} from '@/types';
+
+// ── Raw API shapes ─────────────────────────────────────────────────────────────
+
+interface ScraperPriceData {
+  currentPrice: number;
+  change: number;
+  changePercent: number;
+  volume: number;
+  high: number | null;
+  low: number | null;
+  open: number | null;
+  close: number;
+  marketCap: number;
+  lastTradeDate: string;
+}
+
+interface ScraperRatios {
+  peRatio: number | null;
+  pbRatio: number | null;
+  dividendYield: number | null;
+  beta: number | null;
+  [key: string]: number | null | undefined;
+}
+
+interface ScraperFinancial {
+  eps?: number | null;
+  [key: string]: unknown;
+}
+
+interface ScraperDividend {
+  amount?: number | null;
+  date?: string | null;
+  [key: string]: unknown;
+}
+
+interface ScraperStock {
+  id: string;
+  symbol: string;
+  companyName: string;
+  sector: string;
+  price: ScraperPriceData;
+  ratios: ScraperRatios;
+  financials: ScraperFinancial[];
+  dividends: ScraperDividend[];
+  lastSync?: { status: string; [key: string]: unknown };
+}
+
+interface ScraperPriceRow {
+  currentPrice: number;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  close: number;
+  volume: number;
+  lastTradeDate: string;
+}
+
+interface ScraperHistoryResponse {
+  items: ScraperPriceRow[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+interface ScraperListResponse {
+  items: ScraperStock[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+interface ScraperSearchItem {
+  symbol: string;
+  companyName: string;
+  sector?: string;
+  currentPrice?: number;
+  [key: string]: unknown;
+}
+
+interface ScraperSearchResponse {
+  results: ScraperSearchItem[];
+}
+
+// ── HTTP error ────────────────────────────────────────────────────────────────
+
+class ScraperHttpError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ScraperHttpError';
+  }
+}
+
+// ── Market status (derived from PKT clock) ────────────────────────────────────
+// PSX trading hours: Monday–Friday, 09:30–15:30 PKT (UTC+5)
+
+function deriveMarketStatus(): MarketStatus {
+  const now = new Date();
+  const pkt = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Karachi' }));
+  const day  = pkt.getDay();
+  const mins = pkt.getHours() * 60 + pkt.getMinutes();
+  const OPEN = 9 * 60 + 30;
+  const CLOSE = 15 * 60 + 30;
+  const isWeekday = day >= 1 && day <= 5;
+  const isOpen    = isWeekday && mins >= OPEN && mins < CLOSE;
+
+  let nextOpen: string | null  = null;
+  let nextClose: string | null = null;
+
+  if (isOpen) {
+    const t = new Date(pkt);
+    t.setHours(15, 30, 0, 0);
+    nextClose = t.toISOString();
+  } else {
+    const t = new Date(pkt);
+    if (isWeekday && mins < OPEN) {
+      t.setHours(9, 30, 0, 0);
+    } else {
+      do { t.setDate(t.getDate() + 1); } while (t.getDay() === 0 || t.getDay() === 6);
+      t.setHours(9, 30, 0, 0);
+    }
+    nextOpen = t.toISOString();
+  }
+
+  return { isOpen, nextOpen, nextClose, timezone: 'PKT' };
+}
+
+// ── Mapping helpers ───────────────────────────────────────────────────────────
+
+function mapToStockQuote(stock: ScraperStock): StockQuote {
+  const p      = stock.price ?? ({} as ScraperPriceData);
+  const price  = p.currentPrice ?? 0;
+  const change = p.change ?? 0;
+
+  return {
+    symbol:        stock.symbol,
+    companyName:   stock.companyName ?? stock.symbol,
+    currentPrice:  price,
+    change,
+    changePercent: p.changePercent ?? 0,
+    open:          p.open          ?? price,
+    high:          p.high          ?? price,
+    low:           p.low           ?? price,
+    previousClose: price - change,          // not in API — derived
+    volume:        Math.abs(p.volume ?? 0), // can be negative (scraper bug)
+    marketCap:     p.marketCap     ?? 0,
+    sector:        stock.sector    ?? 'Unknown',
+    lastUpdated:   p.lastTradeDate ?? new Date().toISOString(),
+  };
+}
+
+function mapToHistoricalPoint(row: ScraperPriceRow): HistoricalDataPoint | null {
+  const date  = row.lastTradeDate?.split('T')[0];
+  if (!date) return null;
+
+  const close = row.close ?? row.currentPrice ?? 0;
+  if (close <= 0) return null;
+
+  return {
+    date,
+    open:   row.open   ?? close,
+    high:   row.high   ?? close, // null in historical rows — fall back to close
+    low:    row.low    ?? close, // null in historical rows — fall back to close
+    close,
+    volume: Math.abs(row.volume ?? 0),
+  };
+}
+
+/** Zeroed placeholder returned while the scraper syncs a newly-added stock. */
+function placeholderQuote(symbol: string): StockQuote {
+  return {
+    symbol:        symbol.toUpperCase(),
+    companyName:   symbol.toUpperCase(),
+    currentPrice:  0,
+    change:        0,
+    changePercent: 0,
+    open:          0,
+    high:          0,
+    low:           0,
+    previousClose: 0,
+    volume:        0,
+    marketCap:     0,
+    sector:        'Unknown',
+    lastUpdated:   new Date().toISOString(),
+  };
+}
+
+// ── Provider ──────────────────────────────────────────────────────────────────
+
+export class PSXScraperProvider implements IMarketDataProvider {
+  /**
+   * @param proxyBase  Base URL of the backend proxy (e.g. http://localhost:4000).
+   *                   All requests go to proxyBase/api/psx/api/v1/..., which the
+   *                   backend proxy forwards to the PSX scraper.
+   */
+  constructor(private readonly proxyBase: string = 'http://localhost:4000') {}
+
+  // ── HTTP helpers (proxy-based, no CORS concerns) ────────────────────────────
+
+  private get base(): string {
+    return `${this.proxyBase.replace(/\/$/, '')}/api/psx`;
+  }
+
+  private async get<T>(path: string): Promise<T> {
+    const res = await fetch(`${this.base}${path}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({})) as {
+        message?: string; error?: { message?: string } | string;
+      };
+      const msg =
+        (typeof body?.error === 'object' ? body.error?.message : body?.error as string | undefined) ??
+        body?.message ??
+        `HTTP ${res.status}`;
+      throw new ScraperHttpError(res.status, `PSX Scraper: ${msg}`);
+    }
+    return res.json() as Promise<T>;
+  }
+
+  private async post<T>(path: string, body?: unknown): Promise<T> {
+    const res = await fetch(`${this.base}${path}`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body:    body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({})) as {
+        message?: string; error?: { message?: string } | string;
+      };
+      const msg =
+        (typeof errBody?.error === 'object' ? errBody.error?.message : errBody?.error as string | undefined) ??
+        errBody?.message ??
+        `HTTP ${res.status}`;
+      throw new ScraperHttpError(res.status, `PSX Scraper: ${msg}`);
+    }
+    return res.json() as Promise<T>;
+  }
+
+  // ── Auto-track on 404 ───────────────────────────────────────────────────────
+
+  private async ensureTracked(symbol: string): Promise<void> {
+    try {
+      await this.post('/api/v1/stocks', { symbol: symbol.toUpperCase() });
+      console.info(`[psx-scraper] Auto-added "${symbol}" for tracking — data will sync in the background`);
+    } catch (err) {
+      if (err instanceof ScraperHttpError && err.status === 409) return; // already tracked
+      throw err;
+    }
+  }
+
+  // ── IMarketDataProvider ─────────────────────────────────────────────────────
+
+  async getMarketStatus(): Promise<MarketStatus> {
+    return deriveMarketStatus();
+  }
+
+  async getQuote(symbol: string): Promise<StockQuote> {
+    const sym = symbol.toUpperCase();
+    try {
+      const stock = await this.get<ScraperStock>(`/api/v1/stocks/${sym}`);
+      return mapToStockQuote(stock);
+    } catch (err) {
+      if (err instanceof ScraperHttpError && err.status === 404) {
+        await this.ensureTracked(sym).catch(() => { /* best-effort */ });
+        return placeholderQuote(sym);
+      }
+      throw err;
+    }
+  }
+
+  async getQuotes(symbols: string[]): Promise<StockQuote[]> {
+    if (!symbols.length) return [];
+    const settled = await Promise.allSettled(symbols.map(s => this.getQuote(s)));
+    return settled
+      .filter((r): r is PromiseFulfilledResult<StockQuote> => r.status === 'fulfilled')
+      .map(r => r.value);
+  }
+
+  async getStockDetail(symbol: string): Promise<StockDetail> {
+    const sym = symbol.toUpperCase();
+
+    let stock: ScraperStock;
+    let history: ScraperHistoryResponse | null = null;
+
+    try {
+      [stock, history] = await Promise.all([
+        this.get<ScraperStock>(`/api/v1/stocks/${sym}`),
+        this.get<ScraperHistoryResponse>(`/api/v1/stocks/${sym}/history?range=1Y&limit=252`).catch(() => null),
+      ]);
+    } catch (err) {
+      if (err instanceof ScraperHttpError && err.status === 404) {
+        await this.ensureTracked(sym).catch(() => { /* best-effort */ });
+        return {
+          ...placeholderQuote(sym),
+          week52High: 0, week52Low: 0,
+          peRatio: null, eps: null, bookValue: null,
+          dividendYield: null, nextDividendDate: null, nextDividendAmount: null,
+          beta: null, averageVolume: 0, description: '',
+        };
+      }
+      throw err;
+    }
+
+    const base = mapToStockQuote(stock);
+    const r    = stock.ratios     ?? ({} as ScraperRatios);
+    const fin  = stock.financials?.[0] ?? {};
+    const div  = stock.dividends?.[0]  ?? {};
+
+    // Compute 52-week stats from history (history is newest-first)
+    const closes = (history?.items ?? [])
+      .map(row => row.close ?? row.currentPrice ?? 0)
+      .filter(c => c > 0);
+
+    const week52High = closes.length ? Math.max(...closes) : base.currentPrice;
+    const week52Low  = closes.length ? Math.min(...closes) : base.currentPrice;
+
+    // Average daily volume over the available history window
+    const volumes = (history?.items ?? [])
+      .map(row => Math.abs(row.volume ?? 0))
+      .filter(v => v > 0);
+    const averageVolume = volumes.length
+      ? Math.round(volumes.reduce((a, b) => a + b, 0) / volumes.length)
+      : 0;
+
+    return {
+      ...base,
+      week52High,
+      week52Low,
+      peRatio:            r.peRatio ?? null,
+      eps:                (fin.eps as number | null | undefined) ?? null,
+      bookValue:          null,
+      dividendYield:      r.dividendYield ?? null,  // already a percentage
+      nextDividendDate:   (div.date as string | null | undefined) ?? null,
+      nextDividendAmount: (div.amount as number | null | undefined) ?? null,
+      beta:               r.beta ?? null,
+      averageVolume,
+      description:        '',
+    };
+  }
+
+  async getHistoricalData(symbol: string, from: string, to: string): Promise<HistoricalDataPoint[]> {
+    const sym = symbol.toUpperCase();
+    const qs  = new URLSearchParams({ from, to, limit: '2000' }).toString();
+
+    let data: ScraperHistoryResponse;
+    try {
+      data = await this.get<ScraperHistoryResponse>(`/api/v1/stocks/${sym}/history?${qs}`);
+    } catch (err) {
+      if (err instanceof ScraperHttpError && err.status === 404) {
+        await this.ensureTracked(sym).catch(() => { /* best-effort */ });
+        return [];
+      }
+      throw err;
+    }
+
+    return (data.items ?? [])
+      .reverse()                         // API: newest-first → charts need oldest-first
+      .map(mapToHistoricalPoint)
+      .filter((d): d is HistoricalDataPoint => d !== null);
+  }
+
+  async getKSE100(): Promise<KSE100Data> {
+    // Attempt to fetch KSE100 as a tracked symbol
+    try {
+      const [stock, history] = await Promise.all([
+        this.get<ScraperStock>('/api/v1/stocks/KSE100'),
+        this.get<ScraperHistoryResponse>('/api/v1/stocks/KSE100/history?range=1Y&limit=252').catch(() => null),
+      ]);
+
+      const p        = stock.price ?? ({} as ScraperPriceData);
+      const price    = p.currentPrice ?? 0;
+      const prevClose = price - (p.change ?? 0);
+
+      const historicalData = (history?.items ?? [])
+        .reverse()
+        .map(mapToHistoricalPoint)
+        .filter((d): d is HistoricalDataPoint => d !== null);
+
+      return {
+        value:         price,
+        change:        p.change        ?? 0,
+        changePercent: p.changePercent ?? 0,
+        open:          p.open          ?? price,
+        high:          p.high          ?? price,
+        low:           p.low           ?? price,
+        previousClose: prevClose,
+        volume:        Math.abs(p.volume ?? 0),
+        lastUpdated:   p.lastTradeDate ?? new Date().toISOString(),
+        historicalData,
+      };
+    } catch (err) {
+      if (!(err instanceof ScraperHttpError && err.status === 404)) throw err;
+      // KSE100 not tracked → synthetic aggregate from all tracked stocks
+    }
+
+    return this.syntheticKSE100();
+  }
+
+  private async syntheticKSE100(): Promise<KSE100Data> {
+    try {
+      const list   = await this.get<ScraperListResponse>('/api/v1/stocks?limit=200');
+      const stocks = list.items ?? [];
+      if (!stocks.length) return this.emptyKSE100();
+
+      const prices      = stocks.map(s => s.price ?? ({} as ScraperPriceData));
+      const avgChange   = prices.reduce((s, p) => s + (p.change ?? 0), 0)        / prices.length;
+      const avgChangePct = prices.reduce((s, p) => s + (p.changePercent ?? 0), 0) / prices.length;
+      const totalMcap   = prices.reduce((s, p) => s + (p.marketCap ?? 0), 0);
+      const totalVolume = prices.reduce((s, p) => s + Math.abs(p.volume ?? 0), 0);
+      const latestTs    = prices.map(p => p.lastTradeDate).filter(Boolean).sort().pop()
+                          ?? new Date().toISOString();
+
+      console.warn('[psx-scraper] KSE100 not tracked — showing aggregate of all tracked stocks');
+      return {
+        value:         totalMcap,
+        change:        avgChange,
+        changePercent: avgChangePct,
+        open:          totalMcap,
+        high:          totalMcap,
+        low:           totalMcap,
+        previousClose: totalMcap - avgChange,
+        volume:        totalVolume,
+        lastUpdated:   latestTs,
+        historicalData: [],
+      };
+    } catch {
+      return this.emptyKSE100();
+    }
+  }
+
+  private emptyKSE100(): KSE100Data {
+    return {
+      value: 0, change: 0, changePercent: 0,
+      open: 0, high: 0, low: 0, previousClose: 0, volume: 0,
+      lastUpdated: new Date().toISOString(),
+      historicalData: [],
+    };
+  }
+
+  async getSectorPerformance(): Promise<SectorPerformance[]> {
+    let list: ScraperListResponse;
+    try {
+      list = await this.get<ScraperListResponse>('/api/v1/stocks?limit=200');
+    } catch {
+      return [];
+    }
+
+    const stocks = list.items ?? [];
+    if (!stocks.length) return [];
+
+    // Group by sector
+    const bySector = new Map<string, ScraperStock[]>();
+    for (const s of stocks) {
+      const sector   = s.sector ?? 'Unknown';
+      const existing = bySector.get(sector) ?? [];
+      existing.push(s);
+      bySector.set(sector, existing);
+    }
+
+    const result: SectorPerformance[] = [];
+    for (const [sector, members] of bySector.entries()) {
+      const prices      = members.map(s => s.price ?? ({} as ScraperPriceData));
+      const avgChange   = prices.reduce((s, p) => s + (p.changePercent ?? 0), 0) / prices.length;
+      const totalCap    = prices.reduce((s, p) => s + (p.marketCap ?? 0), 0);
+      const sorted      = [...members].sort(
+        (a, b) => (b.price?.changePercent ?? 0) - (a.price?.changePercent ?? 0),
+      );
+
+      result.push({
+        sector,
+        changePercent: avgChange,
+        marketCap:     totalCap,
+        stockCount:    members.length,
+        topGainer:     sorted[0]?.symbol ?? '',
+        topLoser:      sorted[sorted.length - 1]?.symbol ?? '',
+      });
+    }
+
+    return result.sort((a, b) => b.changePercent - a.changePercent);
+  }
+
+  async searchCompanies(query: string): Promise<PSXCompany[]> {
+    if (!query.trim()) return [];
+
+    let data: ScraperSearchResponse;
+    try {
+      data = await this.get<ScraperSearchResponse>(
+        `/api/v1/search?q=${encodeURIComponent(query)}&limit=20`,
+      );
+    } catch {
+      return [];
+    }
+
+    return (data.results ?? []).map(r => ({
+      symbol:       r.symbol      ?? '',
+      name:         r.companyName ?? r.symbol ?? '',
+      sector:       r.sector      ?? 'Unknown',
+      marketCap:    0,  // not in search results
+      listedShares: 0,  // not in search results
+    }));
+  }
+}
