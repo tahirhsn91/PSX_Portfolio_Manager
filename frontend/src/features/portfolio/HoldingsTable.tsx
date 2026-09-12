@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Pencil, Trash2, ExternalLink, ArrowUpDown } from 'lucide-react';
+import { Pencil, Trash2, ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { PLBadge } from '@/components/shared';
 import { formatCurrency, formatPercent, formatDate } from '@/utils';
 import type { Holding, HoldingMetrics } from '@/types';

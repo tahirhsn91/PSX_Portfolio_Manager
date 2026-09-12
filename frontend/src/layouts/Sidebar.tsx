@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import {
-  LayoutDashboard, Briefcase, BarChart2, TrendingUp,
+  LayoutDashboard, Briefcase, BarChart2,
   Settings, ChevronLeft, ChevronRight, Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';

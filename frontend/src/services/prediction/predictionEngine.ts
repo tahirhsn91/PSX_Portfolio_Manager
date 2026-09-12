@@ -291,7 +291,7 @@ class RuleBasedPredictionEngine implements IPredictionEngine {
 
   private calculatePriceTargets(
     currentPrice: number,
-    support: SupportResistanceLevel[],
+    _support: SupportResistanceLevel[],
     resistance: SupportResistanceLevel[],
     trend: TrendDirection
   ) {
@@ -351,7 +351,7 @@ class RuleBasedPredictionEngine implements IPredictionEngine {
   private buildSummary(symbol: string, trend: TrendDirection, momentum: MomentumStrength, confidence: number, priceTargets: { targetPrice: number; upside: number; timeframe: string }[]): string {
     const target1m = priceTargets.find((t) => t.timeframe === '1m');
     const trendText = trend === 'bullish' ? 'uptrend' : trend === 'bearish' ? 'downtrend' : 'sideways movement';
-    return `${symbol} shows ${momentum} ${trendText} (${confidence}% confidence). 1-month target: PKR ${target1m?.targetPrice.toLocaleString()} (${target1m?.upside > 0 ? '+' : ''}${target1m?.upside}%).`;
+    return `${symbol} shows ${momentum} ${trendText} (${confidence}% confidence). 1-month target: PKR ${target1m?.targetPrice.toLocaleString()} (${(target1m?.upside ?? 0) > 0 ? '+' : ''}${target1m?.upside}%).`;
   }
 
   private buildInsufficientDataPrediction(symbol: string, currentPrice: number): StockPrediction {

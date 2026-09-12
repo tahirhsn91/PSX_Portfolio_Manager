@@ -2,7 +2,7 @@
  * Market data hooks using TanStack Query for caching, deduplication, and background refresh.
  */
 
-import { useQuery, useQueries } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { marketDataService } from '@/services';
 import { useMarketStore } from '@/store';
 import { useEffect } from 'react';
