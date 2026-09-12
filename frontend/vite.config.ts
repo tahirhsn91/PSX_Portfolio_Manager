@@ -16,9 +16,16 @@ export default defineConfig({
     host: '0.0.0.0',
     // Only open browser when NOT running inside Docker
     open: !process.env.DOCKER,
-    // HMR must reference the host machine (not container) when running in Docker
+    // HMR must reference the host machine (not the container) when running in Docker.
+    // The browser reaches Vite through the *mapped host port*, so let the client derive
+    // protocol/host/port from window.location instead of hardcoding them. Hardcoding
+    // host:localhost/port:3000 breaks every checkout whose host port differs (this dev
+    // env serves on :6200 → the browser tried ws://localhost:3000 and never connected).
+    // Set VITE_HMR_PORT only when the app is served behind a proxy on another port.
     hmr: process.env.DOCKER
-      ? { host: 'localhost', port: 3000 }
+      ? process.env.VITE_HMR_PORT
+        ? { clientPort: Number(process.env.VITE_HMR_PORT) }
+        : {}
       : true,
     // File-system polling — required for HMR inside Docker on Windows/WSL2
     watch: {
