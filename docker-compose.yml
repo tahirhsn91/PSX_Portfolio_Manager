@@ -27,6 +27,30 @@ name: psx-portfolio-manager
 
 services:
 
+  # ── Development: PostgreSQL (auth + portfolio storage) ────────────────────
+  db-dev:
+    profiles: [dev]
+    container_name: psx-db-dev
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"              # host port is overridden per checkout
+    # Credentials come from .env.local (env_file), NOT from ${} interpolation:
+    # Compose interpolates from the shell/.env only, so ${POSTGRES_PASSWORD}
+    # here would init the DB with a different password than the proxy sends.
+    env_file:
+      - path: .env.local
+        required: true
+    volumes:
+      # Project-scoped by Compose (no explicit name:) so checkouts never share data
+      - pgdata_dev:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   # ── Development: React app (Vite HMR) ─────────────────────────────────────
   app-dev:
     profiles: [dev]
@@ -80,15 +104,42 @@ services:
       - ALLOWED_ORIGIN=http://localhost:3000
       # PSX scraper URL — reachable from inside Docker via host.docker.internal
       - PSX_SCRAPER_URL=${PSX_SCRAPER_URL:-http://host.docker.internal:4001}
+      # Auth + portfolio storage: DB_HOST only (a profile-specific literal —
+      # `environment:` beats `env_file:`). Credentials and JWT_SECRET arrive from
+      # .env.local via env_file below; the backend composes DATABASE_URL from
+      # DB_HOST + POSTGRES_* and fails fast at boot if anything is missing.
+      - DB_HOST=db-dev
     env_file:
       - path: .env.local
-        required: false
+        required: true
+    depends_on:
+      db-dev:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/health"]
       interval: 15s
       timeout: 5s
       retries: 3
+      start_period: 10s
+
+  # ── Production: PostgreSQL ────────────────────────────────────────────────
+  db-prod:
+    profiles: [prod]
+    container_name: psx-db-prod
+    image: postgres:16-alpine
+    # No published host port: reachable only on the compose network.
+    env_file:
+      - path: .env.local
+        required: true      # set a real POSTGRES_PASSWORD for the prod profile
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
       start_period: 10s
 
   # ── Production: React app (multi-stage → Nginx) ───────────────────────────
@@ -137,9 +188,13 @@ services:
       - CAPITALSTAKE_API_KEY=${CAPITALSTAKE_API_KEY:-}
       - ALLOWED_ORIGIN=http://localhost:80
       - PSX_SCRAPER_URL=${PSX_SCRAPER_URL:-http://host.docker.internal:4001}
+      - DB_HOST=db-prod
     env_file:
       - path: .env.local
-        required: false
+        required: true
+    depends_on:
+      db-prod:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/health"]
@@ -152,3 +207,8 @@ services:
 volumes:
   node_modules_dev:
     name: psx_node_modules_dev
+  # Compose prefixes these with the project name (e.g.
+  # psx-portfolio-manager-ayyan_pgdata_dev), so every checkout gets its own DB
+  # data and `down -v` is the only thing that wipes it.
+  pgdata_dev:
+  pgdata_prod:
