@@ -21,6 +21,9 @@ RUN npm install --omit=dev
 
 COPY index.js ./
 COPY providers/ ./providers/
+COPY db/ ./db/
+COPY middleware/ ./middleware/
+COPY routes/ ./routes/
 
 EXPOSE 4000
 
