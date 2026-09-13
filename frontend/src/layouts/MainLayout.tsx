@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
-import { ErrorBoundary } from '@/components/shared';
+import { EnvBanner, ErrorBoundary } from '@/components/shared';
 import { ROUTES } from '@/constants';
 
 const PAGE_TITLES: Record<string, string> = {
@@ -26,17 +26,24 @@ export function MainLayout() {
   const title = getTitle(pathname);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Header title={title} />
-        <main className="flex-1 overflow-auto">
-          <ErrorBoundary>
-            <div className="p-6 animate-fade-in">
-              <Outlet />
-            </div>
-          </ErrorBoundary>
-        </main>
+    // Outer column: the dev-only banner sits above everything and flexbox gives it
+    // its own height, so nothing below needs a hard-coded offset.
+    <div className="flex h-screen flex-col overflow-hidden bg-background">
+      {/* Gated at the call site so rollup drops the component AND its label string
+          from a production bundle (`import.meta.env.DEV` is statically false there). */}
+      {import.meta.env.DEV && <EnvBanner />}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <Sidebar />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <Header title={title} />
+          <main className="flex-1 overflow-auto">
+            <ErrorBoundary>
+              <div className="p-6 animate-fade-in">
+                <Outlet />
+              </div>
+            </ErrorBoundary>
+          </main>
+        </div>
       </div>
     </div>
   );
