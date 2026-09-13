@@ -33,10 +33,18 @@
 
 'use strict';
 
-const express = require('express');
-const cors    = require('cors');
-const fetch   = require('node-fetch');
-const yf      = require('./providers/yahooFinance');
+const express      = require('express');
+const cors         = require('cors');
+const fetch        = require('node-fetch');
+const cookieParser = require('cookie-parser');
+const yf           = require('./providers/yahooFinance');
+const { runMigrations }   = require('./db/migrate');
+const { ping: pingDb }    = require('./db/pool');
+const authRoutes          = require('./routes/auth');
+const portfolioRoutes     = require('./routes/portfolios');
+
+// Flips true once migrations + a connectivity check succeed (see boot() below).
+let dbReady = false;
 
 const app = express();
 
@@ -54,11 +62,13 @@ const PSX_SCRAPER_URL = (process.env.PSX_SCRAPER_URL || 'http://host.docker.inte
 
 app.use(cors({
   origin: ALLOWED_ORIGIN,
-  methods: ['GET', 'HEAD', 'POST'],  // POST needed for PSX scraper auto-add endpoint
+  credentials: true,                 // session cookie for /api/auth + /api/portfolios
+  methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],  // POST needed for PSX scraper auto-add endpoint
   allowedHeaders: ['Content-Type'],
 }));
 
 app.use(express.json());
+app.use(cookieParser());
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -78,6 +88,7 @@ app.get('/health', (_req, res) => {
       yahooFinance: 'active (no key required)',
       capitalStake: CS_API_KEY ? 'configured' : 'not configured',
     },
+    database: dbReady ? 'connected' : 'unavailable',
     timestamp: new Date().toISOString(),
   });
 });
@@ -257,6 +268,45 @@ app.get('/api/cs/*', async (req, res) => {
   }
 });
 
+// ── Auth + portfolio storage (Postgres) ───────────────────────────────────────
+
+// Mounted after the market-data routes, so quotes keep working if the database
+// is down; these two prefixes answer 503 until the DB is reachable.
+app.use(['/api/auth', '/api/portfolios'], (_req, res, next) => {
+  if (!dbReady) {
+    return res.status(503).json({
+      error: { code: 'DB_UNAVAILABLE', message: 'Database is not reachable yet' },
+    });
+  }
+  return next();
+});
+
+app.use('/api/auth', authRoutes);
+app.use('/api/portfolios', portfolioRoutes);
+
+// ── Error handler ─────────────────────────────────────────────────────────────
+
+app.use((err, _req, res, _next) => {
+  const connectionErrors = ['ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT', 'EHOSTUNREACH', '57P01', '57P03'];
+  if (connectionErrors.includes(err.code)) {
+    console.error(`[api] database unreachable: ${err.message}`);
+    dbReady = false;  // next request gets a clean 503 instead of a stack trace
+    return res.status(503).json({
+      error: { code: 'DB_UNAVAILABLE', message: 'Database is not reachable' },
+    });
+  }
+  if (err.code === '22P02' || err.code === '23503') {
+    return res.status(400).json({
+      error: { code: 'INVALID_INPUT', message: 'Invalid identifier' },
+    });
+  }
+
+  console.error(`[api] ${err.message}`);
+  return res.status(500).json({
+    error: { code: 'INTERNAL_ERROR', message: 'Something went wrong' },
+  });
+});
+
 // ── 404 fallback ──────────────────────────────────────────────────────────────
 
 app.use((_req, res) => {
@@ -265,10 +315,76 @@ app.use((_req, res) => {
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`[proxy] PSX Market Data Proxy on port ${PORT}`);
-  console.log(`[proxy] PSX Scraper proxy: ${PSX_SCRAPER_URL} (set PSX_SCRAPER_URL to override)`);
-  console.log(`[proxy] Yahoo Finance provider: active (no API key needed)`);
-  console.log(`[proxy] Capital Stake provider: ${CS_API_KEY ? 'configured' : 'not configured'}`);
-  console.log(`[proxy] CORS allowed origin: ${ALLOWED_ORIGIN}`);
-});
+/**
+ * Connect to Postgres and apply migrations.
+ *
+ * Deliberately non-fatal: a database that is down must not crash-loop the proxy
+ * (market data has no DB dependency). Retries until it succeeds, and flips
+ * `dbReady` so the auth/portfolio routes start serving.
+ */
+async function connectDatabase() {
+  try {
+    const applied = await runMigrations();
+    const info = await pingDb();
+    dbReady = true;
+    console.log(
+      `[proxy] Postgres connected: ${info.db} as ${info.usr}` +
+        (applied.length ? ` (migrations applied: ${applied.join(', ')})` : ''),
+    );
+  } catch (err) {
+    dbReady = false;
+    console.error(`[proxy] Postgres unavailable: ${err.message}`);
+    console.error('[proxy] /api/auth + /api/portfolios will answer 503 until it recovers; market data is unaffected.');
+    setTimeout(connectDatabase, 15_000).unref();
+  }
+}
+
+/**
+ * Keep `dbReady` honest in both directions.
+ *
+ * Without this, a single connection error caught in the error handler would pin
+ * the flag to false forever (that request proves the DB was down, but nothing
+ * ever proves it came back). The proxy auto-recovers; so should the flag.
+ */
+function watchDatabase() {
+  const timer = setInterval(async () => {
+    try {
+      await pingDb();
+      if (!dbReady) {
+        dbReady = true;
+        console.log('[proxy] Postgres reconnected — auth + portfolio routes are live again');
+      }
+    } catch (err) {
+      if (dbReady) {
+        dbReady = false;
+        console.error(`[proxy] Postgres lost: ${err.message}`);
+      }
+    }
+  }, 15_000);
+  timer.unref();
+  return timer;
+}
+
+async function boot() {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16) {
+    console.error(
+      '[proxy] JWT_SECRET is missing or too short (need >= 16 chars).\n' +
+        '[proxy] Set it in .env.local — see .env.example — e.g. `openssl rand -hex 32`.',
+    );
+    process.exit(1);
+  }
+
+  await connectDatabase();
+  watchDatabase();
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[proxy] PSX Market Data Proxy on port ${PORT}`);
+    console.log(`[proxy] PSX Scraper proxy: ${PSX_SCRAPER_URL} (set PSX_SCRAPER_URL to override)`);
+    console.log(`[proxy] Yahoo Finance provider: active (no API key needed)`);
+    console.log(`[proxy] Capital Stake provider: ${CS_API_KEY ? 'configured' : 'not configured'}`);
+    console.log(`[proxy] CORS allowed origin: ${ALLOWED_ORIGIN}`);
+    console.log(`[proxy] Auth + portfolio storage: ${dbReady ? 'Postgres ready' : 'waiting for Postgres'}`);
+  });
+}
+
+boot();
