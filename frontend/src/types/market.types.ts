@@ -85,7 +85,8 @@ export interface IMarketDataProvider {
   getQuotes(symbols: string[]): Promise<StockQuote[]>;
   getStockDetail(symbol: string): Promise<StockDetail>;
   getHistoricalData(symbol: string, from: string, to: string): Promise<HistoricalDataPoint[]>;
-  getKSE100(): Promise<KSE100Data>;
+  /** `null` means "no index available from this provider" — consumers must handle it. */
+  getKSE100(): Promise<KSE100Data | null>;
   getSectorPerformance(): Promise<SectorPerformance[]>;
   getMarketStatus(): Promise<MarketStatus>;
   searchCompanies(query: string): Promise<PSXCompany[]>;

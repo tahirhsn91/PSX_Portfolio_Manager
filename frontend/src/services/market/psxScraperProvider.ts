@@ -22,6 +22,12 @@
  * - Only tracked stocks return data; untracked symbols return 404
  *   → on 404 the provider auto-adds via POST /api/v1/stocks then returns a
  *     zeroed placeholder while the background sync job populates history
+ * - The index is its own resource: `GET /api/v1/indices/KSE100` (+ `/history`),
+ *   never `/api/v1/stocks/KSE100` — an index is not a listed company, so that route
+ *   can only ever answer 404. `high`/`low` are null upstream (the index series has
+ *   close/open/volume per day), so the index value is mirrored into them.
+ *   When the scraper has no index API, `getKSE100()` resolves to `null` — never a
+ *   fabricated aggregate — and stops probing for the rest of the page load.
  */
 
 import type {
@@ -99,6 +105,24 @@ interface ScraperHistoryResponse {
   totalPages: number;
 }
 
+/**
+ * `/api/v1/indices/:symbol` (PSX_Scraper#16). `high`/`low` are always null — the
+ * upstream index series carries close, open and volume per day only.
+ */
+interface ScraperIndexSummary {
+  symbol: string;
+  name: string;
+  value: number | null;
+  change: number | null;
+  changePercent: number | null;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  previousClose: number | null;
+  volume: number | null;
+  lastTradeDate: string | null;
+}
+
 interface ScraperListResponse {
   items: ScraperStock[];
   page: number;
@@ -130,6 +154,17 @@ class ScraperHttpError extends Error {
     this.name = 'ScraperHttpError';
   }
 }
+
+/**
+ * Session-scoped negative cache for the index endpoint.
+ *
+ * A scraper without `/api/v1/indices` answers 404 forever, and `useKSE100()` polls
+ * every 60s — so without this, one missing endpoint produced a 404 per minute per
+ * open tab. Module scope means it lives for one page load: a reload re-probes, so
+ * the app starts showing the real index the moment the scraper ships it, with no
+ * config to flip.
+ */
+let indexUnavailable = false;
 
 // ── Market status (derived from PKT clock) ────────────────────────────────────
 // PSX trading hours: Monday–Friday, 09:30–15:30 PKT (UTC+5)
@@ -400,82 +435,54 @@ export class PSXScraperProvider implements IMarketDataProvider {
       .filter((d): d is HistoricalDataPoint => d !== null);
   }
 
-  async getKSE100(): Promise<KSE100Data> {
-    // Attempt to fetch KSE100 as a tracked symbol
+  async getKSE100(): Promise<KSE100Data | null> {
+    // The scraper exposes indices as their own resource (PSX_Scraper#16):
+    // /api/v1/indices/KSE100 + /history, in the same envelope as stock history.
+    // Never ask for the index on the stock routes — it is not a listed company, so
+    // /api/v1/stocks/KSE100 can only ever answer 404.
+    if (indexUnavailable) return null;
+
     try {
-      const [stock, history] = await Promise.all([
-        this.get<ScraperStock>('/api/v1/stocks/KSE100'),
-        this.get<ScraperHistoryResponse>('/api/v1/stocks/KSE100/history?range=1Y&limit=252').catch(() => null),
+      const [summary, history] = await Promise.all([
+        this.get<ScraperIndexSummary>('/api/v1/indices/KSE100'),
+        this.get<ScraperHistoryResponse>('/api/v1/indices/KSE100/history?range=1Y&limit=252').catch(() => null),
       ]);
 
-      const p        = stock.price ?? ({} as ScraperPriceData);
-      const price    = p.currentPrice ?? 0;
-      const prevClose = price - (p.change ?? 0);
+      const value  = summary.value ?? 0;
+      const change = summary.change ?? 0;
 
       const historicalData = (history?.items ?? [])
-        .reverse()
+        .reverse()                         // API: newest-first → charts need oldest-first
         .map(mapToHistoricalPoint)
         .filter((d): d is HistoricalDataPoint => d !== null);
 
       return {
-        value:         price,
-        change:        p.change        ?? 0,
-        changePercent: p.changePercent ?? 0,
-        open:          p.open          ?? price,
-        high:          p.high          ?? price,
-        low:           p.low           ?? price,
-        previousClose: prevClose,
-        volume:        Math.abs(p.volume ?? 0),
-        lastUpdated:   p.lastTradeDate ?? new Date().toISOString(),
+        value,
+        change,
+        changePercent: summary.changePercent ?? 0,
+        open:          summary.open          ?? value,
+        // The index series carries no high/low (upstream provides close/open/volume
+        // per day only), so mirror the value rather than reporting a fake 0.
+        high:          summary.high          ?? value,
+        low:           summary.low           ?? value,
+        previousClose: summary.previousClose ?? value - change,
+        volume:        Math.abs(summary.volume ?? 0),
+        lastUpdated:   summary.lastTradeDate ?? new Date().toISOString(),
         historicalData,
       };
     } catch (err) {
-      if (!(err instanceof ScraperHttpError && err.status === 404)) throw err;
-      // KSE100 not tracked → synthetic aggregate from all tracked stocks
+      if (err instanceof ScraperHttpError && err.status === 404) {
+        // No index resource: a scraper predating /api/v1/indices, or KSE100 untracked.
+        // Negative-cache it for this page load and report "unavailable" — a made-up
+        // number (the old market-cap aggregate) is worse than no number.
+        indexUnavailable = true;
+        console.warn('[psx-scraper] KSE100 is not available from this scraper — index shown as unavailable');
+        return null;
+      }
+      // Anything else (scraper down, 5xx, bad payload) is a real failure and must
+      // surface as an error rather than a silent null.
+      throw err;
     }
-
-    return this.syntheticKSE100();
-  }
-
-  private async syntheticKSE100(): Promise<KSE100Data> {
-    try {
-      const list   = await this.get<ScraperListResponse>('/api/v1/stocks?limit=200');
-      const stocks = list.items ?? [];
-      if (!stocks.length) return this.emptyKSE100();
-
-      const prices      = stocks.map(s => s.price ?? ({} as ScraperPriceData));
-      const avgChange   = prices.reduce((s, p) => s + (p.change ?? 0), 0)        / prices.length;
-      const avgChangePct = prices.reduce((s, p) => s + (p.changePercent ?? 0), 0) / prices.length;
-      const totalMcap   = prices.reduce((s, p) => s + (p.marketCap ?? 0), 0);
-      const totalVolume = prices.reduce((s, p) => s + Math.abs(p.volume ?? 0), 0);
-      const latestTs    = prices.map(p => p.lastTradeDate).filter(Boolean).sort().pop()
-                          ?? new Date().toISOString();
-
-      console.warn('[psx-scraper] KSE100 not tracked — showing aggregate of all tracked stocks');
-      return {
-        value:         totalMcap,
-        change:        avgChange,
-        changePercent: avgChangePct,
-        open:          totalMcap,
-        high:          totalMcap,
-        low:           totalMcap,
-        previousClose: totalMcap - avgChange,
-        volume:        totalVolume,
-        lastUpdated:   latestTs,
-        historicalData: [],
-      };
-    } catch {
-      return this.emptyKSE100();
-    }
-  }
-
-  private emptyKSE100(): KSE100Data {
-    return {
-      value: 0, change: 0, changePercent: 0,
-      open: 0, high: 0, low: 0, previousClose: 0, volume: 0,
-      lastUpdated: new Date().toISOString(),
-      historicalData: [],
-    };
   }
 
   async getSectorPerformance(): Promise<SectorPerformance[]> {
