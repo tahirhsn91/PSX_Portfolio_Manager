@@ -9,7 +9,6 @@ import { PortfolioCard } from '@/features/portfolio/PortfolioCard';
 import { PortfolioForm } from '@/features/portfolio/PortfolioForm';
 import { usePortfolioStore } from '@/store';
 import { usePortfolioMetrics } from '@/hooks';
-import { useStockQuotes } from '@/hooks';
 import { useUIStore } from '@/store';
 import type { Portfolio } from '@/types';
 import type { PortfolioFormValues } from '@/utils';

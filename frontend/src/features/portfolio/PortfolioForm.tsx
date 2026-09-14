@@ -6,7 +6,6 @@ import { Label } from '@/components/ui/label';
 import { portfolioSchema, type PortfolioFormValues } from '@/utils';
 import { PORTFOLIO_COLORS } from '@/constants';
 import { cn } from '@/lib/utils';
-import type { Portfolio } from '@/types';
 
 interface PortfolioFormProps {
   defaultValues?: Partial<PortfolioFormValues>;

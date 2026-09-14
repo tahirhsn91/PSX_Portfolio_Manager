@@ -1,4 +1,4 @@
-import { Download, Upload, Trash2, Sun, Moon, Monitor, HardDrive } from 'lucide-react';
+import { Download, Upload, Trash2, Sun, Moon, Monitor } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -9,7 +9,6 @@ import { Progress } from '@/components/ui/progress';
 import { useUIStore, usePortfolioStore } from '@/store';
 import { storageService } from '@/services';
 import { useTheme } from '@/hooks';
-import { formatDate } from '@/utils';
 
 export function Settings() {
   const { settings, updateSettings, resetSettings } = useUIStore();
