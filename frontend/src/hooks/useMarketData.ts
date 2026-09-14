@@ -74,14 +74,16 @@ export function useHistoricalData(symbol: string | undefined, from: string, to: 
   });
 }
 
-/** Fetch KSE100 index */
+/** Fetch KSE100 index. Resolves to null when the provider has no index to offer. */
 export function useKSE100() {
   const setKSE100 = useMarketStore((s) => s.setKSE100);
   const query = useQuery({
     queryKey: MARKET_QUERY_KEYS.kse100(),
     queryFn: () => marketDataService.getKSE100(),
     staleTime: 60_000,
-    refetchInterval: 60_000,
+    // No index available (provider returned null) → stop polling for it. The provider
+    // short-circuits those calls anyway; this just stops re-running the query.
+    refetchInterval: (q) => (q.state.data ? 60_000 : false),
   });
 
   useEffect(() => {

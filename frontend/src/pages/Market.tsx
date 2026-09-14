@@ -48,14 +48,18 @@ export function Market() {
               <p className="text-sm text-muted-foreground">KSE-100 Index</p>
               {kseLoading ? (
                 <Skeleton className="h-8 w-32" />
-              ) : (
+              ) : kse100 ? (
                 <div className="flex items-baseline gap-3">
-                  <p className="text-3xl font-bold">{kse100?.value.toLocaleString()}</p>
-                  <Badge variant={kse100 && kse100.changePercent >= 0 ? 'profit' : 'loss'} className="text-sm gap-1">
-                    {kse100 && kse100.changePercent >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-                    {formatPercent(kse100?.changePercent ?? 0)}
+                  <p className="text-3xl font-bold">{kse100.value.toLocaleString()}</p>
+                  <Badge variant={kse100.changePercent >= 0 ? 'profit' : 'loss'} className="text-sm gap-1">
+                    {kse100.changePercent >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                    {formatPercent(kse100.changePercent)}
                   </Badge>
                 </div>
+              ) : (
+                // No index from the provider — say so instead of printing 0, which
+                // reads as a flat market rather than missing data.
+                <p className="text-2xl font-bold text-muted-foreground">Not available</p>
               )}
             </div>
             <div className="flex gap-6 text-sm">

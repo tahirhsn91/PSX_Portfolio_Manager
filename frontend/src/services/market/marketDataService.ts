@@ -102,7 +102,7 @@ class MarketDataService {
     return this.provider.getHistoricalData(symbol.toUpperCase(), from, to);
   }
 
-  async getKSE100(): Promise<KSE100Data> {
+  async getKSE100(): Promise<KSE100Data | null> {
     return this.provider.getKSE100();
   }
 

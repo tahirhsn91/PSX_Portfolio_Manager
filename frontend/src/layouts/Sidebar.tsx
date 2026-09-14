@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Briefcase, BarChart2,
   Settings, ChevronLeft, ChevronRight, Activity,
@@ -16,8 +16,18 @@ const NAV_ITEMS = [
   { label: 'Settings', icon: Settings, to: ROUTES.SETTINGS },
 ] as const;
 
+/**
+ * Mirrors React Router's `NavLink` default matching (i.e. no `end` prop): an
+ * item is active on its own path and on anything nested beneath it, so
+ * Portfolios/Market stay highlighted while a detail page is open.
+ */
+function isNavItemActive(pathname: string, to: string): boolean {
+  return pathname === to || pathname.startsWith(`${to}/`);
+}
+
 export function Sidebar() {
   const { isSidebarCollapsed, toggleSidebar } = useUIStore();
+  const { pathname } = useLocation();
 
   return (
     <aside
@@ -42,30 +52,36 @@ export function Sidebar() {
       {/* Navigation */}
       <TooltipProvider delayDuration={0}>
         <nav className="flex-1 p-2 space-y-1">
-          {NAV_ITEMS.map(({ label, icon: Icon, to }) => (
-            <Tooltip key={to} disableHoverableContent={!isSidebarCollapsed}>
-              <TooltipTrigger asChild>
-                <NavLink
-                  to={to}
-                  className={({ isActive }) =>
-                    cn(
+          {NAV_ITEMS.map(({ label, icon: Icon, to }) => {
+            const isActive = isNavItemActive(pathname, to);
+
+            return (
+              <Tooltip key={to} disableHoverableContent={!isSidebarCollapsed}>
+                <TooltipTrigger asChild>
+                  {/* className must stay a plain string: `asChild` renders through
+                      Radix `Slot`, which merges props by string-joining
+                      `className` — the function form gets String()-ified into
+                      the class attribute and every utility is dropped. */}
+                  <NavLink
+                    to={to}
+                    className={cn(
                       'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                       isActive
                         ? 'bg-primary text-primary-foreground'
                         : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
                       isSidebarCollapsed && 'justify-center px-2'
-                    )
-                  }
-                >
-                  <Icon className="h-5 w-5 shrink-0" />
-                  {!isSidebarCollapsed && <span>{label}</span>}
-                </NavLink>
-              </TooltipTrigger>
-              {isSidebarCollapsed && (
-                <TooltipContent side="right">{label}</TooltipContent>
-              )}
-            </Tooltip>
-          ))}
+                    )}
+                  >
+                    <Icon className="h-5 w-5 shrink-0" />
+                    {!isSidebarCollapsed && <span>{label}</span>}
+                  </NavLink>
+                </TooltipTrigger>
+                {isSidebarCollapsed && (
+                  <TooltipContent side="right">{label}</TooltipContent>
+                )}
+              </Tooltip>
+            );
+          })}
         </nav>
       </TooltipProvider>
 
