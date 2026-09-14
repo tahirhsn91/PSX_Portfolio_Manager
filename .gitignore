@@ -13,6 +13,8 @@ dist
 dist-ssr
 frontend/dist
 frontend/dist-ssr
+# `tsc -b` (used by `npm run build` and for a standalone typecheck) writes these.
+*.tsbuildinfo
 
 # ── Vite cache ────────────────────────────────────────────────────────────────
 .vite
