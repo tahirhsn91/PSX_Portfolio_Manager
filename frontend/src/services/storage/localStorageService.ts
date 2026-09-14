@@ -20,15 +20,6 @@ export class LocalStorageService {
     }
   }
 
-  private setItem<T>(key: string, value: T): void {
-    try {
-      window.localStorage.setItem(key, JSON.stringify(value));
-    } catch (err) {
-      console.error(`[Storage] Failed to write key "${key}"`, err);
-      throw new Error('Storage write failed. You may be in private browsing mode or storage is full.');
-    }
-  }
-
   private removeItem(key: string): void {
     window.localStorage.removeItem(key);
   }

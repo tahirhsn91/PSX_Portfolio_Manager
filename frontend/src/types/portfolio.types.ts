@@ -45,6 +45,8 @@ export interface HoldingMetrics {
   unrealizedPLPercent: number;
   todayChange: number;
   todayChangePercent: number;
+  /** Change in value today: quote.change × shares (0 when no quote is available). */
+  todayPL: number;
   totalDividendIncome: number;
   totalReturn: number;
   totalReturnPercent: number;

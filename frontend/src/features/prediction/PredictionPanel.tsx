@@ -1,10 +1,10 @@
-import { Brain, TrendingUp, TrendingDown, Minus, Target, AlertTriangle, Calendar, DollarSign } from 'lucide-react';
+import { Brain, TrendingUp, TrendingDown, Minus, Target, AlertTriangle, DollarSign } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
-import { formatCurrency, formatPercent, formatDate } from '@/utils';
+import { formatCurrency, formatDate } from '@/utils';
 import type { StockPrediction } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -19,8 +19,6 @@ const TREND_CONFIG = {
   neutral: { label: 'Neutral', color: 'text-muted-foreground', icon: Minus, badgeClass: '' },
   sideways: { label: 'Sideways', color: 'text-amber-500', icon: Minus, badgeClass: 'bg-amber-50 text-amber-700' },
 };
-
-const MOMENTUM_COLORS = { strong: 'bg-profit', moderate: 'bg-amber-500', weak: 'bg-muted' };
 
 export function PredictionPanel({ prediction, isLoading }: PredictionPanelProps) {
   if (isLoading) {

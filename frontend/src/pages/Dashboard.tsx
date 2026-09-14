@@ -6,9 +6,7 @@ import { AllocationPieChart, SectorBarChart, KSE100ComparisonChart } from '@/fea
 import { useAllPortfoliosMetrics } from '@/hooks';
 import { useKSE100, useSectorPerformance } from '@/hooks';
 import { usePortfolioStore } from '@/store';
-import { formatCurrency } from '@/utils';
 import { ROUTES } from '@/constants';
-import { buildSectorAllocation } from '@/utils';
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -41,7 +39,7 @@ export function Dashboard() {
     return acc;
   }, {} as Record<string, number>);
 
-  const pieData = Object.entries(sectorAlloc).map(([sector, count], i) => ({
+  const pieData = Object.entries(sectorAlloc).map(([sector, count]) => ({
     name: sector.split(' ')[0], // abbreviate
     value: count,
     percent: (count / allHoldings.length) * 100,
