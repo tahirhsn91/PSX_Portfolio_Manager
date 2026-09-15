@@ -3,15 +3,26 @@ import { formatCurrency } from '@/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface RangeBarProps {
-  /** Bottom of the range (e.g. 52-week low). */
+  /** Bottom of the range (e.g. 52-week low, or the session's low). */
   low: number;
-  /** Top of the range (e.g. 52-week high). */
+  /** Top of the range. */
   high: number;
   /** Where the marker sits — usually the current price. */
   current: number;
   label?: string;
   lowCaption?: string;
   highCaption?: string;
+  /**
+   * `exchange` = the feed's own day high/low. `observed` = derived from the
+   * prices recorded so far, so it's labelled as such rather than passed off as
+   * the official figure.
+   */
+  source?: 'exchange' | 'observed';
+  /** Extra pill in the header, e.g. the date of the session a stale range belongs to. */
+  badge?: string;
+  badgeTitle?: string;
+  /** Copy for the empty state; falls back to a generic line. */
+  unavailableMessage?: string;
   isLoading?: boolean;
   className?: string;
 }
@@ -28,9 +39,9 @@ export function rangePosition(low: number, high: number, current: number): numbe
 /**
  * Horizontal low→high range strip with a marker at `current`.
  *
- * Replaces the pair of "52W High" / "52W Low" number boxes with one glanceable
- * bar: the low sits at the left end, the high at the right, and the dot shows
- * where the price currently is between them.
+ * Replaces pairs of "High"/"Low" number boxes with one glanceable bar: the low
+ * sits at the left end, the high at the right, and the dot shows where the
+ * price currently is between them.
  */
 export function RangeBar({
   low,
@@ -39,6 +50,10 @@ export function RangeBar({
   label = '52-Week Range',
   lowCaption = '52W Low',
   highCaption = '52W High',
+  source,
+  badge,
+  badgeTitle,
+  unavailableMessage,
   isLoading,
   className,
 }: RangeBarProps) {
@@ -66,7 +81,25 @@ export function RangeBar({
   return (
     <div className={cn('rounded-lg border bg-card p-6 text-card-foreground shadow-sm', className)}>
       <div className="flex items-baseline justify-between gap-4">
-        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <p className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          {label}
+          {source === 'observed' && (
+            <span
+              className="rounded-full border bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide"
+              title="Derived from the prices recorded so far this session — the feed has no exact day high/low yet."
+            >
+              recorded
+            </span>
+          )}
+          {badge && (
+            <span
+              className="rounded-full border bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide"
+              title={badgeTitle}
+            >
+              {badge}
+            </span>
+          )}
+        </p>
         {hasRange && hasCurrent && (
           <p className="text-sm font-medium" title="Current price">
             Now <span className="font-semibold">{formatCurrency(current)}</span>
@@ -107,12 +140,14 @@ export function RangeBar({
 
           {outOfRange && (
             <p className="mt-2 text-xs text-muted-foreground">
-              Today's price is {current > high ? 'above' : 'below'} the 52-week range.
+              Today's price is {current > high ? 'above' : 'below'} the range.
             </p>
           )}
         </>
       ) : (
-        <p className="mt-4 text-sm text-muted-foreground">52-week range unavailable for this symbol.</p>
+        <p className="mt-4 text-sm text-muted-foreground">
+          {unavailableMessage ?? 'Range unavailable for this symbol.'}
+        </p>
       )}
     </div>
   );
