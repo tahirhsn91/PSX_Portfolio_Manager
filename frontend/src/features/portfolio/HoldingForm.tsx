@@ -1,9 +1,13 @@
+import { useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { format } from 'date-fns';
+import { format, isValid, parseISO } from 'date-fns';
+import { CalendarIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CompanySearch } from '@/components/shared';
 import { holdingSchema, type HoldingFormValues } from '@/utils';
@@ -18,9 +22,12 @@ interface HoldingFormProps {
 }
 
 export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing }: HoldingFormProps) {
+  // Calendar popover visibility for the purchase-date field.
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const { register, handleSubmit, control, setValue, formState: { errors, isSubmitting } } = useForm<HoldingFormValues>({
     resolver: zodResolver(holdingSchema),
     defaultValues: {
+      // Today by default, so the field is never empty on a new holding.
       purchaseDate: format(new Date(), 'yyyy-MM-dd'),
       ...defaultValues,
     },
@@ -103,7 +110,59 @@ export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing }: Ho
 
       <div className="space-y-2">
         <Label htmlFor="purchaseDate">Purchase Date *</Label>
-        <Input id="purchaseDate" type="date" {...register('purchaseDate')} />
+        {/* Text field + calendar button on the right. The typed value stays an
+            ISO date string (what the schema and the store expect); the field
+            just *shows* it in a readable format. */}
+        <Controller
+          name="purchaseDate"
+          control={control}
+          render={({ field }) => {
+            const parsed = field.value ? parseISO(field.value) : new Date();
+            const current = isValid(parsed) ? parsed : new Date();
+
+            return (
+              <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                <div className="relative">
+                  <Input
+                    id="purchaseDate"
+                    readOnly
+                    value={format(current, 'dd MMM yyyy')}
+                    onClick={() => setDatePickerOpen(true)}
+                    aria-haspopup="dialog"
+                    aria-expanded={datePickerOpen}
+                    className="cursor-pointer pr-10"
+                  />
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Choose purchase date"
+                      className="absolute right-0.5 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <CalendarIcon className="h-4 w-4" />
+                    </Button>
+                  </PopoverTrigger>
+                </div>
+                <PopoverContent align="end" className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    autoFocus
+                    selected={current}
+                    defaultMonth={current}
+                    // A holding can't have been bought in the future.
+                    disabled={{ after: new Date() }}
+                    onSelect={(date) => {
+                      if (!date) return;
+                      field.onChange(format(date, 'yyyy-MM-dd'));
+                      setDatePickerOpen(false);
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+            );
+          }}
+        />
         {errors.purchaseDate && <p className="text-xs text-destructive">{errors.purchaseDate.message}</p>}
       </div>
 
