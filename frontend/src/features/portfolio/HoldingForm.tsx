@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CompanySearch } from '@/components/shared';
-import { holdingSchema, type HoldingFormValues } from '@/utils';
+import { holdingSchema, normalizeSector, sectorForSymbol, isCanonicalSector, displaySector, type HoldingFormValues } from '@/utils';
 import { PSX_SECTORS } from '@/constants';
 import type { PSXCompany } from '@/types';
 
@@ -29,7 +29,12 @@ export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing }: Ho
   const handleCompanySelect = (company: PSXCompany) => {
     setValue('companyName', company.name);
     setValue('symbol', company.symbol);
-    setValue('sector', company.sector);
+    // Scraped sectors arrive in PSX's own casing ('FERTILIZER'), which the
+    // Title Case picker cannot match — Radix Select compares values exactly.
+    // Map it to the canonical list; when the provider has no sector at all
+    // (older scraper builds, untracked symbols), fall back to the curated list
+    // by symbol. Only if both miss does the user pick one manually.
+    setValue('sector', normalizeSector(company.sector) ?? sectorForSymbol(company.symbol) ?? '');
   };
 
   return (
@@ -66,6 +71,13 @@ export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing }: Ho
                 <SelectValue placeholder="Select sector" />
               </SelectTrigger>
               <SelectContent>
+                {/* A sector the curated list doesn't know yet (newly listed, or a
+                    spelling we can't map) still has to be selectable; without
+                    this the field shows its placeholder even though a value is
+                    set, which is exactly the bug this fixes. */}
+                {field.value && !isCanonicalSector(field.value) && (
+                  <SelectItem value={field.value}>{displaySector(field.value)}</SelectItem>
+                )}
                 {PSX_SECTORS.map((s) => (
                   <SelectItem key={s} value={s}>{s}</SelectItem>
                 ))}
