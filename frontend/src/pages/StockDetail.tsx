@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
-import { MetricCard } from '@/components/shared';
+import { MetricCard, RangeBar } from '@/components/shared';
 import { StockPriceChart } from '@/features/charts';
 import { PredictionPanel } from '@/features/prediction/PredictionPanel';
 import { useStockDetail, useHistoricalData, useStockPrediction } from '@/hooks';
@@ -75,8 +75,13 @@ export function StockDetail() {
 
       {/* Quick stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard title="52W High" value={detail?.week52High ?? 0} isCurrency isLoading={detailLoading} />
-        <MetricCard title="52W Low" value={detail?.week52Low ?? 0} isCurrency isLoading={detailLoading} />
+        <RangeBar
+          className="col-span-2"
+          low={detail?.week52Low ?? 0}
+          high={detail?.week52High ?? 0}
+          current={detail?.currentPrice ?? 0}
+          isLoading={detailLoading}
+        />
         <MetricCard title="Div. Yield" value={detail?.dividendYield ?? 0} isPercent isLoading={detailLoading} />
         <MetricCard title="Volume" value={detail ? formatVolume(detail.volume) : '—'} isLoading={detailLoading} />
       </div>
