@@ -84,7 +84,7 @@ export function PortfolioDetail() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard title="Invested" value={metrics?.totalInvestment ?? 0} isCurrency compact icon={<DollarSign className="h-4 w-4" />} isLoading={isLoading} />
         <MetricCard title="Current Value" value={metrics?.currentValue ?? 0} isCurrency compact change={metrics?.totalPL} changePercent={metrics?.totalPLPercent} icon={<TrendingUp className="h-4 w-4" />} isLoading={isLoading} />
-        <MetricCard title="Today's P&L" value={metrics?.todayPL ?? 0} isCurrency compact changePercent={metrics?.todayPLPercent} icon={<Activity className="h-4 w-4" />} isLoading={isLoading} />
+        <MetricCard title="Today's P&L" value={metrics?.todayPL ?? 0} isCurrency compact changePercent={metrics?.todayPLPercent} icon={<Activity className="h-4 w-4" />} isLoading={isLoading} toneBySign />
         <MetricCard title="Dividends" value={metrics?.totalDividendIncome ?? 0} isCurrency compact subtitle="Total received" icon={<DollarSign className="h-4 w-4" />} isLoading={isLoading} />
       </div>
 

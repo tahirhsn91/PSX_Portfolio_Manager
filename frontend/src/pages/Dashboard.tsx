@@ -90,6 +90,7 @@ export function Dashboard() {
           changePercent={aggregate.todayPLPercent}
           icon={<Activity className="h-4 w-4" />}
           isLoading={isLoading}
+          toneBySign
         />
         <MetricCard
           title="Total Dividends"
