@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format, isValid, parseISO } from 'date-fns';
@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CompanySearch } from '@/components/shared';
 import { holdingSchema, normalizeSector, sectorForSymbol, isCanonicalSector, displaySector, type HoldingFormValues } from '@/utils';
 import { PSX_SECTORS } from '@/constants';
+import { useCompanySearch } from '@/hooks';
 import type { PSXCompany } from '@/types';
 
 interface HoldingFormProps {
@@ -24,7 +25,7 @@ interface HoldingFormProps {
 export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing }: HoldingFormProps) {
   // Calendar popover visibility for the purchase-date field.
   const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const { register, handleSubmit, control, setValue, formState: { errors, isSubmitting } } = useForm<HoldingFormValues>({
+  const { register, handleSubmit, control, setValue, watch, formState: { errors, isSubmitting } } = useForm<HoldingFormValues>({
     resolver: zodResolver(holdingSchema),
     defaultValues: {
       // Today by default, so the field is never empty on a new holding.
@@ -44,6 +45,20 @@ export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing }: Ho
     setValue('sector', normalizeSector(company.sector) ?? sectorForSymbol(company.symbol) ?? '');
   };
 
+  // Typing a ticker fills the company and sector too, so the manual path — and the
+  // edit dialog, which has no search box — behaves like picking from search.
+  const symbolValue = watch('symbol') ?? '';
+  const { data: symbolMatches = [] } = useCompanySearch(symbolValue);
+  const tickerMatch = symbolMatches.find(
+    (c) => c.symbol.toUpperCase() === symbolValue.trim().toUpperCase(),
+  );
+
+  useEffect(() => {
+    if (!tickerMatch) return;
+    setValue('companyName', tickerMatch.name);
+    setValue('sector', normalizeSector(tickerMatch.sector) ?? sectorForSymbol(tickerMatch.symbol) ?? '');
+  }, [tickerMatch?.symbol, tickerMatch?.name, tickerMatch?.sector, setValue]);
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       {/* Company Search (only show when adding) */}
@@ -59,6 +74,11 @@ export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing }: Ho
           <Label htmlFor="symbol">Ticker Symbol *</Label>
           <Input id="symbol" placeholder="ENGRO" {...register('symbol')} className="uppercase" />
           {errors.symbol && <p className="text-xs text-destructive">{errors.symbol.message}</p>}
+          {!errors.symbol && tickerMatch && (
+            <p className="text-xs text-muted-foreground">
+              {tickerMatch.name} · {displaySector(tickerMatch.sector)}
+            </p>
+          )}
         </div>
         <div className="space-y-2">
           <Label htmlFor="companyName">Company Name *</Label>
