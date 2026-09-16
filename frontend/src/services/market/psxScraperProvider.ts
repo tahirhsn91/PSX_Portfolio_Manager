@@ -40,6 +40,7 @@ import type {
   MarketStatus,
   PSXCompany,
 } from '@/types';
+import { PSX_COMPANIES } from '@/constants';
 
 // ── Raw API shapes ─────────────────────────────────────────────────────────────
 
@@ -262,7 +263,63 @@ function placeholderQuote(symbol: string): StockQuote {
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 
+/** How long the tracked-symbol list is reused before it's refetched. */
+const TRACKED_CACHE_MS = 5 * 60_000;
+
+/**
+ * Scraper company names are the ticker prefixed onto the name
+ * ("FFC Fauji Fertilizer Company Limited"). Drop that redundant prefix so the
+ * autocomplete — and the form fields it fills — read like a company name.
+ */
+export function stripSymbolPrefix(name: string, symbol: string): string {
+  const trimmed = (name ?? '').trim();
+  const sym     = (symbol ?? '').trim();
+  if (!trimmed || !sym || !trimmed.toLowerCase().startsWith(sym.toLowerCase())) return trimmed;
+  const rest = trimmed.slice(sym.length).replace(/^[\s\-–—:]+/, '').trim();
+  return rest || trimmed;
+}
+
+/**
+ * Rank autocomplete candidates: exact symbol, symbol prefix, name prefix, then
+ * substring, deduped by symbol (the best match for a symbol wins).
+ */
+export function rankCompanies(
+  candidates: PSXCompany[],
+  query: string,
+  limit = 20,
+): PSXCompany[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+
+  const best = new Map<string, { company: PSXCompany; score: number }>();
+  for (const candidate of candidates) {
+    const symbol = (candidate.symbol ?? '').trim();
+    if (!symbol) continue;
+    const sym  = symbol.toLowerCase();
+    const name = (candidate.name ?? '').toLowerCase();
+
+    let score: number;
+    if (sym === q) score = 0;
+    else if (sym.startsWith(q)) score = 1;
+    else if (name.startsWith(q)) score = 2;
+    else if (sym.includes(q)) score = 3;
+    else if (name.includes(q)) score = 4;
+    else continue;
+
+    const seen = best.get(sym);
+    if (!seen || score < seen.score) best.set(sym, { company: candidate, score });
+  }
+
+  return [...best.values()]
+    .sort((a, b) => a.score - b.score || a.company.symbol.localeCompare(b.company.symbol))
+    .slice(0, limit)
+    .map(entry => entry.company);
+}
+
 export class PSXScraperProvider implements IMarketDataProvider {
+  /** Tracked-symbol list reuse, so typing in a search box doesn't refetch it. */
+  private trackedCache: { at: number; rows: PSXCompany[] } | null = null;
+
   /**
    * @param proxyBase  Base URL of the backend proxy (e.g. http://localhost:4000).
    *                   All requests go to proxyBase/api/psx/api/v1/..., which the
@@ -527,24 +584,70 @@ export class PSXScraperProvider implements IMarketDataProvider {
     return result.sort((a, b) => b.changePercent - a.changePercent);
   }
 
+  /**
+   * Symbol/name search for the autocomplete fields.
+   *
+   * The scraper's `/api/v1/search` is the intended source, but it answers 500 for
+   * every query (its raw SQL carries an unresolved `<<<<<<<` merge marker) and
+   * this used to swallow that failure into an empty list — which is why typing a
+   * ticker offered nothing at all. A query now merges three sources and depends
+   * on none of them alone:
+   *
+   *   1. the scraper's search endpoint (first choice, while it works)
+   *   2. the tracked-stock list behind /api/v1/stocks (live data, 24 symbols)
+   *   3. the app's curated PSX_COMPANIES catalogue (59 names, incl. untracked)
+   */
   async searchCompanies(query: string): Promise<PSXCompany[]> {
-    if (!query.trim()) return [];
+    const trimmed = query.trim();
+    if (!trimmed) return [];
 
-    let data: ScraperSearchResponse;
+    const [scraped, tracked] = await Promise.all([
+      this.searchViaScraper(trimmed),
+      this.trackedCompanies(),
+    ]);
+
+    return rankCompanies([...scraped, ...tracked, ...PSX_COMPANIES], trimmed);
+  }
+
+  /** The scraper's own search — best effort, `[]` whenever it's unavailable. */
+  private async searchViaScraper(query: string): Promise<PSXCompany[]> {
     try {
-      data = await this.get<ScraperSearchResponse>(
+      const data = await this.get<ScraperSearchResponse>(
         `/api/v1/search?q=${encodeURIComponent(query)}&limit=20`,
       );
+      return (data.results ?? []).map(r => ({
+        symbol:       r.symbol      ?? '',
+        name:         r.companyName ?? r.symbol ?? '',
+        sector:       r.sector      ?? 'Unknown',
+        marketCap:    0,  // not in search results
+        listedShares: 0,  // not in search results
+      }));
     } catch {
       return [];
     }
+  }
 
-    return (data.results ?? []).map(r => ({
-      symbol:       r.symbol      ?? '',
-      name:         r.companyName ?? r.symbol ?? '',
-      sector:       r.sector      ?? 'Unknown',
-      marketCap:    0,  // not in search results
-      listedShares: 0,  // not in search results
-    }));
+  /** Tracked symbols as companies, reused briefly so typing stays cheap. */
+  private async trackedCompanies(): Promise<PSXCompany[]> {
+    const now = Date.now();
+    if (this.trackedCache && now - this.trackedCache.at < TRACKED_CACHE_MS) {
+      return this.trackedCache.rows;
+    }
+
+    try {
+      const list = await this.get<ScraperListResponse>('/api/v1/stocks?limit=200');
+      const rows = (list.items ?? []).map(s => ({
+        symbol:       s.symbol,
+        name:         stripSymbolPrefix(s.companyName ?? '', s.symbol),
+        sector:       s.sector ?? 'Unknown',
+        marketCap:    s.price?.marketCap ?? 0,
+        listedShares: 0,
+      }));
+      this.trackedCache = { at: now, rows };
+      return rows;
+    } catch {
+      // Serve the last good list rather than emptying the dropdown.
+      return this.trackedCache?.rows ?? [];
+    }
   }
 }
