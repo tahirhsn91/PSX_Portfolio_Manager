@@ -92,11 +92,10 @@ export function StockDetail() {
         )}
       </div>
 
-      {/* Quick stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Quick stats — four equal tiles: the two range bars, then the two KPIs */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Today's range — tied to the active session, cleared at the 09:00 PKT pre-open */}
         <RangeBar
-          className="col-span-2 lg:col-span-4"
           label="Day Range"
           lowCaption="Day Low"
           highCaption="Day High"
@@ -114,7 +113,6 @@ export function StockDetail() {
           isLoading={detailLoading || dayLoading}
         />
         <RangeBar
-          className="col-span-2"
           low={detail?.week52Low ?? 0}
           high={detail?.week52High ?? 0}
           current={detail?.currentPrice ?? 0}
