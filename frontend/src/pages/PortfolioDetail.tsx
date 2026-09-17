@@ -11,7 +11,7 @@ import { HoldingsTable } from '@/features/portfolio/HoldingsTable';
 import { HoldingForm } from '@/features/portfolio/HoldingForm';
 import { AllocationPieChart, PortfolioValueChart, KSE100ComparisonChart } from '@/features/charts';
 import { usePortfolioStore, useUIStore } from '@/store';
-import { usePortfolioMetrics, useKSE100 } from '@/hooks';
+import { usePortfolioMetrics, useKSE100, usePortfolioHistory } from '@/hooks';
 import { buildSectorAllocation } from '@/utils';
 import { ROUTES } from '@/constants';
 import type { Holding } from '@/types';
@@ -25,6 +25,8 @@ export function PortfolioDetail() {
   const addNotification = useUIStore((s) => s.addNotification);
   const { metrics, isLoading } = usePortfolioMetrics(id);
   const { data: kse100 } = useKSE100();
+  // The portfolio's own value history — the line the comparison plots against the index.
+  const { series: portfolioSeries } = usePortfolioHistory(portfolio?.holdings);
   const [addOpen, setAddOpen] = useState(false);
   const [editingHolding, setEditingHolding] = useState<Holding | null>(null);
 
@@ -58,9 +60,6 @@ export function PortfolioDetail() {
   };
 
   const sectorAlloc = buildSectorAllocation(portfolio, metrics?.holdingMetrics ?? []);
-  const kse100Return = kse100
-    ? ((kse100.value - (kse100.historicalData[0]?.close ?? kse100.value)) / (kse100.historicalData[0]?.close ?? 1)) * 100
-    : 0;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -157,10 +156,9 @@ export function PortfolioDetail() {
               the chart itself owns the "index feed is down" state. */}
           <KSE100ComparisonChart
             title={`${portfolio.name} vs KSE-100`}
-            portfolioData={kse100?.historicalData ?? []}
+            portfolioLabel={portfolio.name}
+            portfolioData={portfolioSeries}
             kse100Data={kse100?.historicalData ?? []}
-            portfolioReturnPercent={metrics?.totalReturnPercent ?? 0}
-            kse100ReturnPercent={kse100Return}
           />
         </TabsContent>
       </Tabs>

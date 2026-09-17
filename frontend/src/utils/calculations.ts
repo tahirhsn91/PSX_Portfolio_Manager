@@ -4,7 +4,7 @@
  */
 
 import type { Holding, HoldingMetrics, PortfolioMetrics, Portfolio } from '@/types';
-import type { StockQuote } from '@/types';
+import type { StockQuote, HistoricalDataPoint } from '@/types';
 
 /**
  * Calculate metrics for a single holding given the current market quote
@@ -161,4 +161,59 @@ export function buildSectorAllocation(
       percent: totalValue !== 0 ? (value / totalValue) * 100 : 0,
       color: colors[i % colors.length],
     }));
+}
+
+/**
+ * Value of a portfolio per day, priced from each holding's own price history.
+ *
+ * This is what makes a real "portfolio vs KSE-100" line possible — the chart used
+ * to plot the index against itself, so the two lines sat on top of each other.
+ *
+ * - `shares × that day's close`, summed across the holdings **owned on that day**
+ *   (a purchase date after the date excludes the holding — you can't have owned
+ *   it yet).
+ * - A symbol with no print on a given day carries its last known close forward,
+ *   because the scraper's history is patchy (some symbols only have a month of
+ *   rows), and strict same-day matching would drop most of the window.
+ * - Days where nothing could be priced are omitted rather than reported as zero.
+ */
+export function buildPortfolioValueSeries(
+  holdings: Pick<Holding, 'symbol' | 'shares' | 'purchaseDate'>[],
+  histories: Record<string, HistoricalDataPoint[]>,
+): HistoricalDataPoint[] {
+  const closesBySymbol = new Map<string, Map<string, number>>();
+  const dates = new Set<string>();
+  for (const [symbol, points] of Object.entries(histories)) {
+    const byDate = new Map<string, number>();
+    for (const point of points) {
+      if (!point?.date || !Number.isFinite(point.close) || point.close <= 0) continue;
+      byDate.set(point.date, point.close);
+      dates.add(point.date);
+    }
+    closesBySymbol.set(symbol.toUpperCase(), byDate);
+  }
+
+  const lastClose = new Map<string, number>();
+  const series: HistoricalDataPoint[] = [];
+
+  for (const date of [...dates].sort()) {
+    for (const [symbol, byDate] of closesBySymbol) {
+      const close = byDate.get(date);
+      if (close !== undefined) lastClose.set(symbol, close);
+    }
+
+    let value = 0;
+    for (const holding of holdings) {
+      if (holding.purchaseDate && holding.purchaseDate > date) continue;
+      const close = lastClose.get(holding.symbol.toUpperCase());
+      if (close === undefined) continue;
+      value += holding.shares * close;
+    }
+
+    if (value > 0) {
+      series.push({ date, open: value, high: value, low: value, close: value, volume: 0 });
+    }
+  }
+
+  return series;
 }

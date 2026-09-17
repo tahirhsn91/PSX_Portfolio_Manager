@@ -6,15 +6,18 @@ import { formatPercent } from '@/utils';
 import type { HistoricalDataPoint } from '@/types';
 
 interface KSE100ComparisonChartProps {
+  /** The portfolio's own value over time — build it with `buildPortfolioValueSeries`. */
   portfolioData: HistoricalDataPoint[];
   kse100Data: HistoricalDataPoint[];
-  portfolioReturnPercent: number;
-  kse100ReturnPercent: number;
   /**
    * Card heading. Pass the portfolio's name ("Demo vs KSE-100") where the chart
    * belongs to one portfolio; the default suits the all-portfolios dashboard.
    */
   title?: string;
+  /** Name drawn on the portfolio line; defaults to "Portfolio". */
+  portfolioLabel?: string;
+  /** How many sessions to plot. */
+  maxPoints?: number;
 }
 
 const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) => {
@@ -24,39 +27,106 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
       <p className="font-medium">{label}</p>
       {payload.map((p) => (
         <p key={p.name} style={{ color: p.color }}>
-          {p.name}: {p.value >= 0 ? '+' : ''}{p.value.toFixed(2)}%
+          {p.name}: {typeof p.value === 'number' ? `${p.value >= 0 ? '+' : ''}${p.value.toFixed(2)}%` : '—'}
         </p>
       ))}
     </div>
   );
 };
 
-export function KSE100ComparisonChart({
-  portfolioData, kse100Data, portfolioReturnPercent, kse100ReturnPercent,
-  title = 'vs KSE-100',
-}: KSE100ComparisonChartProps) {
-  // Normalize both to % return from start
-  const portfolioBase = portfolioData[0]?.close ?? 1;
-  const kse100Base = kse100Data[0]?.close ?? 1;
-  const days = Math.min(portfolioData.length, kse100Data.length, 90);
+export interface ComparisonPoint {
+  date: string;
+  portfolio: number | null;
+  kse100: number | null;
+}
 
-  const chartData = Array.from({ length: days }, (_, i) => {
-    const pi = portfolioData.length - days + i;
-    const ki = kse100Data.length - days + i;
-    const pd = portfolioData[pi];
-    const kd = kse100Data[ki];
+/**
+ * Line the portfolio and the index up **by date**, each normalised to % return
+ * from the first shared session.
+ *
+ * The previous version paired the two arrays positionally (the last 90 points of
+ * each), which draws a confident-looking line even when the two series cover
+ * different days — and it was handed the same index data for both series, so the
+ * two lines sat exactly on top of each other and looked like one.
+ *
+ * Each series carries its last known value forward across gaps (the scraper's
+ * history is patchy). Days a series can't cover at all stay `null`, so its line
+ * simply begins later instead of pretending to start at zero.
+ */
+export function alignReturnsByDate(
+  portfolioData: HistoricalDataPoint[],
+  kse100Data: HistoricalDataPoint[],
+  maxPoints = 90,
+): { points: ComparisonPoint[]; portfolioReturnPercent: number; kse100ReturnPercent: number } {
+  const sortedPortfolio = [...portfolioData].sort((a, b) => a.date.localeCompare(b.date));
+  const sortedIndex = [...kse100Data].sort((a, b) => a.date.localeCompare(b.date));
+
+  // Start where the portfolio does: before it was bought there is no portfolio.
+  const startDate = sortedPortfolio[0]?.date ?? sortedIndex[0]?.date ?? '';
+  const dates = [...new Set([...sortedPortfolio, ...sortedIndex].map((p) => p.date))]
+    .filter((date) => date >= startDate)
+    .sort()
+    .slice(-maxPoints);
+
+  if (dates.length === 0) {
+    return { points: [], portfolioReturnPercent: 0, kse100ReturnPercent: 0 };
+  }
+
+  /** Walk a series in date order, yielding its last known close at or before `date`. */
+  const cursor = (sorted: HistoricalDataPoint[]) => {
+    let i = 0;
+    let last: number | null = null;
+    return (date: string): number | null => {
+      while (i < sorted.length && sorted[i].date <= date) {
+        const close = sorted[i].close;
+        if (Number.isFinite(close) && close > 0) last = close;
+        i += 1;
+      }
+      return last;
+    };
+  };
+
+  const portfolioAt = cursor(sortedPortfolio);
+  const indexAt = cursor(sortedIndex);
+  const portfolioBase = portfolioAt(dates[0]);
+  const indexBase = indexAt(dates[0]);
+
+  const points: ComparisonPoint[] = dates.map((date, position) => {
+    const portfolioValue = position === 0 ? portfolioBase : portfolioAt(date);
+    const indexValue = position === 0 ? indexBase : indexAt(date);
     return {
-      date: pd ? format(new Date(pd.date), 'MMM dd') : '',
-      portfolio: pd ? +((pd.close / portfolioBase - 1) * 100).toFixed(2) : 0,
-      kse100: kd ? +((kd.close / kse100Base - 1) * 100).toFixed(2) : 0,
+      date: format(new Date(`${date}T00:00:00`), 'MMM dd'),
+      portfolio: portfolioValue !== null && portfolioBase
+        ? +((portfolioValue / portfolioBase - 1) * 100).toFixed(2)
+        : null,
+      kse100: indexValue !== null && indexBase
+        ? +((indexValue / indexBase - 1) * 100).toFixed(2)
+        : null,
     };
   });
 
-  const outperformance = portfolioReturnPercent - kse100ReturnPercent;
+  const last = points[points.length - 1];
+  return {
+    points,
+    portfolioReturnPercent: last?.portfolio ?? 0,
+    kse100ReturnPercent: last?.kse100 ?? 0,
+  };
+}
 
-  // The card always renders — the section has to be able to name the portfolio
-  // even when the index feed is down, and the heading is the point of the section.
-  const hasData = portfolioData.length > 0 && kse100Data.length > 0;
+export function KSE100ComparisonChart({
+  portfolioData, kse100Data,
+  title = 'vs KSE-100',
+  portfolioLabel = 'Portfolio',
+  maxPoints = 90,
+}: KSE100ComparisonChartProps) {
+  const { points, portfolioReturnPercent, kse100ReturnPercent } = alignReturnsByDate(
+    portfolioData, kse100Data, maxPoints,
+  );
+
+  const hasPortfolioLine = points.some((p) => p.portfolio !== null);
+  const hasIndexLine = points.some((p) => p.kse100 !== null);
+  const hasData = hasPortfolioLine && hasIndexLine;
+  const outperformance = portfolioReturnPercent - kse100ReturnPercent;
 
   return (
     <Card>
@@ -64,7 +134,11 @@ export function KSE100ComparisonChart({
         <div className="flex items-start justify-between">
           <div>
             <CardTitle className="text-base">{title}</CardTitle>
-            <CardDescription>90-day normalized return comparison</CardDescription>
+            <CardDescription>
+              {hasData
+                ? `Return since ${points[0]?.date} — both lines normalised to 0% there`
+                : 'Normalised return comparison'}
+            </CardDescription>
           </div>
           {hasData && (
             <Badge variant={outperformance >= 0 ? 'profit' : 'loss'}>
@@ -75,7 +149,9 @@ export function KSE100ComparisonChart({
         {hasData && (
           <div className="grid grid-cols-2 gap-4 mt-2">
             <div className="rounded-md bg-muted/40 p-2 text-center">
-              <p className="text-xs text-muted-foreground">Portfolio Return</p>
+              <p className="truncate text-xs text-muted-foreground" title={`${portfolioLabel} Return`}>
+                {portfolioLabel} Return
+              </p>
               <p className={`font-bold ${portfolioReturnPercent >= 0 ? 'text-profit' : 'text-loss'}`}>
                 {formatPercent(portfolioReturnPercent)}
               </p>
@@ -92,20 +168,21 @@ export function KSE100ComparisonChart({
       <CardContent>
         {hasData ? (
           <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+            <LineChart data={points} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
               <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} interval="preserveStartEnd" className="fill-muted-foreground" />
               <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} className="fill-muted-foreground" />
               <Tooltip content={<CustomTooltip />} />
               <Legend />
-              <Line type="monotone" dataKey="portfolio" name="Portfolio" stroke="#00a651" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="portfolio" name={portfolioLabel} stroke="#00a651" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey="kse100" name="KSE-100" stroke="#3b82f6" strokeWidth={2} dot={false} strokeDasharray="5 3" />
             </LineChart>
           </ResponsiveContainer>
         ) : (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            KSE-100 data is unavailable right now, so there is nothing to compare against yet.
-            The comparison fills in as soon as the index feed reports.
+            {hasPortfolioLine
+              ? 'KSE-100 data is unavailable right now, so there is nothing to compare against yet. The comparison fills in as soon as the index feed reports.'
+              : 'No portfolio history to plot yet — add a holding with a purchase date and the portfolio line appears as soon as its prices are in.'}
           </p>
         )}
       </CardContent>
