@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { MetricCard, EmptyState } from '@/components/shared';
 import { AllocationPieChart, SectorBarChart, KSE100ComparisonChart } from '@/features/charts';
 import { useAllPortfoliosMetrics } from '@/hooks';
-import { useKSE100, useSectorPerformance } from '@/hooks';
+import { useKSE100, usePortfolioHistory, useSectorPerformance } from '@/hooks';
 import { usePortfolioStore } from '@/store';
 import { ROUTES } from '@/constants';
 
@@ -14,6 +14,10 @@ export function Dashboard() {
   const { aggregate, isLoading, metricsPerPortfolio } = useAllPortfoliosMetrics();
   const { data: kse100 } = useKSE100();
   const { data: sectorData = [] } = useSectorPerformance();
+
+  // The portfolio side of the "vs KSE-100" comparison, priced from real history.
+  const allHoldings = portfolios.flatMap((p) => p.holdings);
+  const { series: portfolioSeries } = usePortfolioHistory(allHoldings);
 
   if (portfolios.length === 0) {
     return (
@@ -33,7 +37,6 @@ export function Dashboard() {
   }
 
   // Build allocation data from all holdings
-  const allHoldings = portfolios.flatMap((p) => p.holdings);
   const sectorAlloc = allHoldings.reduce((acc, h) => {
     acc[h.sector] = (acc[h.sector] ?? 0) + 1;
     return acc;
@@ -44,11 +47,6 @@ export function Dashboard() {
     value: count,
     percent: (count / allHoldings.length) * 100,
   }));
-
-  // KSE100 return (90-day)
-  const kse100Return = kse100
-    ? ((kse100.value - kse100.historicalData[0]?.close) / (kse100.historicalData[0]?.close || 1)) * 100
-    : 0;
 
   // Best/worst across all portfolios
   const bestPerformer = metricsPerPortfolio
@@ -133,14 +131,13 @@ export function Dashboard() {
         )}
       </div>
 
-      {/* KSE100 comparison — named after the portfolio when there's only one */}
+      {/* KSE100 comparison — the portfolio's own line, priced from its holdings */}
       {metricsPerPortfolio.length > 0 && (
         <KSE100ComparisonChart
           title={portfolios.length === 1 ? `${portfolios[0].name} vs KSE-100` : 'All portfolios vs KSE-100'}
-          portfolioData={kse100?.historicalData ?? []} // Using KSE as proxy for demo; in real app use portfolio NAV history
+          portfolioLabel={portfolios.length === 1 ? portfolios[0].name : 'Portfolio'}
+          portfolioData={portfolioSeries}
           kse100Data={kse100?.historicalData ?? []}
-          portfolioReturnPercent={aggregate.totalReturnPercent}
-          kse100ReturnPercent={kse100Return}
         />
       )}
     </div>
