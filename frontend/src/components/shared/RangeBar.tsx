@@ -83,7 +83,7 @@ export function RangeBar({
       <div className="flex items-baseline justify-between gap-4">
         <p className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           {label}
-          {source === 'observed' && (
+          {hasRange && hasCurrent && source === 'observed' && (
             <span
               className="rounded-full border bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide"
               title="Derived from the prices recorded so far this session — the feed has no exact day high/low yet."
@@ -91,7 +91,7 @@ export function RangeBar({
               recorded
             </span>
           )}
-          {badge && (
+          {hasRange && hasCurrent && badge && (
             <span
               className="rounded-full border bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide"
               title={badgeTitle}
@@ -146,7 +146,10 @@ export function RangeBar({
         </>
       ) : (
         <p className="mt-4 text-sm text-muted-foreground">
-          {unavailableMessage ?? 'Range unavailable for this symbol.'}
+          {/* A blank message must not win over the fallback: `'' ?? x` is `''`,
+              which would render an empty tile when the range is known but the
+              current price is missing. */}
+          {unavailableMessage?.trim() ? unavailableMessage : 'Range unavailable for this symbol.'}
         </p>
       )}
     </div>

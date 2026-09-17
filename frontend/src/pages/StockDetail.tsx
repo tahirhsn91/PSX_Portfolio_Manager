@@ -92,8 +92,10 @@ export function StockDetail() {
         )}
       </div>
 
-      {/* Quick stats — four equal tiles: the two range bars, then the two KPIs */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {/* Quick stats — four equal tiles: the two range bars, then the two KPIs.
+          Two-up from `sm` up, so tablets keep the dense layout the 4-column grid
+          used to give them; phones get full-width tiles, which the bars want. */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {/* Today's range — tied to the active session, cleared at the 09:00 PKT pre-open */}
         <RangeBar
           label="Day Range"
