@@ -102,7 +102,17 @@ export function PortfolioDetail() {
         <TabsList>
           <TabsTrigger value="holdings">Holdings</TabsTrigger>
           <TabsTrigger value="charts">Charts</TabsTrigger>
-          <TabsTrigger value="comparison">vs KSE-100</TabsTrigger>
+          <TabsTrigger
+            value="comparison"
+            className="max-w-[20rem]"
+            title={`${portfolio.name} vs KSE-100`}
+          >
+            {/* The portfolio's own name leads, so it's clear which portfolio is
+                being compared; long names truncate rather than stretching the tab
+                strip, and "vs KSE-100" always stays visible. */}
+            <span className="truncate">{portfolio.name}</span>
+            <span className="ml-1 shrink-0">vs KSE-100</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="holdings" className="mt-4">
@@ -145,6 +155,7 @@ export function PortfolioDetail() {
         <TabsContent value="comparison" className="mt-4">
           {kse100 ? (
             <KSE100ComparisonChart
+              title={`${portfolio.name} vs KSE-100`}
               portfolioData={kse100.historicalData}
               kse100Data={kse100.historicalData}
               portfolioReturnPercent={metrics?.totalReturnPercent ?? 0}
