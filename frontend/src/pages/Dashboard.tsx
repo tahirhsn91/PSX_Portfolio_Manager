@@ -133,11 +133,12 @@ export function Dashboard() {
         )}
       </div>
 
-      {/* KSE100 comparison */}
-      {kse100 && metricsPerPortfolio.length > 0 && (
+      {/* KSE100 comparison — named after the portfolio when there's only one */}
+      {metricsPerPortfolio.length > 0 && (
         <KSE100ComparisonChart
-          portfolioData={kse100.historicalData} // Using KSE as proxy for demo; in real app use portfolio NAV history
-          kse100Data={kse100.historicalData}
+          title={portfolios.length === 1 ? `${portfolios[0].name} vs KSE-100` : 'All portfolios vs KSE-100'}
+          portfolioData={kse100?.historicalData ?? []} // Using KSE as proxy for demo; in real app use portfolio NAV history
+          kse100Data={kse100?.historicalData ?? []}
           portfolioReturnPercent={aggregate.totalReturnPercent}
           kse100ReturnPercent={kse100Return}
         />
