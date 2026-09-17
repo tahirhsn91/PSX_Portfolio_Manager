@@ -29,14 +29,21 @@ const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: { name
 };
 
 const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: { cx: number; cy: number; midAngle: number; innerRadius: number; outerRadius: number; percent: number }) => {
-  if (percent < 0.05) return null;
+  // Recharts 2.15 hands this callback `percent` already scaled to a percentage —
+  // measured on the running app: a 2-of-3 sector arrives as 66.67 (the old
+  // `percent * 100` rendered "6667%") and a 0.16% sliver arrives as 0.16. So use
+  // it as-is; do NOT try to "normalise" it by magnitude, because a genuine
+  // sub-1% slice is indistinguishable from a 0–1 fraction that way.
+  const percentValue = percent;
+  // Slivers below 5% aren't worth a label — they'd collide in the middle.
+  if (!Number.isFinite(percentValue) || percentValue < 5) return null;
   const RADIAN = Math.PI / 180;
   const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
   return (
     <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight="bold">
-      {`${(percent * 100).toFixed(0)}%`}
+      {`${percentValue.toFixed(0)}%`}
     </text>
   );
 };
