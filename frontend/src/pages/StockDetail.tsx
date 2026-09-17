@@ -10,9 +10,9 @@ import { StockPriceChart } from '@/features/charts';
 import { PredictionPanel } from '@/features/prediction/PredictionPanel';
 import { useStockDetail, useHistoricalData, useStockPrediction } from '@/hooks';
 import { usePortfolioStore } from '@/store';
-import { formatCurrency, formatPercent, formatDate, formatVolume, formatCompactNumber } from '@/utils';
+import { formatCurrency, formatPercent, formatDate, formatVolume, formatCompactNumber, deriveDayRange } from '@/utils';
 import { ROUTES } from '@/constants';
-import { format, subYears } from 'date-fns';
+import { format, subYears, subDays, addDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 export function StockDetail() {
@@ -34,7 +34,26 @@ export function StockDetail() {
     holding?.dividendsReceived ?? []
   );
 
+  // The day range needs the *current* session's rows, and the scraper treats
+  // `to` as exclusive, so the year-long chart window stops at yesterday. This
+  // two-day window is what carries today's intraday rows.
+  const { data: dayPoints = [], isLoading: dayLoading } = useHistoricalData(
+    symbol,
+    format(subDays(new Date(), 1), 'yyyy-MM-dd'),
+    format(addDays(new Date(), 1), 'yyyy-MM-dd')
+  );
+
   const isProfit = (detail?.changePercent ?? 0) >= 0;
+
+  // Today's range, scoped to the active PSX session: it clears at the 09:00 PKT
+  // pre-open rather than carrying the previous session's numbers into the new day.
+  const dayRange = deriveDayRange({
+    points: dayPoints,
+    quotePrice: detail?.currentPrice ?? 0,
+    quoteDate: detail?.lastUpdated,
+    upstreamLow: detail?.low,
+    upstreamHigh: detail?.high,
+  });
 
   const goBack = () => navigate(portfolioId ? ROUTES.PORTFOLIO_DETAIL_PATH(portfolioId) : ROUTES.MARKET);
 
@@ -73,10 +92,27 @@ export function StockDetail() {
         )}
       </div>
 
-      {/* Quick stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Quick stats — four equal tiles: the two range bars, then the two KPIs */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Today's range — tied to the active session, cleared at the 09:00 PKT pre-open */}
         <RangeBar
-          className="col-span-2"
+          label="Day Range"
+          lowCaption="Day Low"
+          highCaption="Day High"
+          low={dayRange.range?.low ?? 0}
+          high={dayRange.range?.high ?? 0}
+          current={detail?.currentPrice ?? 0}
+          source={dayRange.range?.source}
+          badge={
+            dayRange.isCurrentSession
+              ? undefined
+              : format(new Date(`${dayRange.sessionDate}T00:00:00`), 'd MMM')
+          }
+          badgeTitle="Last completed session — the current one hasn't started printing yet."
+          unavailableMessage={dayRange.message}
+          isLoading={detailLoading || dayLoading}
+        />
+        <RangeBar
           low={detail?.week52Low ?? 0}
           high={detail?.week52High ?? 0}
           current={detail?.currentPrice ?? 0}
