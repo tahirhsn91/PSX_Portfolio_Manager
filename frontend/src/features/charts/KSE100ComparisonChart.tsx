@@ -54,6 +54,10 @@ export function KSE100ComparisonChart({
 
   const outperformance = portfolioReturnPercent - kse100ReturnPercent;
 
+  // The card always renders — the section has to be able to name the portfolio
+  // even when the index feed is down, and the heading is the point of the section.
+  const hasData = portfolioData.length > 0 && kse100Data.length > 0;
+
   return (
     <Card>
       <CardHeader>
@@ -62,37 +66,48 @@ export function KSE100ComparisonChart({
             <CardTitle className="text-base">{title}</CardTitle>
             <CardDescription>90-day normalized return comparison</CardDescription>
           </div>
-          <Badge variant={outperformance >= 0 ? 'profit' : 'loss'}>
-            {outperformance >= 0 ? '▲' : '▼'} {formatPercent(Math.abs(outperformance))} vs index
-          </Badge>
+          {hasData && (
+            <Badge variant={outperformance >= 0 ? 'profit' : 'loss'}>
+              {outperformance >= 0 ? '▲' : '▼'} {formatPercent(Math.abs(outperformance))} vs index
+            </Badge>
+          )}
         </div>
-        <div className="grid grid-cols-2 gap-4 mt-2">
-          <div className="rounded-md bg-muted/40 p-2 text-center">
-            <p className="text-xs text-muted-foreground">Portfolio Return</p>
-            <p className={`font-bold ${portfolioReturnPercent >= 0 ? 'text-profit' : 'text-loss'}`}>
-              {formatPercent(portfolioReturnPercent)}
-            </p>
+        {hasData && (
+          <div className="grid grid-cols-2 gap-4 mt-2">
+            <div className="rounded-md bg-muted/40 p-2 text-center">
+              <p className="text-xs text-muted-foreground">Portfolio Return</p>
+              <p className={`font-bold ${portfolioReturnPercent >= 0 ? 'text-profit' : 'text-loss'}`}>
+                {formatPercent(portfolioReturnPercent)}
+              </p>
+            </div>
+            <div className="rounded-md bg-muted/40 p-2 text-center">
+              <p className="text-xs text-muted-foreground">KSE-100 Return</p>
+              <p className={`font-bold ${kse100ReturnPercent >= 0 ? 'text-profit' : 'text-loss'}`}>
+                {formatPercent(kse100ReturnPercent)}
+              </p>
+            </div>
           </div>
-          <div className="rounded-md bg-muted/40 p-2 text-center">
-            <p className="text-xs text-muted-foreground">KSE-100 Return</p>
-            <p className={`font-bold ${kse100ReturnPercent >= 0 ? 'text-profit' : 'text-loss'}`}>
-              {formatPercent(kse100ReturnPercent)}
-            </p>
-          </div>
-        </div>
+        )}
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={240}>
-          <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-            <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} interval="preserveStartEnd" className="fill-muted-foreground" />
-            <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} className="fill-muted-foreground" />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend />
-            <Line type="monotone" dataKey="portfolio" name="Portfolio" stroke="#00a651" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="kse100" name="KSE-100" stroke="#3b82f6" strokeWidth={2} dot={false} strokeDasharray="5 3" />
-          </LineChart>
-        </ResponsiveContainer>
+        {hasData ? (
+          <ResponsiveContainer width="100%" height={240}>
+            <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+              <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} interval="preserveStartEnd" className="fill-muted-foreground" />
+              <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} className="fill-muted-foreground" />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
+              <Line type="monotone" dataKey="portfolio" name="Portfolio" stroke="#00a651" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="kse100" name="KSE-100" stroke="#3b82f6" strokeWidth={2} dot={false} strokeDasharray="5 3" />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            KSE-100 data is unavailable right now, so there is nothing to compare against yet.
+            The comparison fills in as soon as the index feed reports.
+          </p>
+        )}
       </CardContent>
     </Card>
   );
