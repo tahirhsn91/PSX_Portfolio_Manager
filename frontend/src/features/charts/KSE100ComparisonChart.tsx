@@ -10,6 +10,11 @@ interface KSE100ComparisonChartProps {
   kse100Data: HistoricalDataPoint[];
   portfolioReturnPercent: number;
   kse100ReturnPercent: number;
+  /**
+   * Card heading. Pass the portfolio's name ("Demo vs KSE-100") where the chart
+   * belongs to one portfolio; the default suits the all-portfolios dashboard.
+   */
+  title?: string;
 }
 
 const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) => {
@@ -28,6 +33,7 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 
 export function KSE100ComparisonChart({
   portfolioData, kse100Data, portfolioReturnPercent, kse100ReturnPercent,
+  title = 'vs KSE-100',
 }: KSE100ComparisonChartProps) {
   // Normalize both to % return from start
   const portfolioBase = portfolioData[0]?.close ?? 1;
@@ -53,7 +59,7 @@ export function KSE100ComparisonChart({
       <CardHeader>
         <div className="flex items-start justify-between">
           <div>
-            <CardTitle className="text-base">vs KSE-100</CardTitle>
+            <CardTitle className="text-base">{title}</CardTitle>
             <CardDescription>90-day normalized return comparison</CardDescription>
           </div>
           <Badge variant={outperformance >= 0 ? 'profit' : 'loss'}>
