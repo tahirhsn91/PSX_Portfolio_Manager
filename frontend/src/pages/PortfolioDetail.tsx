@@ -153,17 +153,15 @@ export function PortfolioDetail() {
         </TabsContent>
 
         <TabsContent value="comparison" className="mt-4">
-          {kse100 ? (
-            <KSE100ComparisonChart
-              title={`${portfolio.name} vs KSE-100`}
-              portfolioData={kse100.historicalData}
-              kse100Data={kse100.historicalData}
-              portfolioReturnPercent={metrics?.totalReturnPercent ?? 0}
-              kse100ReturnPercent={kse100Return}
-            />
-          ) : (
-            <EmptyState title="KSE-100 data unavailable" />
-          )}
+          {/* Rendered unconditionally so the section always names the portfolio;
+              the chart itself owns the "index feed is down" state. */}
+          <KSE100ComparisonChart
+            title={`${portfolio.name} vs KSE-100`}
+            portfolioData={kse100?.historicalData ?? []}
+            kse100Data={kse100?.historicalData ?? []}
+            portfolioReturnPercent={metrics?.totalReturnPercent ?? 0}
+            kse100ReturnPercent={kse100Return}
+          />
         </TabsContent>
       </Tabs>
 
