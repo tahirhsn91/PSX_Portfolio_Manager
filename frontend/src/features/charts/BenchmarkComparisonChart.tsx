@@ -180,6 +180,15 @@ export function BenchmarkComparisonChart({
   const limitedByHistory = hasData && sessions < requestedSessions;
   const outperformance = portfolioReturnPercent - benchmarkReturnPercent;
 
+  // Why nothing can be plotted — the fix differs per cause, so say which it is.
+  const emptyReason = portfolioData.length === 0
+    ? 'No portfolio history to plot yet — add a holding with a purchase date and the portfolio line appears as soon as its prices are in.'
+    : benchmark.series.length === 0
+      ? benchmark.kind === 'index'
+        ? `The data feed does not track ${benchmark.label} yet, so there is nothing to compare against.`
+        : `${benchmark.label} has no history for this period, so there is nothing to compare against yet.`
+      : `${benchmark.label} has no trading session in common with this portfolio in the selected period — try a longer range.`;
+
   return (
     <Card>
       <CardHeader>
@@ -266,9 +275,7 @@ export function BenchmarkComparisonChart({
           </ResponsiveContainer>
         ) : (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            {!hasPortfolioLine
-              ? 'No portfolio history to plot yet — add a holding with a purchase date and the portfolio line appears as soon as its prices are in.'
-              : `${benchmark.label} has no history for this period, so there is nothing to compare against yet.`}
+            {emptyReason}
           </p>
         )}
       </CardContent>

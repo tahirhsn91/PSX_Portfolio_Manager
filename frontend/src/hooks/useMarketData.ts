@@ -13,6 +13,7 @@ export const MARKET_QUERY_KEYS = {
   detail: (symbol: string) => ['market', 'detail', symbol] as const,
   historical: (symbol: string, from: string, to: string) => ['market', 'historical', symbol, from, to] as const,
   kse100: () => ['market', 'kse100'] as const,
+  index: (symbol: string) => ['market', 'index', symbol.toUpperCase()] as const,
   sector: () => ['market', 'sector'] as const,
   status: () => ['market', 'status'] as const,
   search: (query: string) => ['market', 'search', query] as const,
@@ -91,6 +92,23 @@ export function useKSE100() {
   }, [query.data, setKSE100]);
 
   return query;
+}
+
+/**
+ * Fetch any PSX index by code (KSE100, KSE30, ALLSHR, KMI30, …).
+ *
+ * Resolves to `null` when the feed does not track that index yet — callers render
+ * "not tracked", never a substituted number.
+ */
+export function useIndex(symbol: string | undefined) {
+  return useQuery({
+    queryKey: symbol ? MARKET_QUERY_KEYS.index(symbol) : ['disabled'],
+    queryFn: () => marketDataService.getIndex(symbol!),
+    enabled: !!symbol,
+    staleTime: 60_000,
+    // Null means "the feed doesn't track this one" — polling wouldn't change that.
+    refetchInterval: (q) => (q.state.data ? 60_000 : false),
+  });
 }
 
 /** Fetch sector performance */

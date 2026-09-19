@@ -12,21 +12,45 @@ import { HoldingForm } from '@/features/portfolio/HoldingForm';
 import { AllocationPieChart, PortfolioValueChart, BenchmarkComparisonChart, rangeConfig } from '@/features/charts';
 import type { ComparisonBenchmark, ComparisonRange } from '@/features/charts';
 import { usePortfolioStore, useUIStore } from '@/store';
-import { usePortfolioMetrics, useKSE100, usePortfolioHistory, useHistoricalData } from '@/hooks';
+import { usePortfolioMetrics, useKSE100, useIndex, usePortfolioHistory, useHistoricalData } from '@/hooks';
 import { buildSectorAllocation } from '@/utils';
-import { ROUTES } from '@/constants';
+import { ROUTES, PSX_INDICES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
 import { format, subDays, addDays } from 'date-fns';
 import type { Holding, PSXCompany } from '@/types';
 import type { HoldingFormValues } from '@/utils';
 
 /**
- * The indices the feed actually serves (the scraper tracks exactly one — its
- * /api/v1/indices resource lists KSE100 alone), offered in the picker as a
- * pseudo-company so indices and stocks are chosen from the same field.
+ * Every PSX index, offered in the picker as a pseudo-company so indices and stocks
+ * are chosen from the same field. All 18 are listed — that is PSX's full set — and
+ * the ones the feed does not track render "not tracked yet" rather than a blank chart.
  */
-const INDEX_OPTIONS: PSXCompany[] = [
-  { symbol: 'KSE100', name: 'KSE-100 Index', sector: 'Index', marketCap: 0, listedShares: 0 },
-];
+const INDEX_OPTIONS: PSXCompany[] = PSX_INDICES.map((index) => ({
+  symbol: index.code,
+  name: index.label,
+  sector: 'Index',
+  marketCap: 0,
+  listedShares: 0,
+}));
+
+/** What the comparison plots the portfolio against. */
+interface Benchmark {
+  kind: 'index' | 'stock';
+  code: string;
+  label: string;
+}
+
+const DEFAULT_BENCHMARK: Benchmark = {
+  kind: 'index',
+  code: DEFAULT_INDEX_CODE,
+  label: indexLabel(DEFAULT_INDEX_CODE),
+};
+
+/** The picker hands back a company-shaped option; a known index code means an index. */
+function toBenchmark(company: PSXCompany): Benchmark {
+  return PSX_INDICES.some((index) => index.code === company.symbol)
+    ? { kind: 'index', code: company.symbol, label: indexLabel(company.symbol) }
+    : { kind: 'stock', code: company.symbol, label: company.symbol };
+}
 
 export function PortfolioDetail() {
   const { id } = useParams<{ id: string }>();
@@ -36,26 +60,32 @@ export function PortfolioDetail() {
   const addNotification = useUIStore((s) => s.addNotification);
   const { metrics, isLoading } = usePortfolioMetrics(id);
   const [range, setRange] = useState<ComparisonRange>('3M');
-  // null → compare against the KSE-100 index; a symbol → against that stock.
-  const [benchmarkSymbol, setBenchmarkSymbol] = useState<string | null>(null);
-
-  const { data: kse100, isLoading: indexLoading } = useKSE100();
+  // What to compare against: a PSX index code, or any listed stock's symbol.
+  const [benchmark, setBenchmark] = useState<Benchmark>(DEFAULT_BENCHMARK);
+  // The Value tab still charts the index as a stand-in for portfolio value (pre-existing
+  // behaviour, untouched here) — the comparison below uses the benchmark instead.
+  const { data: kse100 } = useKSE100();
 
   const rangeDays = rangeConfig(range).days;
   const { series: portfolioSeries, isLoading: portfolioHistoryLoading } = usePortfolioHistory(
     portfolio?.holdings, rangeDays,
   );
 
-  // The scraper treats `to` as exclusive, so the window runs to tomorrow.
-  const benchmarkFrom = format(subDays(new Date(), rangeDays), 'yyyy-MM-dd');
-  const benchmarkTo = format(addDays(new Date(), 1), 'yyyy-MM-dd');
+  // Whichever the benchmark is, fetch its own series for the selected period. The
+  // scraper treats `to` as exclusive, so the window runs to tomorrow.
+  const indexQuery = useIndex(benchmark.kind === 'index' ? benchmark.code : undefined);
   const { data: benchmarkStockHistory = [], isLoading: benchmarkStockLoading } = useHistoricalData(
-    benchmarkSymbol ?? undefined, benchmarkFrom, benchmarkTo,
+    benchmark.kind === 'stock' ? benchmark.code : undefined,
+    format(subDays(new Date(), rangeDays), 'yyyy-MM-dd'),
+    format(addDays(new Date(), 1), 'yyyy-MM-dd'),
   );
 
-  const benchmark: ComparisonBenchmark = benchmarkSymbol
-    ? { id: benchmarkSymbol, label: benchmarkSymbol, series: benchmarkStockHistory, kind: 'stock' }
-    : { id: 'KSE100', label: 'KSE-100 Index', series: kse100?.historicalData ?? [], kind: 'index' };
+  const comparisonBenchmark: ComparisonBenchmark = {
+    id: benchmark.code,
+    label: benchmark.label,
+    kind: benchmark.kind,
+    series: benchmark.kind === 'index' ? (indexQuery.data?.historicalData ?? []) : benchmarkStockHistory,
+  };
 
   const [addOpen, setAddOpen] = useState(false);
   const [editingHolding, setEditingHolding] = useState<Holding | null>(null);
@@ -188,19 +218,17 @@ export function PortfolioDetail() {
             title={`${portfolio.name} vs ${benchmark.label}`}
             portfolioLabel={portfolio.name}
             portfolioData={portfolioSeries}
-            benchmark={benchmark}
+            benchmark={comparisonBenchmark}
             range={range}
             onRangeChange={setRange}
             portfolioLoading={portfolioHistoryLoading}
-            benchmarkLoading={benchmarkSymbol ? benchmarkStockLoading : indexLoading}
+            benchmarkLoading={benchmark.kind === 'index' ? indexQuery.isLoading : benchmarkStockLoading}
             benchmarkSelector={
               <CompanySearch
                 className="w-60"
                 placeholder="Compare with an index or stock…"
                 extraOptions={INDEX_OPTIONS}
-                onSelect={(company) =>
-                  setBenchmarkSymbol(company.symbol === 'KSE100' ? null : company.symbol)
-                }
+                onSelect={(company) => setBenchmark(toBenchmark(company))}
               />
             }
           />

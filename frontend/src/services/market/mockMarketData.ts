@@ -10,6 +10,7 @@ import type {
   StockDetail,
   HistoricalDataPoint,
   KSE100Data,
+  IndexData,
   SectorPerformance,
   MarketStatus,
   PSXCompany,
@@ -134,6 +135,11 @@ export class MockMarketDataProvider implements IMarketDataProvider {
       price = point.close;
       return point;
     });
+  }
+
+  /** Mock provider: the generated series stands in for whichever index is asked for. */
+  async getIndex(_symbol: string): Promise<IndexData | null> {
+    return this.getKSE100();
   }
 
   async getKSE100(): Promise<KSE100Data> {
