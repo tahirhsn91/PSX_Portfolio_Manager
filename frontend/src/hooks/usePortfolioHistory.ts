@@ -5,25 +5,27 @@ import { marketDataService } from '@/services';
 import { buildPortfolioValueSeries } from '@/utils';
 import type { Holding, HistoricalDataPoint } from '@/types';
 
-/** How far back to price the portfolio. Six months keeps the 90-day chart covered. */
-const WINDOW_DAYS = 180;
+/** Default history window when the caller doesn't ask for one (~6 months). */
+const DEFAULT_WINDOW_DAYS = 200;
 
 /**
- * The portfolio's own value over time, for the "vs KSE-100" comparison.
+ * The portfolio's own value over time, for the "vs benchmark" comparison.
  *
  * Fetches each holding's price history (one request per distinct symbol, in
  * parallel) and prices the portfolio day by day via `buildPortfolioValueSeries`.
- * The scraper treats `to` as exclusive, so the window runs to tomorrow.
+ * `windowDays` should cover the comparison period being plotted. The scraper
+ * treats `to` as exclusive, so the window runs to tomorrow.
  */
 export function usePortfolioHistory(
   holdings: Pick<Holding, 'symbol' | 'shares' | 'purchaseDate'>[] | undefined,
+  windowDays: number = DEFAULT_WINDOW_DAYS,
 ): { series: HistoricalDataPoint[]; isLoading: boolean } {
   const symbols = useMemo(
     () => [...new Set((holdings ?? []).map((h) => h.symbol.toUpperCase()))].sort(),
     [holdings],
   );
 
-  const from = format(subDays(new Date(), WINDOW_DAYS), 'yyyy-MM-dd');
+  const from = format(subDays(new Date(), windowDays), 'yyyy-MM-dd');
   const to = format(addDays(new Date(), 1), 'yyyy-MM-dd');
 
   const query = useQuery({
