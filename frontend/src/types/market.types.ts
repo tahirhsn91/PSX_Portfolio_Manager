@@ -42,7 +42,8 @@ export interface HistoricalDataPoint {
   volume: number;
 }
 
-export interface KSE100Data {
+/** A market index reading plus its daily series — any PSX index, not just KSE-100. */
+export interface IndexData {
   value: number;
   change: number;
   changePercent: number;
@@ -54,6 +55,9 @@ export interface KSE100Data {
   lastUpdated: string;
   historicalData: HistoricalDataPoint[];
 }
+
+/** The headline index's shape; kept as an alias so existing consumers read unchanged. */
+export type KSE100Data = IndexData;
 
 export interface SectorPerformance {
   sector: string;
@@ -85,7 +89,9 @@ export interface IMarketDataProvider {
   getQuotes(symbols: string[]): Promise<StockQuote[]>;
   getStockDetail(symbol: string): Promise<StockDetail>;
   getHistoricalData(symbol: string, from: string, to: string): Promise<HistoricalDataPoint[]>;
-  /** `null` means "no index available from this provider" — consumers must handle it. */
+  /** `null` means "this index isn't available from this provider" — consumers must handle it. */
+  getIndex(symbol: string): Promise<IndexData | null>;
+  /** The headline index. Convenience wrapper over `getIndex('KSE100')`. */
   getKSE100(): Promise<KSE100Data | null>;
   getSectorPerformance(): Promise<SectorPerformance[]>;
   getMarketStatus(): Promise<MarketStatus>;

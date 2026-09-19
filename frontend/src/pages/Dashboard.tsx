@@ -8,7 +8,7 @@ import type { ComparisonBenchmark, ComparisonRange } from '@/features/charts';
 import { useAllPortfoliosMetrics } from '@/hooks';
 import { useKSE100, usePortfolioHistory, useSectorPerformance } from '@/hooks';
 import { usePortfolioStore } from '@/store';
-import { ROUTES } from '@/constants';
+import { ROUTES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -27,7 +27,7 @@ export function Dashboard() {
   // The dashboard aggregates every portfolio, so its benchmark is the index.
   const benchmark: ComparisonBenchmark = {
     id: 'KSE100',
-    label: 'KSE-100 Index',
+    label: indexLabel(DEFAULT_INDEX_CODE),
     series: kse100?.historicalData ?? [],
     kind: 'index',
   };
