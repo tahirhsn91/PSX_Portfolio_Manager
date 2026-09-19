@@ -6,16 +6,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
-import { MetricCard, EmptyState } from '@/components/shared';
+import { MetricCard, EmptyState, CompanySearch } from '@/components/shared';
 import { HoldingsTable } from '@/features/portfolio/HoldingsTable';
 import { HoldingForm } from '@/features/portfolio/HoldingForm';
-import { AllocationPieChart, PortfolioValueChart, KSE100ComparisonChart } from '@/features/charts';
+import { AllocationPieChart, PortfolioValueChart, BenchmarkComparisonChart, rangeConfig } from '@/features/charts';
+import type { ComparisonBenchmark, ComparisonRange } from '@/features/charts';
 import { usePortfolioStore, useUIStore } from '@/store';
-import { usePortfolioMetrics, useKSE100, usePortfolioHistory } from '@/hooks';
+import { usePortfolioMetrics, useKSE100, usePortfolioHistory, useHistoricalData } from '@/hooks';
 import { buildSectorAllocation } from '@/utils';
 import { ROUTES } from '@/constants';
-import type { Holding } from '@/types';
+import { format, subDays, addDays } from 'date-fns';
+import type { Holding, PSXCompany } from '@/types';
 import type { HoldingFormValues } from '@/utils';
+
+/**
+ * The indices the feed actually serves (the scraper tracks exactly one — its
+ * /api/v1/indices resource lists KSE100 alone), offered in the picker as a
+ * pseudo-company so indices and stocks are chosen from the same field.
+ */
+const INDEX_OPTIONS: PSXCompany[] = [
+  { symbol: 'KSE100', name: 'KSE-100 Index', sector: 'Index', marketCap: 0, listedShares: 0 },
+];
 
 export function PortfolioDetail() {
   const { id } = useParams<{ id: string }>();
@@ -24,9 +35,28 @@ export function PortfolioDetail() {
   const { addHolding, updateHolding, deleteHolding } = usePortfolioStore();
   const addNotification = useUIStore((s) => s.addNotification);
   const { metrics, isLoading } = usePortfolioMetrics(id);
-  const { data: kse100 } = useKSE100();
-  // The portfolio's own value history — the line the comparison plots against the index.
-  const { series: portfolioSeries } = usePortfolioHistory(portfolio?.holdings);
+  const [range, setRange] = useState<ComparisonRange>('3M');
+  // null → compare against the KSE-100 index; a symbol → against that stock.
+  const [benchmarkSymbol, setBenchmarkSymbol] = useState<string | null>(null);
+
+  const { data: kse100, isLoading: indexLoading } = useKSE100();
+
+  const rangeDays = rangeConfig(range).days;
+  const { series: portfolioSeries, isLoading: portfolioHistoryLoading } = usePortfolioHistory(
+    portfolio?.holdings, rangeDays,
+  );
+
+  // The scraper treats `to` as exclusive, so the window runs to tomorrow.
+  const benchmarkFrom = format(subDays(new Date(), rangeDays), 'yyyy-MM-dd');
+  const benchmarkTo = format(addDays(new Date(), 1), 'yyyy-MM-dd');
+  const { data: benchmarkStockHistory = [], isLoading: benchmarkStockLoading } = useHistoricalData(
+    benchmarkSymbol ?? undefined, benchmarkFrom, benchmarkTo,
+  );
+
+  const benchmark: ComparisonBenchmark = benchmarkSymbol
+    ? { id: benchmarkSymbol, label: benchmarkSymbol, series: benchmarkStockHistory, kind: 'stock' }
+    : { id: 'KSE100', label: 'KSE-100 Index', series: kse100?.historicalData ?? [], kind: 'index' };
+
   const [addOpen, setAddOpen] = useState(false);
   const [editingHolding, setEditingHolding] = useState<Holding | null>(null);
 
@@ -104,13 +134,13 @@ export function PortfolioDetail() {
           <TabsTrigger
             value="comparison"
             className="max-w-[20rem]"
-            title={`${portfolio.name} vs KSE-100`}
+            title={`${portfolio.name} vs ${benchmark.label}`}
           >
             {/* The portfolio's own name leads, so it's clear which portfolio is
                 being compared; long names truncate rather than stretching the tab
-                strip, and "vs KSE-100" always stays visible. */}
+                strip, and the benchmark always stays visible. */}
             <span className="truncate">{portfolio.name}</span>
-            <span className="ml-1 shrink-0">vs KSE-100</span>
+            <span className="ml-1 shrink-0">vs {benchmark.label}</span>
           </TabsTrigger>
         </TabsList>
 
@@ -153,12 +183,26 @@ export function PortfolioDetail() {
 
         <TabsContent value="comparison" className="mt-4">
           {/* Rendered unconditionally so the section always names the portfolio;
-              the chart itself owns the "index feed is down" state. */}
-          <KSE100ComparisonChart
-            title={`${portfolio.name} vs KSE-100`}
+              the chart itself owns the "no data" states. */}
+          <BenchmarkComparisonChart
+            title={`${portfolio.name} vs ${benchmark.label}`}
             portfolioLabel={portfolio.name}
             portfolioData={portfolioSeries}
-            kse100Data={kse100?.historicalData ?? []}
+            benchmark={benchmark}
+            range={range}
+            onRangeChange={setRange}
+            portfolioLoading={portfolioHistoryLoading}
+            benchmarkLoading={benchmarkSymbol ? benchmarkStockLoading : indexLoading}
+            benchmarkSelector={
+              <CompanySearch
+                className="w-60"
+                placeholder="Compare with an index or stock…"
+                extraOptions={INDEX_OPTIONS}
+                onSelect={(company) =>
+                  setBenchmarkSymbol(company.symbol === 'KSE100' ? null : company.symbol)
+                }
+              />
+            }
           />
         </TabsContent>
       </Tabs>
