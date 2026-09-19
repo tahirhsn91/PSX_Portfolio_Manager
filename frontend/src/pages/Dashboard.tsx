@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, TrendingUp, DollarSign, Activity, Award, AlertTriangle } from 'lucide-react';
+import { Plus, TrendingUp, Activity, DollarSign, Award, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MetricCard, EmptyState } from '@/components/shared';
-import { AllocationPieChart, SectorBarChart, KSE100ComparisonChart } from '@/features/charts';
+import { AllocationPieChart, SectorBarChart, BenchmarkComparisonChart, rangeConfig } from '@/features/charts';
+import type { ComparisonBenchmark, ComparisonRange } from '@/features/charts';
 import { useAllPortfoliosMetrics } from '@/hooks';
 import { useKSE100, usePortfolioHistory, useSectorPerformance } from '@/hooks';
 import { usePortfolioStore } from '@/store';
@@ -12,12 +14,23 @@ export function Dashboard() {
   const navigate = useNavigate();
   const portfolios = usePortfolioStore((s) => s.portfolios);
   const { aggregate, isLoading, metricsPerPortfolio } = useAllPortfoliosMetrics();
-  const { data: kse100 } = useKSE100();
+  const { data: kse100, isLoading: kseLoading } = useKSE100();
   const { data: sectorData = [] } = useSectorPerformance();
+  const [range, setRange] = useState<ComparisonRange>('3M');
 
-  // The portfolio side of the "vs KSE-100" comparison, priced from real history.
+  // The portfolio side of the "vs benchmark" comparison, priced from real history.
   const allHoldings = portfolios.flatMap((p) => p.holdings);
-  const { series: portfolioSeries } = usePortfolioHistory(allHoldings);
+  const { series: portfolioSeries, isLoading: portfolioHistoryLoading } = usePortfolioHistory(
+    allHoldings, rangeConfig(range).days,
+  );
+
+  // The dashboard aggregates every portfolio, so its benchmark is the index.
+  const benchmark: ComparisonBenchmark = {
+    id: 'KSE100',
+    label: 'KSE-100 Index',
+    series: kse100?.historicalData ?? [],
+    kind: 'index',
+  };
 
   if (portfolios.length === 0) {
     return (
@@ -131,13 +144,19 @@ export function Dashboard() {
         )}
       </div>
 
-      {/* KSE100 comparison — the portfolio's own line, priced from its holdings */}
+      {/* Benchmark comparison — the portfolio's own line, priced from its holdings */}
       {metricsPerPortfolio.length > 0 && (
-        <KSE100ComparisonChart
-          title={portfolios.length === 1 ? `${portfolios[0].name} vs KSE-100` : 'All portfolios vs KSE-100'}
+        <BenchmarkComparisonChart
+          title={portfolios.length === 1
+            ? `${portfolios[0].name} vs ${benchmark.label}`
+            : `All portfolios vs ${benchmark.label}`}
           portfolioLabel={portfolios.length === 1 ? portfolios[0].name : 'Portfolio'}
           portfolioData={portfolioSeries}
-          kse100Data={kse100?.historicalData ?? []}
+          benchmark={benchmark}
+          range={range}
+          onRangeChange={setRange}
+          portfolioLoading={portfolioHistoryLoading}
+          benchmarkLoading={kseLoading}
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Search, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useCompanySearch } from '@/hooks';
@@ -9,9 +9,15 @@ interface CompanySearchProps {
   onSelect: (company: PSXCompany) => void;
   placeholder?: string;
   className?: string;
+  /**
+   * Options offered ahead of the searched companies — e.g. a benchmark index,
+   * entered as a pseudo-company. They match the query by symbol or name, and are
+   * all listed while the field is empty, so an index is pickable without typing.
+   */
+  extraOptions?: PSXCompany[];
 }
 
-export function CompanySearch({ onSelect, placeholder = 'Search company or ticker...', className }: CompanySearchProps) {
+export function CompanySearch({ onSelect, placeholder = 'Search company or ticker...', className, extraOptions }: CompanySearchProps) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -27,6 +33,18 @@ export function CompanySearch({ onSelect, placeholder = 'Search company or ticke
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  const options = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const extras = (extraOptions ?? []).filter(
+      (c) => !needle
+        || c.symbol.toLowerCase().includes(needle)
+        || c.name.toLowerCase().includes(needle),
+    );
+    const seen = new Set(extras.map((c) => c.symbol.toUpperCase()));
+    const searched = results.filter((r) => !seen.has(r.symbol.toUpperCase()));
+    return [...extras, ...searched];
+  }, [extraOptions, results, query]);
 
   const handleSelect = (company: PSXCompany) => {
     onSelect(company);
@@ -50,10 +68,10 @@ export function CompanySearch({ onSelect, placeholder = 'Search company or ticke
         )}
       </div>
 
-      {open && results.length > 0 && (
+      {open && options.length > 0 && (
         <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-lg">
           <ul className="max-h-64 overflow-auto py-1">
-            {results.map((company) => (
+            {options.map((company) => (
               <li key={company.symbol}>
                 <button
                   type="button"
