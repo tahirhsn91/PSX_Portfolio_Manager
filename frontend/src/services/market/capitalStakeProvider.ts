@@ -29,6 +29,7 @@ import type {
   StockDetail,
   HistoricalDataPoint,
   KSE100Data,
+  IndexData,
   SectorPerformance,
   MarketStatus,
   PSXCompany,
@@ -237,6 +238,14 @@ export class CapitalStakeMarketDataProvider implements IMarketDataProvider {
       close: b.close,
       volume: b.volume,
     }));
+  }
+
+  /**
+   * This provider only serves the headline index, so any other PSX index code is
+   * reported as unavailable (`null`) and the app renders "not tracked" for it.
+   */
+  async getIndex(symbol: string): Promise<IndexData | null> {
+    return symbol.trim().toUpperCase() === 'KSE100' ? this.getKSE100() : null;
   }
 
   async getKSE100(): Promise<KSE100Data> {

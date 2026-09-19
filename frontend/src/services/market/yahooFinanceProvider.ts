@@ -19,6 +19,7 @@ import type {
   StockDetail,
   HistoricalDataPoint,
   KSE100Data,
+  IndexData,
   SectorPerformance,
   MarketStatus,
   PSXCompany,
@@ -204,6 +205,14 @@ export class YahooFinanceProvider implements IMarketDataProvider {
         volume: ohlcv.volume?.[i] ?? 0,
       }))
       .filter(d => d.close > 0);
+  }
+
+  /**
+   * Yahoo only carries the headline PSX index, so other index codes resolve to
+   * `null` and the app renders "not tracked" for them.
+   */
+  async getIndex(symbol: string): Promise<IndexData | null> {
+    return symbol.trim().toUpperCase() === 'KSE100' ? this.getKSE100() : null;
   }
 
   async getKSE100(): Promise<KSE100Data> {
