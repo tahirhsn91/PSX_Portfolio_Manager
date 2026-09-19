@@ -35,6 +35,7 @@ import type {
   StockQuote,
   StockDetail,
   HistoricalDataPoint,
+  IndexData,
   KSE100Data,
   SectorPerformance,
   MarketStatus,
@@ -157,15 +158,16 @@ class ScraperHttpError extends Error {
 }
 
 /**
- * Session-scoped negative cache for the index endpoint.
+ * Session-scoped negative cache for the index endpoint, per index code.
  *
- * A scraper without `/api/v1/indices` answers 404 forever, and `useKSE100()` polls
+ * A scraper without `/api/v1/indices` answers 404 forever, and the index queries poll
  * every 60s — so without this, one missing endpoint produced a 404 per minute per
- * open tab. Module scope means it lives for one page load: a reload re-probes, so
- * the app starts showing the real index the moment the scraper ships it, with no
- * config to flip.
+ * open tab. Per symbol, because an untracked index (the feed tracks KSE-100 only)
+ * must not disable the ones it does serve. Module scope means it lives for one page
+ * load: a reload re-probes, so the app starts showing an index the moment the
+ * scraper tracks it, with no config to flip.
  */
-let indexUnavailable = false;
+const indexUnavailable = new Set<string>();
 
 // ── Market status (derived from PKT clock) ────────────────────────────────────
 // PSX trading hours: Monday–Friday, 09:30–15:30 PKT (UTC+5)
@@ -493,16 +495,25 @@ export class PSXScraperProvider implements IMarketDataProvider {
   }
 
   async getKSE100(): Promise<KSE100Data | null> {
-    // The scraper exposes indices as their own resource (PSX_Scraper#16):
-    // /api/v1/indices/KSE100 + /history, in the same envelope as stock history.
-    // Never ask for the index on the stock routes — it is not a listed company, so
-    // /api/v1/stocks/KSE100 can only ever answer 404.
-    if (indexUnavailable) return null;
+    return this.getIndex('KSE100');
+  }
+
+  /**
+   * Any PSX index, by its PSX code (KSE100, KSE30, ALLSHR, KMI30, …).
+   *
+   * The scraper exposes indices as their own resource (PSX_Scraper#16):
+   * `/api/v1/indices/{code}` + `/history`, in the same envelope as stock history.
+   * Never ask for an index on the stock routes — an index is not a listed company,
+   * so `/api/v1/stocks/KSE100` can only ever answer 404.
+   */
+  async getIndex(symbol: string): Promise<IndexData | null> {
+    const symbol_ = symbol.trim().toUpperCase();
+    if (indexUnavailable.has(symbol_)) return null;
 
     try {
       const [summary, history] = await Promise.all([
-        this.get<ScraperIndexSummary>('/api/v1/indices/KSE100'),
-        this.get<ScraperHistoryResponse>('/api/v1/indices/KSE100/history?range=1Y&limit=252').catch(() => null),
+        this.get<ScraperIndexSummary>(`/api/v1/indices/${symbol_}`),
+        this.get<ScraperHistoryResponse>(`/api/v1/indices/${symbol_}/history?range=1Y&limit=252`).catch(() => null),
       ]);
 
       const value  = summary.value ?? 0;
@@ -529,11 +540,12 @@ export class PSXScraperProvider implements IMarketDataProvider {
       };
     } catch (err) {
       if (err instanceof ScraperHttpError && err.status === 404) {
-        // No index resource: a scraper predating /api/v1/indices, or KSE100 untracked.
-        // Negative-cache it for this page load and report "unavailable" — a made-up
-        // number (the old market-cap aggregate) is worse than no number.
-        indexUnavailable = true;
-        console.warn('[psx-scraper] KSE100 is not available from this scraper — index shown as unavailable');
+        // No such index resource: a scraper predating /api/v1/indices, or this code
+        // not tracked by the feed. Negative-cache just this code for the page load and
+        // report "unavailable" — a made-up number (the old market-cap aggregate) is
+        // worse than no number.
+        indexUnavailable.add(symbol_);
+        console.warn(`[psx-scraper] ${symbol_} is not available from this scraper — index shown as unavailable`);
         return null;
       }
       // Anything else (scraper down, 5xx, bad payload) is a real failure and must
