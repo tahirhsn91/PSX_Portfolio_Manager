@@ -93,10 +93,21 @@ export function alignReturnsByDate(
   const sortedPortfolio = [...portfolioData].sort((a, b) => a.date.localeCompare(b.date));
   const sortedBenchmark = [...benchmarkData].sort((a, b) => a.date.localeCompare(b.date));
 
-  // Start where the portfolio does: before it was bought there is no portfolio.
+  // The window runs from the portfolio's first session (before it was bought there is no
+  // portfolio) to the *earlier* of the two series' last real sessions — so nothing is measured
+  // against the other side's forward-filled tail. The index feed currently stops on 15 Sep
+  // while stock quotes run to the 21st; without this the last four sessions would show the
+  // benchmark standing still and hand the portfolio a badge it hadn't earned.
+  const lastReal = (rows: HistoricalDataPoint[]) => rows[rows.length - 1]?.date ?? '';
+  const portfolioLast = lastReal(sortedPortfolio);
+  const benchmarkLast = lastReal(sortedBenchmark);
+  const endDate = portfolioLast && benchmarkLast
+    ? (portfolioLast < benchmarkLast ? portfolioLast : benchmarkLast)
+    : (portfolioLast || benchmarkLast);
+
   const startDate = sortedPortfolio[0]?.date ?? sortedBenchmark[0]?.date ?? '';
   const requested = [...new Set([...sortedPortfolio, ...sortedBenchmark].map((p) => p.date))]
-    .filter((date) => date >= startDate)
+    .filter((date) => date >= startDate && (!endDate || date <= endDate))
     .sort()
     .slice(-maxPoints);
 
@@ -138,12 +149,27 @@ export function alignReturnsByDate(
   const dates = requested.slice(offset);
   const pValues = portfolioValues.slice(offset);
   const bValues = benchmarkValues.slice(offset);
-  const portfolioBase = pValues[0];
-  const benchmarkBase = bValues[0];
 
-  const points: ComparisonPoint[] = dates.map((date, i) => {
-    const p = pValues[i];
-    const b = bValues[i];
+  // …and it *ends* at the last session both series cover. A benchmark whose feed has gone
+  // quiet (the index series currently stops 15 Sep while quotes run to 21 Sep) must not be
+  // compared against a fresher portfolio as though the extra sessions counted: the badge and
+  // both return boxes measure the same window, which is what the header states.
+  let lastBoth = dates.length - 1;
+  while (lastBoth >= 0 && (pValues[lastBoth] === null || bValues[lastBoth] === null)) lastBoth -= 1;
+  if (lastBoth < 0) {
+    return { points: [], portfolioReturnPercent: 0, benchmarkReturnPercent: 0, sessions: 0, requestedSessions: maxPoints };
+  }
+
+  const windowDates = dates.slice(0, lastBoth + 1);
+  const windowP = pValues.slice(0, lastBoth + 1);
+  const windowB = bValues.slice(0, lastBoth + 1);
+  // Both are non-null at the offset, so each series has a base on the same first session.
+  const portfolioBase = windowP[0];
+  const benchmarkBase = windowB[0];
+
+  const points: ComparisonPoint[] = windowDates.map((date, i) => {
+    const p = windowP[i];
+    const b = windowB[i];
     return {
       date: format(new Date(`${date}T00:00:00`), 'MMM dd'),
       portfolio: p !== null && portfolioBase ? +((p / portfolioBase - 1) * 100).toFixed(2) : null,
@@ -197,7 +223,7 @@ export function BenchmarkComparisonChart({
             <CardTitle className="text-base">{title}</CardTitle>
             <CardDescription>
               {hasData
-                ? `${range} — return since ${points[0]?.date}, both lines normalised to 0% there${limitedByHistory ? ' (limited by available history)' : ''}`
+                ? `${range} — return ${points[0]?.date} → ${points[points.length - 1]?.date}, both lines normalised to 0% there${limitedByHistory ? ' (shorter than the range: that is all the feed holds)' : ''}`
                 : 'Normalised return comparison'}
             </CardDescription>
           </div>

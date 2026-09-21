@@ -43,7 +43,12 @@ export function CompanySearch({ onSelect, placeholder = 'Search company or ticke
     );
     const seen = new Set(extras.map((c) => c.symbol.toUpperCase()));
     const searched = results.filter((r) => !seen.has(r.symbol.toUpperCase()));
-    return [...extras, ...searched];
+    // Extras (the index list) lead, so they're discoverable before you type — but an exact
+    // ticker match always wins: typing "HBL" must offer the HBL stock above HBLTTI Index.
+    const all = [...extras, ...searched];
+    if (!needle) return all;
+    const isExact = (c: PSXCompany) => c.symbol.toLowerCase() === needle;
+    return [...all.filter(isExact), ...all.filter((c) => !isExact(c))];
   }, [extraOptions, results, query]);
 
   const handleSelect = (company: PSXCompany) => {
