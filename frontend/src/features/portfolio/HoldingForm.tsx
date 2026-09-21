@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CompanySearch } from '@/components/shared';
 import { holdingSchema, normalizeSector, sectorForSymbol, isCanonicalSector, displaySector, type HoldingFormValues } from '@/utils';
-import { PSX_SECTORS } from '@/constants';
+import { PSX_SECTORS, EARLIEST_PURCHASE_DATE } from '@/constants';
 import { useCompanySearch } from '@/hooks';
 import type { PSXCompany } from '@/types';
 
@@ -180,6 +180,11 @@ export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing }: Ho
                   <Calendar
                     mode="single"
                     autoFocus
+                    // Month + year dropdowns: a purchase can be years back, and stepping
+                    // there one arrow-click at a time is no way to enter a date.
+                    captionLayout="dropdown"
+                    startMonth={EARLIEST_PURCHASE_DATE}
+                    endMonth={new Date()}
                     selected={current}
                     defaultMonth={current}
                     // A holding can't have been bought in the future.
