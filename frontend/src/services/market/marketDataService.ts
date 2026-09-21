@@ -14,6 +14,7 @@ import type {
   HistoricalDataPoint,
   KSE100Data,
   IndexData,
+  CandleQuery,
   SectorPerformance,
   MarketStatus,
   PSXCompany,
@@ -101,6 +102,10 @@ class MarketDataService {
 
   async getHistoricalData(symbol: string, from: string, to: string): Promise<HistoricalDataPoint[]> {
     return this.provider.getHistoricalData(symbol.toUpperCase(), from, to);
+  }
+
+  async getCandles(symbol: string, opts: CandleQuery = {}): Promise<HistoricalDataPoint[]> {
+    return this.provider.getCandles(symbol, opts);
   }
 
   async getIndex(symbol: string): Promise<IndexData | null> {
