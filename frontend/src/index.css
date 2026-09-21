@@ -78,3 +78,17 @@
 .recharts-tooltip-wrapper {
   @apply !outline-none;
 }
+
+/* Calendar caption dropdowns (react-day-picker's month/year pickers).
+   The open option list is painted by the browser/OS rather than by the select's own box,
+   so on some platforms the highlighted row came out white-on-white. Pin the list to the
+   theme tokens so it reads in both themes. */
+select.calendar-select option {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+select.calendar-select option:checked,
+select.calendar-select option:hover {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
