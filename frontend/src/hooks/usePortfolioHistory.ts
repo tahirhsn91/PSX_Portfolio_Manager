@@ -11,10 +11,12 @@ const DEFAULT_WINDOW_DAYS = 200;
 /**
  * The portfolio's own value over time, for the "vs benchmark" comparison.
  *
- * Fetches each holding's price history (one request per distinct symbol, in
- * parallel) and prices the portfolio day by day via `buildPortfolioValueSeries`.
- * `windowDays` should cover the comparison period being plotted. The scraper
- * treats `to` as exclusive, so the window runs to tomorrow.
+ * Fetches each holding's **candles** (one request per distinct symbol, in parallel) and
+ * prices the portfolio day by day via `buildPortfolioValueSeries`. Candles are the feed's
+ * own chart series: each point is stamped with the exchange session day, so the portfolio
+ * line lands on the same sessions as the benchmark's and the two can't drift apart.
+ * `windowDays` should cover the comparison period being plotted; the feed treats `to` as
+ * exclusive, so the window runs to tomorrow.
  */
 export function usePortfolioHistory(
   holdings: Pick<Holding, 'symbol' | 'shares' | 'purchaseDate'>[] | undefined,
@@ -37,7 +39,7 @@ export function usePortfolioHistory(
         symbols.map(async (symbol) => {
           // One symbol without history must not sink the whole series.
           const points = await marketDataService
-            .getHistoricalData(symbol, from, to)
+            .getCandles(symbol, { from, to })
             .catch(() => [] as HistoricalDataPoint[]);
           return [symbol, points] as const;
         }),

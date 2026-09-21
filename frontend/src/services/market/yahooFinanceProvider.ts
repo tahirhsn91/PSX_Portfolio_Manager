@@ -20,6 +20,7 @@ import type {
   HistoricalDataPoint,
   KSE100Data,
   IndexData,
+  CandleQuery,
   SectorPerformance,
   MarketStatus,
   PSXCompany,
@@ -213,6 +214,16 @@ export class YahooFinanceProvider implements IMarketDataProvider {
    */
   async getIndex(symbol: string): Promise<IndexData | null> {
     return symbol.trim().toUpperCase() === 'KSE100' ? this.getKSE100() : null;
+  }
+
+  /**
+   * No candle route in this provider: its daily history is the same series, so serve
+   * candles from it using the requested bounds (a year back by default).
+   */
+  async getCandles(symbol: string, opts: CandleQuery = {}): Promise<HistoricalDataPoint[]> {
+    const to = opts.to ?? new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    const from = opts.from ?? new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10);
+    return this.getHistoricalData(symbol, from, to);
   }
 
   async getKSE100(): Promise<KSE100Data> {

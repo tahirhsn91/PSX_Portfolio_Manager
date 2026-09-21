@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { marketDataService } from '@/services';
 import { useMarketStore } from '@/store';
 import { useEffect } from 'react';
+import type { CandleQuery } from '@/types';
 
 export const MARKET_QUERY_KEYS = {
   quote: (symbol: string) => ['market', 'quote', symbol] as const,
@@ -108,6 +109,22 @@ export function useIndex(symbol: string | undefined) {
     staleTime: 60_000,
     // Null means "the feed doesn't track this one" — polling wouldn't change that.
     refetchInterval: (q) => (q.state.data ? 60_000 : false),
+  });
+}
+
+/**
+ * Daily candles for a symbol — the feed's own chart series, dated by exchange session.
+ *
+ * This is what the comparison plots: candle rows carry the session day, so the two
+ * lines can't drift apart the way UTC-stamped `/history` rows can.
+ */
+export function useCandles(symbol: string | undefined, opts: CandleQuery = {}) {
+  const { range, from, to } = opts;
+  return useQuery({
+    queryKey: ['market', 'candles', symbol ?? '', range ?? '', from ?? '', to ?? ''] as const,
+    queryFn: () => marketDataService.getCandles(symbol!, { range, from, to }),
+    enabled: !!symbol,
+    staleTime: 30 * 60_000,
   });
 }
 

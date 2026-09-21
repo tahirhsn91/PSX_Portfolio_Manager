@@ -36,6 +36,7 @@ import type {
   StockDetail,
   HistoricalDataPoint,
   IndexData,
+  CandleQuery,
   KSE100Data,
   SectorPerformance,
   MarketStatus,
@@ -105,6 +106,32 @@ interface ScraperHistoryResponse {
   limit: number;
   total: number;
   totalPages: number;
+}
+
+/**
+ * `/api/v1/stocks/:symbol/candles` — daily exchange-session candles, oldest first.
+ *
+ * `time` is the **session day in the exchange's timezone**, not a UTC timestamp. That is
+ * why the comparison dates its points from here: `/history` rows carry a UTC timestamp,
+ * which reads as the previous day for a session that closed late evening PKT.
+ */
+interface ScraperCandle {
+  time: string;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  close: number;
+  volume: number | null;
+}
+
+interface ScraperCandlesResponse {
+  symbol: string;
+  interval: string;
+  range: string | null;
+  count: number;
+  from: string | null;
+  to: string | null;
+  items: ScraperCandle[];
 }
 
 /**
@@ -492,6 +519,45 @@ export class PSXScraperProvider implements IMarketDataProvider {
       .reverse()                         // API: newest-first → charts need oldest-first
       .map(mapToHistoricalPoint)
       .filter((d): d is HistoricalDataPoint => d !== null);
+  }
+
+  /**
+   * Daily candles for a symbol, oldest first — the feed's own chart series.
+   *
+   * Candle rows are stamped with the exchange session day (the scraper reads the trade
+   * date in the exchange's timezone), so points don't drift the way `/history` rows do
+   * when they're read as UTC. Open/high/low/volume can be null on a thin session; they
+   * fall back to the close rather than a fabricated 0. A 404 means the feed doesn't hold
+   * the symbol yet — we ask it to track it and report no history.
+   */
+  async getCandles(symbol: string, opts: CandleQuery = {}): Promise<HistoricalDataPoint[]> {
+    const sym = symbol.toUpperCase();
+    const params = new URLSearchParams();
+    if (opts.range) params.set('range', opts.range);
+    if (opts.from) params.set('from', opts.from);
+    if (opts.to) params.set('to', opts.to);
+
+    let data: ScraperCandlesResponse;
+    try {
+      data = await this.get<ScraperCandlesResponse>(`/api/v1/stocks/${sym}/candles?${params.toString()}`);
+    } catch (err) {
+      if (err instanceof ScraperHttpError && err.status === 404) {
+        await this.ensureTracked(sym).catch(() => { /* best-effort */ });
+        return [];
+      }
+      throw err;
+    }
+
+    return (data.items ?? [])
+      .map((candle) => ({
+        date:  candle.time,
+        open:  candle.open  ?? candle.close,
+        high:  candle.high  ?? candle.close,
+        low:   candle.low   ?? candle.close,
+        close: candle.close,
+        volume: candle.volume ?? 0,
+      }))
+      .filter((d) => Number.isFinite(d.close) && d.close > 0);
   }
 
   async getKSE100(): Promise<KSE100Data | null> {

@@ -59,6 +59,19 @@ export interface IndexData {
 /** The headline index's shape; kept as an alias so existing consumers read unchanged. */
 export type KSE100Data = IndexData;
 
+/** Range presets the feed's chart endpoints accept (its own range control's list). */
+export type CandleRange = '1W' | '1M' | '6M' | '1Y' | '2Y' | '3Y' | '5Y' | 'MAX';
+
+/**
+ * Which sessions to ask for. `range` is a preset the feed resolves itself; `from`/`to`
+ * are explicit bounds (the feed treats `to` as exclusive).
+ */
+export interface CandleQuery {
+  range?: CandleRange;
+  from?: string;
+  to?: string;
+}
+
 export interface SectorPerformance {
   sector: string;
   changePercent: number;
@@ -89,6 +102,8 @@ export interface IMarketDataProvider {
   getQuotes(symbols: string[]): Promise<StockQuote[]>;
   getStockDetail(symbol: string): Promise<StockDetail>;
   getHistoricalData(symbol: string, from: string, to: string): Promise<HistoricalDataPoint[]>;
+  /** Daily candles — the feed's own chart series, stamped with the exchange session day. */
+  getCandles(symbol: string, opts?: CandleQuery): Promise<HistoricalDataPoint[]>;
   /** `null` means "this index isn't available from this provider" — consumers must handle it. */
   getIndex(symbol: string): Promise<IndexData | null>;
   /** The headline index. Convenience wrapper over `getIndex('KSE100')`. */
