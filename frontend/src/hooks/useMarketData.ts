@@ -2,7 +2,7 @@
  * Market data hooks using TanStack Query for caching, deduplication, and background refresh.
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { marketDataService } from '@/services';
 import { useMarketStore } from '@/store';
 import { useEffect } from 'react';
@@ -154,5 +154,8 @@ export function useCompanySearch(query: string) {
     queryFn: () => marketDataService.searchCompanies(query),
     enabled: query.length >= 1,
     staleTime: 300_000,
+    // Hold the previous results while the next query is in flight, so the list never blanks
+    // out mid-typing.
+    placeholderData: keepPreviousData,
   });
 }
