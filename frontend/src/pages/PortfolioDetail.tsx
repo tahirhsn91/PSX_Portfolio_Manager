@@ -12,7 +12,7 @@ import { HoldingForm } from '@/features/portfolio/HoldingForm';
 import { AllocationPieChart, PortfolioValueChart, BenchmarkComparisonChart, rangeConfig } from '@/features/charts';
 import type { ComparisonBenchmark, ComparisonRange } from '@/features/charts';
 import { usePortfolioStore, useUIStore } from '@/store';
-import { usePortfolioMetrics, useKSE100, useIndex, usePortfolioHistory, useHistoricalData } from '@/hooks';
+import { usePortfolioMetrics, useKSE100, useIndex, usePortfolioHistory, useCandles } from '@/hooks';
 import { buildSectorAllocation } from '@/utils';
 import { ROUTES, PSX_INDICES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
 import { format, subDays, addDays } from 'date-fns';
@@ -71,13 +71,15 @@ export function PortfolioDetail() {
     portfolio?.holdings, rangeDays,
   );
 
-  // Whichever the benchmark is, fetch its own series for the selected period. The
-  // scraper treats `to` as exclusive, so the window runs to tomorrow.
+  // Whichever the benchmark is, fetch its own series for the selected period from the
+  // feed's candles. The feed treats `to` as exclusive, so the window runs to tomorrow.
   const indexQuery = useIndex(benchmark.kind === 'index' ? benchmark.code : undefined);
-  const { data: benchmarkStockHistory = [], isLoading: benchmarkStockLoading } = useHistoricalData(
+  const { data: benchmarkStockHistory = [], isLoading: benchmarkStockLoading } = useCandles(
     benchmark.kind === 'stock' ? benchmark.code : undefined,
-    format(subDays(new Date(), rangeDays), 'yyyy-MM-dd'),
-    format(addDays(new Date(), 1), 'yyyy-MM-dd'),
+    {
+      from: format(subDays(new Date(), rangeDays), 'yyyy-MM-dd'),
+      to: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
+    },
   );
 
   const comparisonBenchmark: ComparisonBenchmark = {

@@ -11,6 +11,7 @@ import type {
   HistoricalDataPoint,
   KSE100Data,
   IndexData,
+  CandleQuery,
   SectorPerformance,
   MarketStatus,
   PSXCompany,
@@ -140,6 +141,16 @@ export class MockMarketDataProvider implements IMarketDataProvider {
   /** Mock provider: the generated series stands in for whichever index is asked for. */
   async getIndex(_symbol: string): Promise<IndexData | null> {
     return this.getKSE100();
+  }
+
+  /**
+   * No candle route here: the generated history is the same series, so serve candles
+   * from it using the requested bounds.
+   */
+  async getCandles(symbol: string, opts: CandleQuery = {}): Promise<HistoricalDataPoint[]> {
+    const to = opts.to ?? new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    const from = opts.from ?? new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10);
+    return this.getHistoricalData(symbol, from, to);
   }
 
   async getKSE100(): Promise<KSE100Data> {
