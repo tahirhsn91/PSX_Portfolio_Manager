@@ -95,6 +95,15 @@ export const CACHE_TTL = {
 // Pagination
 export const PAGE_SIZE = 20;
 
+/**
+ * Earliest date the purchase-date picker walks back to.
+ *
+ * PSX has traded since 1947, but no portfolio recorded here predates the app, and a
+ * calendar whose year dropdown lists decades of empty months is worse than useless —
+ * 2000 gives a floor that still covers every realistic holding.
+ */
+export const EARLIEST_PURCHASE_DATE = new Date(2000, 0, 1);
+
 // Technical analysis parameters
 export const TECHNICAL = {
   RSI_PERIOD: 14,

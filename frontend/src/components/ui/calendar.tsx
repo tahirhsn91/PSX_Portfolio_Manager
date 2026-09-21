@@ -15,6 +15,11 @@ import { cn } from '@/lib/utils';
 export type CalendarProps = React.ComponentProps<typeof DayPicker>;
 
 export function Calendar({ className, classNames, showOutsideDays = true, ...props }: CalendarProps) {
+  // With the dropdown caption react-day-picker renders its own month/year <select>s *and*
+  // the caption label. Only one of them should be visible, so the label goes to screen
+  // readers when the dropdowns are in use — otherwise the month and year read twice.
+  const usesDropdownCaption = props.captionLayout === 'dropdown';
+
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
@@ -22,8 +27,19 @@ export function Calendar({ className, classNames, showOutsideDays = true, ...pro
       classNames={{
         months: 'flex flex-col gap-4 sm:flex-row',
         month: 'flex flex-col gap-4',
-        month_caption: 'relative flex items-center justify-center pt-1',
-        caption_label: 'text-sm font-medium',
+        month_caption: 'relative flex items-center justify-center gap-1 pt-1',
+        caption_label: usesDropdownCaption ? 'sr-only' : 'text-sm font-medium',
+        // Month + year dropdowns (captionLayout="dropdown"): bordered pills matching the
+        // app's inputs. The <select> stays visible and themed on purpose — the browser
+        // paints its option list from the element's own colours, so a transparent or
+        // opacity-0 select produces an unreadable popup (white text on white).
+        dropdowns: 'flex items-center justify-center gap-1',
+        dropdown_root:
+          'relative inline-flex h-8 items-center gap-0.5 rounded-md border border-input bg-background pl-2 pr-1 shadow-sm focus-within:ring-1 focus-within:ring-ring',
+        dropdown:
+          'calendar-select h-7 cursor-pointer appearance-none bg-background text-sm font-medium text-foreground focus:outline-none disabled:opacity-50',
+        months_dropdown: '',
+        years_dropdown: '',
         nav: 'flex items-center gap-1',
         // Same ghost-button treatment for both arrows; each is absolutely
         // positioned by the caption row, so the label stays centred.
