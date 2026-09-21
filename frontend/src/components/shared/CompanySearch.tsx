@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { Search, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useCompanySearch } from '@/hooks';
+import { PSX_COMPANIES } from '@/constants';
 import type { PSXCompany } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -21,7 +22,33 @@ export function CompanySearch({ onSelect, placeholder = 'Search company or ticke
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { data: results = [], isLoading } = useCompanySearch(query);
+
+  // The input stays instant; only the *request* is debounced. 200 ms is below where typing
+  // feels laggy, and it turns one request per keystroke into one per pause.
+  const [searchTerm, setSearchTerm] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchTerm(query.trim()), 200);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const { data: results = [], isLoading } = useCompanySearch(searchTerm);
+
+  /**
+   * Matches straight from the bundle, rendered before the feed answers.
+   *
+   * The curated catalogue ships with the app, so a symbol it knows shows up instantly rather
+   * than after the feed's search — which is ~10 ms once warm but seconds on a cold start.
+   * These are a preview: the merged results replace them a moment later.
+   */
+  const localMatches = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return [];
+    return PSX_COMPANIES
+      .filter((c) => c.symbol.toLowerCase().includes(needle) || c.name.toLowerCase().includes(needle))
+      .sort((a, b) =>
+        Number(!a.symbol.toLowerCase().startsWith(needle)) - Number(!b.symbol.toLowerCase().startsWith(needle)))
+      .slice(0, 6);
+  }, [query]);
 
   // Close on outside click
   useEffect(() => {
@@ -41,15 +68,24 @@ export function CompanySearch({ onSelect, placeholder = 'Search company or ticke
         || c.symbol.toLowerCase().includes(needle)
         || c.name.toLowerCase().includes(needle),
     );
-    const seen = new Set(extras.map((c) => c.symbol.toUpperCase()));
-    const searched = results.filter((r) => !seen.has(r.symbol.toUpperCase()));
-    // Extras (the index list) lead, so they're discoverable before you type — but an exact
-    // ticker match always wins: typing "HBL" must offer the HBL stock above HBLTTI Index.
-    const all = [...extras, ...searched];
-    if (!needle) return all;
+
+    // Local matches first (instant), then the extras (the index list), then the feed's
+    // results — deduped by symbol, since the three sources overlap heavily.
+    const seen = new Set<string>();
+    const merged: PSXCompany[] = [];
+    for (const company of [...localMatches, ...extras, ...results]) {
+      const key = company.symbol.toUpperCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      merged.push(company);
+    }
+
+    // An exact ticker match always wins: typing "HBL" must offer the HBL stock above
+    // HBLTTI Index.
+    if (!needle) return merged;
     const isExact = (c: PSXCompany) => c.symbol.toLowerCase() === needle;
-    return [...all.filter(isExact), ...all.filter((c) => !isExact(c))];
-  }, [extraOptions, results, query]);
+    return [...merged.filter(isExact), ...merged.filter((c) => !isExact(c))];
+  }, [extraOptions, results, query, localMatches]);
 
   const handleSelect = (company: PSXCompany) => {
     onSelect(company);
