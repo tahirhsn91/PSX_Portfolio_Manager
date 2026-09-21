@@ -348,6 +348,8 @@ export function rankCompanies(
 export class PSXScraperProvider implements IMarketDataProvider {
   /** Tracked-symbol list reuse, so typing in a search box doesn't refetch it. */
   private trackedCache: { at: number; rows: PSXCompany[] } | null = null;
+  /** In-flight roster refresh, so a burst of keystrokes only starts one. */
+  private trackedFetch: Promise<PSXCompany[]> | null = null;
 
   /**
    * @param proxyBase  Base URL of the backend proxy (e.g. http://localhost:4000).
@@ -665,26 +667,40 @@ export class PSXScraperProvider implements IMarketDataProvider {
   /**
    * Symbol/name search for the autocomplete fields.
    *
-   * The scraper's `/api/v1/search` is the intended source, but it answers 500 for
-   * every query (its raw SQL carries an unresolved `<<<<<<<` merge marker) and
-   * this used to swallow that failure into an empty list — which is why typing a
-   * ticker offered nothing at all. A query now merges three sources and depends
-   * on none of them alone:
+   * Three sources, none of them load-bearing on its own:
    *
-   *   1. the scraper's search endpoint (first choice, while it works)
-   *   2. the tracked-stock list behind /api/v1/stocks (live data, 24 symbols)
-   *   3. the app's curated PSX_COMPANIES catalogue (59 names, incl. untracked)
+   *   1. the scraper's own `/api/v1/search` — ~10 ms once warm, the intended source
+   *   2. the tracked-stock roster behind `/api/v1/stocks`
+   *   3. the app's curated `PSX_COMPANIES` catalogue (59 names, incl. untracked ones), local
+   *
+   * The roster is the slow one — `GET /api/v1/stocks?limit=200` measures 4–11 s on the current
+   * scraper — so this deliberately never *waits* on it: it's merged only when already cached,
+   * and a miss starts a background refresh for the next search. Awaiting it (which the earlier
+   * version did whenever its 5-minute cache lapsed) made a search take that long.
    */
   async searchCompanies(query: string): Promise<PSXCompany[]> {
     const trimmed = query.trim();
     if (!trimmed) return [];
 
-    const [scraped, tracked] = await Promise.all([
-      this.searchViaScraper(trimmed),
-      this.trackedCompanies(),
-    ]);
+    const tracked = this.cachedTrackedCompanies();
+    const scraped = await this.searchViaScraper(trimmed);
+    this.refreshTrackedInBackground();
 
     return rankCompanies([...scraped, ...tracked, ...PSX_COMPANIES], trimmed);
+  }
+
+  /** The roster we already hold — `[]` rather than a request when the cache has lapsed. */
+  private cachedTrackedCompanies(): PSXCompany[] {
+    const cache = this.trackedCache;
+    return cache && Date.now() - cache.at < TRACKED_CACHE_MS ? cache.rows : [];
+  }
+
+  /** Refresh the roster for later searches without making the caller wait for it. */
+  private refreshTrackedInBackground(): void {
+    if (this.trackedFetch || this.cachedTrackedCompanies().length > 0) return;
+    this.trackedFetch = this.trackedCompanies()
+      .catch(() => [] as PSXCompany[])
+      .finally(() => { this.trackedFetch = null; });
   }
 
   /** The scraper's own search — best effort, `[]` whenever it's unavailable. */
