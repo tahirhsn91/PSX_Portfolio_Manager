@@ -5,6 +5,7 @@
 
 import type { Holding, HoldingMetrics, PortfolioMetrics, Portfolio } from '@/types';
 import type { StockQuote, HistoricalDataPoint } from '@/types';
+import { CHART_COLORS } from '@/constants';
 
 /**
  * Calculate metrics for a single holding given the current market quote
@@ -160,6 +161,43 @@ export function buildSectorAllocation(
       value,
       percent: totalValue !== 0 ? (value / totalValue) * 100 : 0,
       color: colors[i % colors.length],
+    }));
+}
+
+/**
+ * Build per-holding allocation data from portfolio holdings + metrics.
+ *
+ * The counterpart to buildSectorAllocation: same shape, but keyed by holding
+ * instead of sector, so the Charts tab can show "how much of the portfolio is
+ * this position" alongside "how much of the portfolio is this sector".
+ *
+ * Values come from the metrics the page already loads (`currentValue` is
+ * shares × the latest quote), so this adds no fetching. The percentage is the
+ * same number the holdings table prints as Weight
+ * (`HoldingMetrics.weightInPortfolio`), computed here from the same total so the
+ * pie and the table can't diverge if one ever gains a filter.
+ */
+export function buildHoldingAllocation(
+  portfolio: Portfolio,
+  metrics: HoldingMetrics[]
+): { name: string; symbol: string; value: number; percent: number; color: string }[] {
+  const totalValue = metrics.reduce((s, m) => s + m.currentValue, 0);
+
+  return portfolio.holdings
+    .map((h) => {
+      const m = metrics.find((metric) => metric.holdingId === h.id);
+      return m ? { symbol: h.symbol, name: h.symbol, value: m.currentValue } : null;
+    })
+    .filter((entry): entry is { symbol: string; name: string; value: number } => entry !== null)
+    .sort((a, b) => b.value - a.value)
+    // CHART_COLORS rather than another local literal: the first eight entries are
+    // the same colours buildSectorAllocation uses, so holdings keep the sector
+    // chart's palette without a third copy of it. (Slices past the eighth wrap,
+    // which is already true of the sector chart past its tenth.)
+    .map((entry, i) => ({
+      ...entry,
+      percent: totalValue !== 0 ? (entry.value / totalValue) * 100 : 0,
+      color: CHART_COLORS[i % CHART_COLORS.length],
     }));
 }
 
