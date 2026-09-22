@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, TrendingUp, Activity, DollarSign, Award, AlertTriangle } from 'lucide-react';
+import { Plus, TrendingUp, Activity, DollarSign, Award, AlertTriangle, LineChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MetricCard, EmptyState } from '@/components/shared';
 import { AllocationPieChart, SectorBarChart, BenchmarkComparisonChart, rangeConfig } from '@/features/charts';
@@ -74,7 +74,10 @@ export function Dashboard() {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Five tiles: two-up on phones, three-up from lg, and a single row of five
+          only once the container is wide enough (2xl) — five across at xl squeezes a
+          tile to ~180px and wraps both the label and the currency value. */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-4">
         <MetricCard
           title="Total Investment"
           value={aggregate.totalInvestment}
@@ -92,6 +95,16 @@ export function Dashboard() {
           changePercent={aggregate.totalPLPercent}
           icon={<TrendingUp className="h-4 w-4" />}
           isLoading={isLoading}
+        />
+        <MetricCard
+          title="Total P&L"
+          value={aggregate.totalPL}
+          isCurrency
+          compact
+          changePercent={aggregate.totalPLPercent}
+          icon={<LineChart className="h-4 w-4" />}
+          isLoading={isLoading}
+          toneBySign
         />
         <MetricCard
           title="Today's P&L"
