@@ -1,29 +1,10 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import {
-  LayoutDashboard, Briefcase, BarChart2,
-  Settings, ChevronLeft, ChevronRight, Activity,
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store';
-import { ROUTES } from '@/constants';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
-
-const NAV_ITEMS = [
-  { label: 'Dashboard', icon: LayoutDashboard, to: ROUTES.DASHBOARD },
-  { label: 'Portfolios', icon: Briefcase, to: ROUTES.PORTFOLIOS },
-  { label: 'Market', icon: BarChart2, to: ROUTES.MARKET },
-  { label: 'Settings', icon: Settings, to: ROUTES.SETTINGS },
-] as const;
-
-/**
- * Mirrors React Router's `NavLink` default matching (i.e. no `end` prop): an
- * item is active on its own path and on anything nested beneath it, so
- * Portfolios/Market stay highlighted while a detail page is open.
- */
-function isNavItemActive(pathname: string, to: string): boolean {
-  return pathname === to || pathname.startsWith(`${to}/`);
-}
+import { NAV_ITEMS, isNavItemActive } from './nav';
 
 export function Sidebar() {
   const { isSidebarCollapsed, toggleSidebar } = useUIStore();
@@ -32,7 +13,8 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'flex flex-col border-r bg-card transition-all duration-300 ease-in-out',
+        // Hidden below `md` — the drawer and bottom bar own phone navigation.
+        'hidden md:flex flex-col border-r bg-card transition-all duration-300 ease-in-out',
         isSidebarCollapsed ? 'w-16' : 'w-64'
       )}
     >
@@ -65,7 +47,9 @@ export function Sidebar() {
                   <NavLink
                     to={to}
                     className={cn(
-                      'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                      // h-11 = 44px: the touch-target floor, measured in the mobile audit
+                      // (rows were 239x36 and sat under the 44pt recommendation).
+                      'flex h-11 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors',
                       isActive
                         ? 'bg-primary text-primary-foreground'
                         : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
@@ -90,7 +74,7 @@ export function Sidebar() {
         <Button
           variant="ghost"
           size="icon"
-          className="w-full"
+          className="h-11 w-full"
           onClick={toggleSidebar}
           aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
