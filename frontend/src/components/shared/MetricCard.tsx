@@ -61,7 +61,7 @@ export function MetricCard({
   if (isLoading) {
     return (
       <Card className={className}>
-        <CardContent className="p-6">
+        <CardContent className="p-4 sm:p-6">
           <Skeleton className="h-4 w-24 mb-3" />
           <Skeleton className="h-8 w-32 mb-2" />
           <Skeleton className="h-4 w-20" />
@@ -88,13 +88,15 @@ export function MetricCard({
 
   return (
     <Card className={cn('transition-all hover:shadow-md animate-fade-in', tone.card, className)}>
-      <CardContent className="p-6">
+      <CardContent className="p-4 sm:p-6">
         <div className="flex items-start justify-between">
           <p className="text-sm font-medium text-muted-foreground">{title}</p>
           {icon && <div className="text-muted-foreground">{icon}</div>}
         </div>
         <div className="mt-2">
-          <p className={cn('text-2xl font-bold tracking-tight', tone.value)}>{displayValue}</p>
+          {/* text-xl below `sm`: "PKR 60.0K" at text-2xl is 135px, more than a 2-up
+              tile leaves at 360px, so the value wrapped to two lines. */}
+          <p className={cn('text-xl font-bold tracking-tight sm:text-2xl', tone.value)}>{displayValue}</p>
           {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
         </div>
         {(change !== undefined || changePercent !== undefined) && (
