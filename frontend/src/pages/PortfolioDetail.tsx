@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, ArrowLeft, TrendingUp, DollarSign, Activity, Award, AlertTriangle } from 'lucide-react';
+import { Plus, ArrowLeft, TrendingUp, DollarSign, Activity, Award, AlertTriangle, LineChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -141,10 +141,12 @@ export function PortfolioDetail() {
         </Button>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* KPI Cards — five tiles, so the same two/three/five ramp as the Dashboard:
+          a row of five only from 2xl, where each tile still fits its value on one line. */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-4">
         <MetricCard title="Invested" value={metrics?.totalInvestment ?? 0} isCurrency compact icon={<DollarSign className="h-4 w-4" />} isLoading={isLoading} />
         <MetricCard title="Current Value" value={metrics?.currentValue ?? 0} isCurrency compact change={metrics?.totalPL} changePercent={metrics?.totalPLPercent} icon={<TrendingUp className="h-4 w-4" />} isLoading={isLoading} />
+        <MetricCard title="Total P&L" value={metrics?.totalPL ?? 0} isCurrency compact changePercent={metrics?.totalPLPercent} icon={<LineChart className="h-4 w-4" />} isLoading={isLoading} toneBySign />
         <MetricCard title="Today's P&L" value={metrics?.todayPL ?? 0} isCurrency compact changePercent={metrics?.todayPLPercent} icon={<Activity className="h-4 w-4" />} isLoading={isLoading} toneBySign />
         <MetricCard title="Dividends" value={metrics?.totalDividendIncome ?? 0} isCurrency compact subtitle="Total received" icon={<DollarSign className="h-4 w-4" />} isLoading={isLoading} />
       </div>
