@@ -45,6 +45,9 @@ const DEFAULT_BENCHMARK: Benchmark = {
   label: indexLabel(DEFAULT_INDEX_CODE),
 };
 
+/** Which breakdown the single allocation card is showing. */
+type AllocationView = 'holdings' | 'sector';
+
 /** The picker hands back a company-shaped option; a known index code means an index. */
 function toBenchmark(company: PSXCompany): Benchmark {
   return PSX_INDICES.some((index) => index.code === company.symbol)
@@ -60,6 +63,8 @@ export function PortfolioDetail() {
   const addNotification = useUIStore((s) => s.addNotification);
   const { metrics, isLoading } = usePortfolioMetrics(id);
   const [range, setRange] = useState<ComparisonRange>('3M');
+  // The allocation card shows one breakdown at a time; Holdings is the default.
+  const [allocationView, setAllocationView] = useState<AllocationView>('holdings');
   // What to compare against: a PSX index code, or any listed stock's symbol.
   const [benchmark, setBenchmark] = useState<Benchmark>(DEFAULT_BENCHMARK);
   // The Value tab still charts the index as a stand-in for portfolio value (pre-existing
@@ -123,6 +128,13 @@ export function PortfolioDetail() {
 
   const sectorAlloc = buildSectorAllocation(portfolio, metrics?.holdingMetrics ?? []);
   const holdingAlloc = buildHoldingAllocation(portfolio, metrics?.holdingMetrics ?? []);
+
+  // One card, two breakdowns: whichever the switch has selected is the pie that
+  // is mounted, so the row spends a single slot on the question either way.
+  const allocationData = allocationView === 'holdings'
+    ? holdingAlloc.map((h) => ({ name: h.name, value: h.value, percent: h.percent, color: h.color }))
+    : sectorAlloc.map((s) => ({ name: s.sector, value: s.value, percent: s.percent, color: s.color }));
+  const allocationTitle = allocationView === 'holdings' ? 'Holdings Allocation' : 'Sector Allocation';
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -200,20 +212,24 @@ export function PortfolioDetail() {
 
         <TabsContent value="charts" className="mt-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {sectorAlloc.length > 0 && (
+            {/* A single allocation slot: the switch in the card header decides whether
+                the pie breaks the portfolio down by holding or by sector, so the row
+                never spends two cards on the same question. */}
+            {allocationData.length > 0 && (
               <AllocationPieChart
-                data={sectorAlloc.map((s) => ({ name: s.sector, value: s.value, percent: s.percent, color: s.color }))}
-                title="Sector Allocation"
-              />
-            )}
-            {/* The other half of the same question: the sector pie aggregates
-                holdings, this one shows each position's own share. Same metrics
-                the page already loaded, so no extra request. Legend is the
-                symbol, matching the holdings table. */}
-            {holdingAlloc.length > 0 && (
-              <AllocationPieChart
-                data={holdingAlloc.map((h) => ({ name: h.name, value: h.value, percent: h.percent, color: h.color }))}
-                title="Holdings Allocation"
+                data={allocationData}
+                title={allocationTitle}
+                headerExtra={
+                  <Tabs
+                    value={allocationView}
+                    onValueChange={(value) => setAllocationView(value as AllocationView)}
+                  >
+                    <TabsList className="h-8">
+                      <TabsTrigger value="holdings" className="px-3 text-xs">Holdings</TabsTrigger>
+                      <TabsTrigger value="sector" className="px-3 text-xs">Sector</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                }
               />
             )}
             {kse100 && (

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency, formatPercent } from '@/utils';
@@ -14,6 +15,12 @@ interface AllocationPieChartProps {
   data: AllocationData[];
   title?: string;
   valueLabel?: string;
+  /**
+   * Rendered opposite the title inside the card header — a view switch, so one
+   * card can carry two breakdowns. Optional: the dashboard's call site passes
+   * nothing and keeps the plain header.
+   */
+  headerExtra?: ReactNode;
 }
 
 const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: { name: string; value: number; payload: AllocationData }[] }) => {
@@ -48,13 +55,15 @@ const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: { 
   );
 };
 
-export function AllocationPieChart({ data, title = 'Portfolio Allocation' }: AllocationPieChartProps) {
+export function AllocationPieChart({ data, title = 'Portfolio Allocation', headerExtra }: AllocationPieChartProps) {
   const chartData = data.map((d, i) => ({ ...d, color: d.color ?? CHART_COLORS[i % CHART_COLORS.length] }));
 
   return (
     <Card>
-      <CardHeader>
+      {/* space-y-0 + row: the switch sits on the title's baseline rather than under it. */}
+      <CardHeader className={headerExtra ? 'flex flex-row items-center justify-between space-y-0' : undefined}>
         <CardTitle className="text-base">{title}</CardTitle>
+        {headerExtra}
       </CardHeader>
       <CardContent>
         {/* Height is 320 not 280: the legend for a 7-sector portfolio wraps to ~3 rows
