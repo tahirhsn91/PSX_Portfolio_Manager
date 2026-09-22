@@ -165,7 +165,50 @@ export function Market() {
         </TabsContent>
 
         <TabsContent value="all" className="mt-4">
-          <div className="overflow-x-auto rounded-lg border">
+          {/* Phones get cards: six numeric columns at 390px are not a readable
+              list, and the row is the tap target for the stock page. */}
+          <ul className="space-y-3 lg:hidden">
+            {quotesLoading
+              ? Array.from({ length: 6 }).map((_, i) => (
+                  <li key={i} className="rounded-lg border bg-card p-4">
+                    <Skeleton className="h-5 w-24" />
+                    <Skeleton className="mt-2 h-4 w-40" />
+                    <Skeleton className="mt-3 h-4 w-full" />
+                  </li>
+                ))
+              : quotes.map((q) => (
+                  <li
+                    key={q.symbol}
+                    className="rounded-lg border bg-card p-4 active:bg-muted/30"
+                    onClick={() => navigate(ROUTES.MARKET_STOCK_PATH(q.symbol))}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-mono font-bold text-primary">{q.symbol}</div>
+                        <div className="truncate text-xs text-muted-foreground">{q.companyName}</div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div className="font-mono">{formatCurrency(q.currentPrice)}</div>
+                        <div className={cn('font-mono text-xs font-medium', q.changePercent >= 0 ? 'text-profit' : 'text-loss')}>
+                          {formatPercent(q.changePercent)}
+                        </div>
+                      </div>
+                    </div>
+                    <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t pt-3 text-xs">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <dt className="text-muted-foreground">Volume</dt>
+                        <dd className="font-mono">{formatVolume(q.volume)}</dd>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <dt className="text-muted-foreground">Mkt Cap</dt>
+                        <dd className="font-mono">{formatCompactNumber(q.marketCap)}</dd>
+                      </div>
+                    </dl>
+                  </li>
+                ))}
+          </ul>
+
+          <div className="hidden overflow-x-auto rounded-lg border lg:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/40">
