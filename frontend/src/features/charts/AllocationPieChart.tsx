@@ -57,7 +57,10 @@ export function AllocationPieChart({ data, title = 'Portfolio Allocation' }: All
         <CardTitle className="text-base">{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={280}>
+        {/* Height is 320 not 280: the legend for a 7-sector portfolio wraps to ~3 rows
+            (~96px), and that space is taken off the plot area *before* the pie is laid
+            out, so the circle had 184px of height to live in. */}
+        <ResponsiveContainer width="100%" height={320}>
           <PieChart>
             <Pie
               data={chartData}
@@ -65,7 +68,14 @@ export function AllocationPieChart({ data, title = 'Portfolio Allocation' }: All
               cy="50%"
               labelLine={false}
               label={CustomLabel as unknown as boolean}
-              outerRadius={110}
+              /* Percentage, not a fixed radius. A number is used verbatim, while
+                 recharts resolves a string against maxPieRadius =
+                 getMaxRadius(plotWidth, plotHeight) = min(w, h) / 2 of the
+                 legend-adjusted plot area, so the circle shrinks to fit instead of
+                 spilling out of the SVG. With outerRadius={110} a 7-sector legend
+                 left 184px for a 220px circle: the top 18px (42px at a 1024 viewport)
+                 was cut off by the SVG edge. 88% keeps a visible margin. */
+              outerRadius="88%"
               dataKey="value"
               nameKey="name"
             >
