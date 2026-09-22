@@ -13,7 +13,7 @@ import { AllocationPieChart, PortfolioValueChart, BenchmarkComparisonChart, rang
 import type { ComparisonBenchmark, ComparisonRange } from '@/features/charts';
 import { usePortfolioStore, useUIStore } from '@/store';
 import { usePortfolioMetrics, useKSE100, useIndex, usePortfolioHistory, useCandles } from '@/hooks';
-import { buildSectorAllocation } from '@/utils';
+import { buildSectorAllocation, buildHoldingAllocation } from '@/utils';
 import { ROUTES, PSX_INDICES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
 import { format, subDays, addDays } from 'date-fns';
 import type { Holding, PSXCompany } from '@/types';
@@ -122,6 +122,7 @@ export function PortfolioDetail() {
   };
 
   const sectorAlloc = buildSectorAllocation(portfolio, metrics?.holdingMetrics ?? []);
+  const holdingAlloc = buildHoldingAllocation(portfolio, metrics?.holdingMetrics ?? []);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -203,6 +204,16 @@ export function PortfolioDetail() {
               <AllocationPieChart
                 data={sectorAlloc.map((s) => ({ name: s.sector, value: s.value, percent: s.percent, color: s.color }))}
                 title="Sector Allocation"
+              />
+            )}
+            {/* The other half of the same question: the sector pie aggregates
+                holdings, this one shows each position's own share. Same metrics
+                the page already loaded, so no extra request. Legend is the
+                symbol, matching the holdings table. */}
+            {holdingAlloc.length > 0 && (
+              <AllocationPieChart
+                data={holdingAlloc.map((h) => ({ name: h.name, value: h.value, percent: h.percent, color: h.color }))}
+                title="Holdings Allocation"
               />
             )}
             {kse100 && (
