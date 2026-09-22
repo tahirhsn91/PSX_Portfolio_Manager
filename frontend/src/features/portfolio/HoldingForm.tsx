@@ -61,6 +61,8 @@ export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing }: Ho
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      {/* Every control is a full 44px on phones and the desktop 40px from sm up:
+          a thumb needs the height, a mouse does not. */}
       {/* Company Search (only show when adding) */}
       {!isEditing && (
         <div className="space-y-2">
@@ -72,7 +74,7 @@ export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing }: Ho
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="symbol">Ticker Symbol *</Label>
-          <Input id="symbol" placeholder="ENGRO" {...register('symbol')} className="uppercase" />
+          <Input id="symbol" placeholder="ENGRO" {...register('symbol')} className="h-11 uppercase sm:h-10" />
           {errors.symbol && <p className="text-xs text-destructive">{errors.symbol.message}</p>}
           {!errors.symbol && tickerMatch && (
             <p className="text-xs text-muted-foreground">
@@ -82,7 +84,7 @@ export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing }: Ho
         </div>
         <div className="space-y-2">
           <Label htmlFor="companyName">Company Name *</Label>
-          <Input id="companyName" placeholder="Engro Corporation" {...register('companyName')} />
+          <Input id="companyName" placeholder="Engro Corporation" {...register('companyName')} className="h-11 sm:h-10" />
           {errors.companyName && <p className="text-xs text-destructive">{errors.companyName.message}</p>}
         </div>
       </div>
@@ -94,7 +96,7 @@ export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing }: Ho
           control={control}
           render={({ field }) => (
             <Select value={field.value} onValueChange={field.onChange}>
-              <SelectTrigger>
+              <SelectTrigger className="h-11 sm:h-10">
                 <SelectValue placeholder="Select sector" />
               </SelectTrigger>
               <SelectContent>
@@ -123,6 +125,7 @@ export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing }: Ho
             type="number"
             placeholder="500"
             step="1"
+            className="h-11 sm:h-10"
             {...register('shares', { valueAsNumber: true })}
           />
           {errors.shares && <p className="text-xs text-destructive">{errors.shares.message}</p>}
@@ -134,6 +137,7 @@ export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing }: Ho
             type="number"
             placeholder="145.50"
             step="0.01"
+            className="h-11 sm:h-10"
             {...register('averagePurchasePrice', { valueAsNumber: true })}
           />
           {errors.averagePurchasePrice && <p className="text-xs text-destructive">{errors.averagePurchasePrice.message}</p>}
@@ -162,7 +166,7 @@ export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing }: Ho
                     onClick={() => setDatePickerOpen(true)}
                     aria-haspopup="dialog"
                     aria-expanded={datePickerOpen}
-                    className="cursor-pointer pr-10"
+                    className="h-11 cursor-pointer pr-11 sm:h-10 sm:pr-10"
                   />
                   <PopoverTrigger asChild>
                     <Button
@@ -170,7 +174,7 @@ export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing }: Ho
                       variant="ghost"
                       size="icon"
                       aria-label="Choose purchase date"
-                      className="absolute right-0.5 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                      className="absolute right-0 top-1/2 h-11 w-11 -translate-y-1/2 text-muted-foreground hover:bg-accent hover:text-accent-foreground sm:right-0.5 sm:h-8 sm:w-8"
                     >
                       <CalendarIcon className="h-4 w-4" />
                     </Button>
@@ -205,12 +209,12 @@ export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing }: Ho
 
       <div className="space-y-2">
         <Label htmlFor="notes">Notes</Label>
-        <Input id="notes" placeholder="Optional notes" {...register('notes')} />
+        <Input id="notes" placeholder="Optional notes" {...register('notes')} className="h-11 sm:h-10" />
       </div>
 
       <div className="flex justify-end gap-2 pt-2">
-        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button type="submit" disabled={isSubmitting}>
+        <Button type="button" variant="outline" className="h-11 sm:h-10" onClick={onCancel}>Cancel</Button>
+        <Button type="submit" className="h-11 sm:h-10" disabled={isSubmitting}>
           {isEditing ? 'Save Changes' : 'Add Holding'}
         </Button>
       </div>

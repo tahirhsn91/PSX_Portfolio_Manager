@@ -140,16 +140,23 @@ export function PortfolioDetail() {
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate(ROUTES.PORTFOLIOS)}>
+        <div className="flex min-w-0 items-center gap-3">
+          {/* shrink-0: the name beside it used to squeeze this to 26px wide. */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-11 w-11 shrink-0 sm:h-10 sm:w-10"
+            aria-label="Back to portfolios"
+            onClick={() => navigate(ROUTES.PORTFOLIOS)}
+          >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div className="flex items-center gap-2">
-            <div className="h-4 w-4 rounded-full" style={{ backgroundColor: portfolio.color }} />
-            <h2 className="text-2xl font-bold">{portfolio.name}</h2>
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: portfolio.color }} />
+            <h2 className="truncate text-xl font-bold sm:text-2xl">{portfolio.name}</h2>
           </div>
         </div>
-        <Button onClick={() => setAddOpen(true)}>
+        <Button className="h-11 shrink-0 sm:h-10" onClick={() => setAddOpen(true)}>
           <Plus className="mr-2 h-4 w-4" /> Add Holding
         </Button>
       </div>
@@ -224,7 +231,7 @@ export function PortfolioDetail() {
                     value={allocationView}
                     onValueChange={(value) => setAllocationView(value as AllocationView)}
                   >
-                    <TabsList className="h-8">
+                    <TabsList className="h-11 sm:h-8">
                       <TabsTrigger value="holdings" className="px-3 text-xs">Holdings</TabsTrigger>
                       <TabsTrigger value="sector" className="px-3 text-xs">Sector</TabsTrigger>
                     </TabsList>
