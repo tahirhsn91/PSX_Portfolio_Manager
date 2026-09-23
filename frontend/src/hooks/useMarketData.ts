@@ -10,15 +10,34 @@ import type { CandleQuery } from '@/types';
 
 export const MARKET_QUERY_KEYS = {
   quote: (symbol: string) => ['market', 'quote', symbol] as const,
-  quotes: (symbols: string[]) => ['market', 'quotes', ...symbols.sort()] as const,
+  // Copies before sorting: `symbols.sort()` sorts in place, which silently reordered the
+  // caller's own array — the Market overview's volume ranking was alphabetised by the
+  // act of building its cache key, and only a row-order assertion catches that.
+  quotes: (symbols: string[]) => ['market', 'quotes', ...[...symbols].sort()] as const,
   detail: (symbol: string) => ['market', 'detail', symbol] as const,
   historical: (symbol: string, from: string, to: string) => ['market', 'historical', symbol, from, to] as const,
   kse100: () => ['market', 'kse100'] as const,
   index: (symbol: string) => ['market', 'index', symbol.toUpperCase()] as const,
   sector: () => ['market', 'sector'] as const,
+  topSymbols: (limit: number) => ['market', 'top-symbols', limit] as const,
   status: () => ['market', 'status'] as const,
   search: (query: string) => ['market', 'search', query] as const,
 } as const;
+
+/**
+ * The feed's most-active tracked symbols — the Market overview's ranking source.
+ *
+ * A stale time of five minutes rather than one: this decides *which* twenty symbols
+ * the page shows, and re-ranking under the reader as volume moves would be worse
+ * than a ranking that lags the tape slightly.
+ */
+export function useTopSymbols(limit = 20) {
+  return useQuery({
+    queryKey: MARKET_QUERY_KEYS.topSymbols(limit),
+    queryFn: () => marketDataService.getTopSymbols(limit),
+    staleTime: 5 * 60_000,
+  });
+}
 
 /** Fetch and cache a single stock quote */
 export function useStockQuote(symbol: string | undefined) {

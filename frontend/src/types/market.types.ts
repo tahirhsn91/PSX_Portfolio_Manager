@@ -18,8 +18,12 @@ export interface StockQuote {
   open: number | null;
   high: number | null;
   low: number | null;
-  previousClose: number;
-  volume: number;
+  /** Derived from sent values where the feed omits it; null when there is no quote
+   *  to derive it from (0 would print as a real "Rs 0.00" previous close). */
+  previousClose: number | null;
+  /** Null where the feed reports none (an unavailable symbol) — 0 would read as
+   *  "no trades today" rather than "not reported". */
+  volume: number | null;
   marketCap: number | null;
   sector: string;
   lastUpdated: string; // ISO timestamp
@@ -33,8 +37,10 @@ export interface StockQuote {
 }
 
 export interface StockDetail extends StockQuote {
-  week52High: number;
-  week52Low: number;
+  /** Null where the feed publishes no range or average (an untracked symbol, or one
+   *  with no history) — a 0 would draw a range bar from zero and read as data. */
+  week52High: number | null;
+  week52Low: number | null;
   peRatio: number | null;
   eps: number | null;
   bookValue: number | null;
@@ -42,7 +48,7 @@ export interface StockDetail extends StockQuote {
   nextDividendDate: string | null; // ISO date
   nextDividendAmount: number | null; // PKR per share
   beta: number | null;
-  averageVolume: number;
+  averageVolume: number | null;
   description: string;
 }
 
@@ -90,7 +96,9 @@ export interface CandleQuery {
 export interface SectorPerformance {
   sector: string;
   changePercent: number;
-  marketCap: number;
+  /** Null when no member of the sector has a published market cap — the feed sends
+   *  none for any symbol, so this is null rather than a measured-looking 0. */
+  marketCap: number | null;
   stockCount: number;
   topGainer: string;
   topLoser: string;
@@ -124,6 +132,12 @@ export interface IMarketDataProvider {
   /** The headline index. Convenience wrapper over `getIndex('KSE100')`. */
   getKSE100(): Promise<KSE100Data | null>;
   getSectorPerformance(): Promise<SectorPerformance[]>;
+  /**
+   * The provider's most-active tracked symbols, in the provider's own order — the
+   * Market overview's list. A provider with no activity data returns its declared
+   * universe rather than a fabricated ranking.
+   */
+  getTopSymbols(limit?: number): Promise<string[]>;
   getMarketStatus(): Promise<MarketStatus>;
   searchCompanies(query: string): Promise<PSXCompany[]>;
 }

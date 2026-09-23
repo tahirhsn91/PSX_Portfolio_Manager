@@ -152,8 +152,32 @@ interface ScraperIndexSummary {
   lastTradeDate: string | null;
 }
 
+/**
+ * A row of the list route (`/api/v1/stocks`) — **flattened**, unlike
+ * `/api/v1/stocks/:symbol`: price fields sit on the item itself and there is no
+ * `price` object and no absolute `change`. Reading `s.price.changePercent` off these
+ * (as the sector aggregation did) yields `undefined`, which coerced to 0 and made
+ * every sector report a 0.00% move.
+ */
+interface ScraperListItem {
+  id?: string;
+  symbol: string;
+  companyName?: string;
+  sector?: string;
+  currentPrice?: number | null;
+  changePercent?: number | null;
+  volume?: number | null;
+  week52High?: number | null;
+  week52Low?: number | null;
+  /** Not in the payload today (no symbol has a market cap); typed so it flows in
+   *  the day the feed adds it, and `null` when absent rather than 0. */
+  marketCap?: number | null;
+  lastTradeDate?: string | null;
+  lastSyncedAt?: string | null;
+}
+
 interface ScraperListResponse {
-  items: ScraperStock[];
+  items: ScraperListItem[];
   page: number;
   limit: number;
   total: number;
@@ -195,6 +219,16 @@ class ScraperHttpError extends Error {
  * scraper tracks it, with no config to flip.
  */
 const indexUnavailable = new Set<string>();
+
+/** The list route serves 200 rows a page; this bounds the walk if `totalPages` lies. */
+const MAX_LIST_PAGES = 5;
+
+/**
+ * How long one walk of the tracked list is reused. The walk costs seconds on the feed
+ * (its later pages take ~10s each), and the Market page asks for the same list twice
+ * — once to rank the overview, once to average the sectors — so it is done once.
+ */
+const TRACKED_LIST_CACHE_MS = 60_000;
 
 // ── Market status (derived from PKT clock) ────────────────────────────────────
 // PSX trading hours: Monday–Friday, 09:30–15:30 PKT (UTC+5)
@@ -250,10 +284,14 @@ function mapToStockQuote(stock: ScraperStock): StockQuote {
     high:          p.high          ?? null,
     low:           p.low           ?? null,
     previousClose: price - change,          // not in API — derived
-    volume:        Math.abs(p.volume ?? 0), // can be negative (scraper bug)
+    // Can be negative upstream, but never invented: absent stays absent.
+    volume:        p.volume == null ? null : Math.abs(p.volume),
     marketCap:     p.marketCap     ?? null,
     sector:        stock.sector    ?? 'Unknown',
-    lastUpdated:   p.lastTradeDate ?? new Date().toISOString(),
+    // No `?? now` fallback: stamping a quote with the current time claims the feed
+    // just refreshed it. An empty string means "no timestamp from the feed", which
+    // the session-day helper and RangeBar both treat as unknown.
+    lastUpdated:   p.lastTradeDate ?? '',
     // A tracked symbol the feed serves without a usable price is unavailable, not
     // free: a 0 would flow into the holding's value and its return.
     priceAvailable: Number.isFinite(price) && price > 0,
@@ -283,6 +321,14 @@ function mapToHistoricalPoint(row: ScraperPriceRow): HistoricalDataPoint | null 
  * because stamping "now" made an unknown symbol look like fresh data. Every consumer
  * branches on the flag; the zeros are never rendered.
  */
+/**
+ * The quote for a symbol the feed will not price.
+ *
+ * Every field it does not know is null, not 0: these values reach the screen, and the
+ * page for an unavailable symbol used to state "Open Rs 0.00 / Previous Close Rs 0.00
+ * / Day High Rs 0.00" — four numbers the exchange never sent. `priceAvailable: false`
+ * is what the UI keys off; the nulls make a stray 0 impossible.
+ */
 function unavailableQuote(symbol: string): StockQuote {
   return {
     symbol:        symbol.toUpperCase(),
@@ -290,12 +336,12 @@ function unavailableQuote(symbol: string): StockQuote {
     currentPrice:  0,
     change:        0,
     changePercent: 0,
-    open:          0,
-    high:          0,
-    low:           0,
-    previousClose: 0,
-    volume:        0,
-    marketCap:     0,
+    open:          null,
+    high:          null,
+    low:           null,
+    previousClose: null,
+    volume:        null,
+    marketCap:     null,
     sector:        'Unknown',
     lastUpdated:   '',
     priceAvailable: false,
@@ -360,6 +406,8 @@ export function rankCompanies(
 export class PSXScraperProvider implements IMarketDataProvider {
   /** Tracked-symbol list reuse, so typing in a search box doesn't refetch it. */
   private trackedCache: { at: number; rows: PSXCompany[] } | null = null;
+  /** Shared walk of the tracked list (see fetchAllTracked). */
+  private trackedListCache: { at: number; items: ScraperListItem[] } | null = null;
   /** In-flight roster refresh, so a burst of keystrokes only starts one. */
   private trackedFetch: Promise<PSXCompany[]> | null = null;
 
@@ -468,10 +516,12 @@ export class PSXScraperProvider implements IMarketDataProvider {
         await this.ensureTracked(sym).catch(() => { /* best-effort */ });
         return {
           ...unavailableQuote(sym),
-          week52High: 0, week52Low: 0,
+          // Nulls, not zeros: a 0 52-week range draws a bar from zero and "0"
+          // average volume reads as a measured figure.
+          week52High: null, week52Low: null,
           peRatio: null, eps: null, bookValue: null,
           dividendYield: null, nextDividendDate: null, nextDividendAmount: null,
-          beta: null, averageVolume: 0, description: '',
+          beta: null, averageVolume: null, description: '',
         };
       }
       throw err;
@@ -617,7 +667,7 @@ export class PSXScraperProvider implements IMarketDataProvider {
         low:           summary.low           ?? null,
         previousClose: summary.previousClose ?? value - change,
         volume:        summary.volume == null ? null : Math.abs(summary.volume),
-        lastUpdated:   summary.lastTradeDate ?? new Date().toISOString(),
+        lastUpdated:   summary.lastTradeDate ?? '',
         historicalData,
       };
     } catch (err) {
@@ -636,20 +686,77 @@ export class PSXScraperProvider implements IMarketDataProvider {
     }
   }
 
-  async getSectorPerformance(): Promise<SectorPerformance[]> {
-    let list: ScraperListResponse;
+  /**
+   * The feed's whole tracked list.
+   *
+   * The list route is served **alphabetically and paginated** (508 symbols, 200 a
+   * page), so a single `limit=200` request returns A–F only. Ranking or averaging
+   * that page looked plausible and was really a statement about the first fifth of
+   * the market, so every whole-market read walks the pages.
+   */
+  private async fetchAllTracked(): Promise<ScraperListItem[]> {
+    const now = Date.now();
+    if (this.trackedListCache && now - this.trackedListCache.at < TRACKED_LIST_CACHE_MS) {
+      return this.trackedListCache.items;
+    }
+
+    const pageSize = 200;
+    const first = await this.get<ScraperListResponse>(`/api/v1/stocks?limit=${pageSize}&page=1`);
+    const items = [...(first.items ?? [])];
+    const totalPages = Math.min(first.totalPages ?? 1, MAX_LIST_PAGES);
+
+    if (totalPages > 1) {
+      // Fetched together, not one after another: the feed takes ~10s on its later
+      // pages and this walk gates the Market page's list.
+      const rest = await Promise.all(
+        Array.from({ length: totalPages - 1 }, (_, i) =>
+          this.get<ScraperListResponse>(`/api/v1/stocks?limit=${pageSize}&page=${i + 2}`).catch(() => null),
+        ),
+      );
+      for (const res of rest) items.push(...(res?.items ?? []));
+    }
+
+    this.trackedListCache = { at: now, items };
+    return items;
+  }
+
+  /**
+   * The feed's own most-traded tracked symbols, by volume.
+   *
+   * The Market overview used to rank a *bundled* catalogue by hardcoded market caps
+   * (the feed publishes none), so its order was fiction that never changed. This
+   * ranks what the feed actually traded, and falls back to an empty list — never to
+   * the catalogue — so a caller can see the ranking is unavailable.
+   */
+  async getTopSymbols(limit = 20): Promise<string[]> {
     try {
-      list = await this.get<ScraperListResponse>('/api/v1/stocks?limit=200');
+      return (await this.fetchAllTracked())
+        .filter((s) => Number.isFinite(s.currentPrice) && (s.currentPrice ?? 0) > 0)
+        .sort((a, b) => (b.volume ?? 0) - (a.volume ?? 0))
+        .slice(0, limit)
+        .map((s) => s.symbol);
     } catch {
       return [];
     }
+  }
 
-    const stocks = list.items ?? [];
+  async getSectorPerformance(): Promise<SectorPerformance[]> {
+    let stocks: ScraperListItem[];
+    try {
+      stocks = await this.fetchAllTracked();
+    } catch {
+      return [];
+    }
     if (!stocks.length) return [];
 
+    // Only members the feed prices take part in an average: averaging in a symbol
+    // with no price would drag every sector's move toward zero.
+    const priced = stocks.filter((s) => Number.isFinite(s.currentPrice) && (s.currentPrice ?? 0) > 0);
+    if (!priced.length) return [];
+
     // Group by sector
-    const bySector = new Map<string, ScraperStock[]>();
-    for (const s of stocks) {
+    const bySector = new Map<string, ScraperListItem[]>();
+    for (const s of priced) {
       const sector   = s.sector ?? 'Unknown';
       const existing = bySector.get(sector) ?? [];
       existing.push(s);
@@ -658,11 +765,14 @@ export class PSXScraperProvider implements IMarketDataProvider {
 
     const result: SectorPerformance[] = [];
     for (const [sector, members] of bySector.entries()) {
-      const prices      = members.map(s => s.price ?? ({} as ScraperPriceData));
-      const avgChange   = prices.reduce((s, p) => s + (p.changePercent ?? 0), 0) / prices.length;
-      const totalCap    = prices.reduce((s, p) => s + (p.marketCap ?? 0), 0);
+      const changes     = members.map(s => s.changePercent).filter((c): c is number => typeof c === 'number');
+      const avgChange   = changes.length ? changes.reduce((a, b) => a + b, 0) / changes.length : 0;
+      // The feed publishes no market cap for any symbol, so a sector total is null
+      // rather than a sum of zeros pretending to be measured.
+      const caps        = members.map(s => s.marketCap).filter((c): c is number => typeof c === 'number');
+      const totalCap    = caps.length ? caps.reduce((a, b) => a + b, 0) : null;
       const sorted      = [...members].sort(
-        (a, b) => (b.price?.changePercent ?? 0) - (a.price?.changePercent ?? 0),
+        (a, b) => (b.changePercent ?? 0) - (a.changePercent ?? 0),
       );
 
       result.push({
@@ -743,12 +853,14 @@ export class PSXScraperProvider implements IMarketDataProvider {
     }
 
     try {
-      const list = await this.get<ScraperListResponse>('/api/v1/stocks?limit=200');
-      const rows = (list.items ?? []).map(s => ({
+      const rows = (await this.fetchAllTracked()).map(s => ({
         symbol:       s.symbol,
         name:         stripSymbolPrefix(s.companyName ?? '', s.symbol),
         sector:       s.sector ?? 'Unknown',
-        marketCap:    s.price?.marketCap ?? 0,
+        // Carried for the search list's shape only: the feed publishes no market cap
+        // for any symbol, and the catalogue's own figures are used when it compiles
+        // this list, never as a number shown to the user.
+        marketCap:    s.marketCap ?? 0,
         listedShares: 0,
       }));
       this.trackedCache = { at: now, rows };
