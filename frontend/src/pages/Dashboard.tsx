@@ -82,7 +82,6 @@ export function Dashboard() {
           title="Total Investment"
           value={aggregate.totalInvestment}
           isCurrency
-          compact
           icon={<DollarSign className="h-4 w-4" />}
           isLoading={isLoading}
         />
@@ -90,7 +89,6 @@ export function Dashboard() {
           title="Current Value"
           value={aggregate.currentValue}
           isCurrency
-          compact
           change={aggregate.totalPL}
           changePercent={aggregate.totalPLPercent}
           icon={<TrendingUp className="h-4 w-4" />}
@@ -100,7 +98,6 @@ export function Dashboard() {
           title="Total P&L"
           value={aggregate.totalPL}
           isCurrency
-          compact
           changePercent={aggregate.totalPLPercent}
           icon={<LineChart className="h-4 w-4" />}
           isLoading={isLoading}
@@ -110,7 +107,6 @@ export function Dashboard() {
           title="Today's P&L"
           value={aggregate.todayPL}
           isCurrency
-          compact
           changePercent={aggregate.todayPLPercent}
           icon={<Activity className="h-4 w-4" />}
           isLoading={isLoading}
@@ -120,7 +116,6 @@ export function Dashboard() {
           title="Total Dividends"
           value={aggregate.totalDividendIncome}
           isCurrency
-          compact
           subtitle="All-time received"
           icon={<DollarSign className="h-4 w-4" />}
           isLoading={isLoading}

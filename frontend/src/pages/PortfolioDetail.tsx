@@ -12,7 +12,7 @@ import { HoldingForm } from '@/features/portfolio/HoldingForm';
 import { AllocationPieChart, PortfolioValueChart, BenchmarkComparisonChart, rangeConfig } from '@/features/charts';
 import type { ComparisonBenchmark, ComparisonRange } from '@/features/charts';
 import { usePortfolioStore, useUIStore } from '@/store';
-import { usePortfolioMetrics, useKSE100, useIndex, usePortfolioHistory, useCandles } from '@/hooks';
+import { usePortfolioMetrics, useIndex, usePortfolioHistory, useCandles } from '@/hooks';
 import { buildSectorAllocation, buildHoldingAllocation } from '@/utils';
 import { ROUTES, PSX_INDICES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
 import { format, subDays, addDays } from 'date-fns';
@@ -67,9 +67,8 @@ export function PortfolioDetail() {
   const [allocationView, setAllocationView] = useState<AllocationView>('holdings');
   // What to compare against: a PSX index code, or any listed stock's symbol.
   const [benchmark, setBenchmark] = useState<Benchmark>(DEFAULT_BENCHMARK);
-  // The Value tab still charts the index as a stand-in for portfolio value (pre-existing
-  // behaviour, untouched here) — the comparison below uses the benchmark instead.
-  const { data: kse100 } = useKSE100();
+  // The Value tab charts the portfolio's own priced series — the same one the
+  // comparison rebases — so the two tabs cannot disagree about what it is worth.
 
   const rangeDays = rangeConfig(range).days;
   const { series: portfolioSeries, isLoading: portfolioHistoryLoading } = usePortfolioHistory(
@@ -179,11 +178,11 @@ export function PortfolioDetail() {
       {/* KPI Cards — five tiles, so the same two/three/five ramp as the Dashboard:
           a row of five only from 2xl, where each tile still fits its value on one line. */}
       <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-4">
-        <MetricCard title="Invested" value={metrics?.totalInvestment ?? 0} isCurrency compact icon={<DollarSign className="h-4 w-4" />} isLoading={isLoading} />
-        <MetricCard title="Current Value" value={metrics?.currentValue ?? 0} isCurrency compact change={metrics?.totalPL} changePercent={metrics?.totalPLPercent} icon={<TrendingUp className="h-4 w-4" />} isLoading={isLoading} />
-        <MetricCard title="Total P&L" value={metrics?.totalPL ?? 0} isCurrency compact changePercent={metrics?.totalPLPercent} icon={<LineChart className="h-4 w-4" />} isLoading={isLoading} toneBySign />
-        <MetricCard title="Today's P&L" value={metrics?.todayPL ?? 0} isCurrency compact changePercent={metrics?.todayPLPercent} icon={<Activity className="h-4 w-4" />} isLoading={isLoading} toneBySign />
-        <MetricCard title="Dividends" value={metrics?.totalDividendIncome ?? 0} isCurrency compact subtitle="Total received" icon={<DollarSign className="h-4 w-4" />} isLoading={isLoading} />
+        <MetricCard title="Invested" value={metrics?.totalInvestment ?? 0} isCurrency icon={<DollarSign className="h-4 w-4" />} isLoading={isLoading} />
+        <MetricCard title="Current Value" value={metrics?.currentValue ?? 0} isCurrency change={metrics?.totalPL} changePercent={metrics?.totalPLPercent} icon={<TrendingUp className="h-4 w-4" />} isLoading={isLoading} />
+        <MetricCard title="Total P&L" value={metrics?.totalPL ?? 0} isCurrency changePercent={metrics?.totalPLPercent} icon={<LineChart className="h-4 w-4" />} isLoading={isLoading} toneBySign />
+        <MetricCard title="Today's P&L" value={metrics?.todayPL ?? 0} isCurrency changePercent={metrics?.todayPLPercent} icon={<Activity className="h-4 w-4" />} isLoading={isLoading} toneBySign />
+        <MetricCard title="Dividends" value={metrics?.totalDividendIncome ?? 0} isCurrency subtitle="Total received" icon={<DollarSign className="h-4 w-4" />} isLoading={isLoading} />
       </div>
 
       {/* Best/Worst */}
@@ -254,13 +253,7 @@ export function PortfolioDetail() {
                 }
               />
             )}
-            {kse100 && (
-              <PortfolioValueChart
-                historicalData={kse100.historicalData}
-                totalShares={portfolio.holdings.reduce((s, h) => s + h.shares, 0)}
-                title="Portfolio Value (Proxy)"
-              />
-            )}
+            <PortfolioValueChart series={portfolioSeries} title="Portfolio Value" />
           </div>
         </TabsContent>
 

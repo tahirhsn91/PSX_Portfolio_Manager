@@ -7,8 +7,11 @@
  * Format a number as PKR currency
  * e.g. 1234567 → "PKR 12,34,567.00" or "₨ 1,234,567"
  */
-export function formatCurrency(value: number, compact = false): string {
-  if (isNaN(value) || !isFinite(value)) return 'PKR —';
+export function formatCurrency(value: number | null | undefined, compact = false): string {
+  // `value == null` catches null and undefined together: the feed omits fields
+  // (market cap, volume) as null, and `isNaN(null)` is false — so without this a
+  // missing figure printed as a real-looking PKR 0.00 / 0.
+  if (value == null || isNaN(value) || !isFinite(value)) return 'PKR —';
   if (compact) {
     if (Math.abs(value) >= 1_000_000_000) return `PKR ${(value / 1_000_000_000).toFixed(1)}B`;
     if (Math.abs(value) >= 1_000_000) return `PKR ${(value / 1_000_000).toFixed(1)}M`;
@@ -37,8 +40,8 @@ export function formatPercent(value: number, showSign = true): string {
  * Format a large number compactly
  * e.g. 1234567 → "1.23M"
  */
-export function formatCompactNumber(value: number): string {
-  if (isNaN(value)) return '—';
+export function formatCompactNumber(value: number | null | undefined): string {
+  if (value == null || isNaN(value)) return '—';
   if (Math.abs(value) >= 1_000_000_000_000) return `${(value / 1_000_000_000_000).toFixed(2)}T`;
   if (Math.abs(value) >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(2)}B`;
   if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;

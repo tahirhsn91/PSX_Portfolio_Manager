@@ -272,7 +272,9 @@ export class YahooFinanceProvider implements IMarketDataProvider {
         if (!quotes.length) continue;
 
         const avgChange = quotes.reduce((s, q) => s + q.changePercent, 0) / quotes.length;
-        const totalCap  = quotes.reduce((s, q) => s + q.marketCap, 0);
+        // A quote whose market cap is unknown contributes nothing to the total
+        // rather than being counted as zero (the field is nullable on StockQuote).
+        const totalCap  = quotes.reduce((s, q) => s + (q.marketCap ?? 0), 0);
         const sorted    = [...quotes].sort((a, b) => b.changePercent - a.changePercent);
 
         results.push({
