@@ -10,7 +10,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CompanySearch } from '@/components/shared';
-import { holdingSchema, normalizeSector, sectorForSymbol, isCanonicalSector, displaySector, type HoldingFormValues } from '@/utils';
+import { holdingSchema, normalizeSector, sectorForSymbol, isCanonicalSector, displaySector, mostRecentTradingDay, type HoldingFormValues } from '@/utils';
 import { PSX_SECTORS, EARLIEST_PURCHASE_DATE } from '@/constants';
 import { useCompanySearch } from '@/hooks';
 import type { PSXCompany } from '@/types';
@@ -28,8 +28,9 @@ export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing }: Ho
   const { register, handleSubmit, control, setValue, watch, formState: { errors, isSubmitting } } = useForm<HoldingFormValues>({
     resolver: zodResolver(holdingSchema),
     defaultValues: {
-      // Today by default, so the field is never empty on a new holding.
-      purchaseDate: format(new Date(), 'yyyy-MM-dd'),
+      // The most recent session by default, so the field is never empty on a new
+      // holding — and never proposes a weekend, which the calendar below refuses.
+      purchaseDate: format(mostRecentTradingDay(), 'yyyy-MM-dd'),
       ...defaultValues,
     },
   });
@@ -191,8 +192,10 @@ export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing }: Ho
                     endMonth={new Date()}
                     selected={current}
                     defaultMonth={current}
-                    // A holding can't have been bought in the future.
-                    disabled={{ after: new Date() }}
+                    // A holding can't have been bought in the future, and PSX does not
+                    // trade at the weekend — those days stay on the calendar (the grid
+                    // reads wrong without them) but are unselectable and muted.
+                    disabled={[{ after: new Date() }, { dayOfWeek: [0, 6] }]}
                     onSelect={(date) => {
                       if (!date) return;
                       field.onChange(format(date, 'yyyy-MM-dd'));
@@ -204,7 +207,13 @@ export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing }: Ho
             );
           }}
         />
-        {errors.purchaseDate && <p className="text-xs text-destructive">{errors.purchaseDate.message}</p>}
+        {errors.purchaseDate ? (
+          <p className="text-xs text-destructive">{errors.purchaseDate.message}</p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            PSX trades Monday to Friday — weekends can't be selected.
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">
