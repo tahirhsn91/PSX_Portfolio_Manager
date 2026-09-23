@@ -84,10 +84,19 @@ export function StockDetail() {
           <Skeleton className="h-9 w-28 ml-auto" />
         ) : (
           <div className="ml-auto text-right">
-            <p className="text-3xl font-bold">{formatCurrency(detail?.currentPrice ?? 0)}</p>
-            <p className={cn('text-sm font-medium', isProfit ? 'text-profit' : 'text-loss')}>
-              {isProfit ? '+' : ''}{formatCurrency(detail?.change ?? 0)} today
-            </p>
+            {detail?.priceAvailable === false ? (
+              <>
+                <p className="text-3xl font-bold text-muted-foreground">—</p>
+                <p className="text-sm font-medium text-muted-foreground">price unavailable</p>
+              </>
+            ) : (
+              <>
+                <p className="text-3xl font-bold">{formatCurrency(detail?.currentPrice ?? 0)}</p>
+                <p className={cn('text-sm font-medium', isProfit ? 'text-profit' : 'text-loss')}>
+                  {isProfit ? '+' : ''}{formatCurrency(detail?.change ?? 0)} today
+                </p>
+              </>
+            )}
           </div>
         )}
       </div>
