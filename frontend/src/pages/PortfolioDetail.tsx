@@ -253,7 +253,7 @@ export function PortfolioDetail() {
                 }
               />
             )}
-            <PortfolioValueChart series={portfolioSeries} title="Portfolio Value" />
+            <PortfolioValueChart series={portfolioSeries} title="Portfolio Value" rangeDays={rangeDays} />
           </div>
         </TabsContent>
 

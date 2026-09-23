@@ -213,6 +213,12 @@ export class MockMarketDataProvider implements IMarketDataProvider {
     return { isOpen, nextOpen: null, nextClose: null, timezone: 'PKT' };
   }
 
+  /** The mock's own universe; it has no traded volume to rank by, so the declared
+   *  order is returned rather than an invented ranking. */
+  async getTopSymbols(limit = 20): Promise<string[]> {
+    return Object.keys(BASE_PRICES).slice(0, limit);
+  }
+
   async searchCompanies(query: string): Promise<PSXCompany[]> {
     const q = query.toLowerCase();
     return PSX_COMPANIES.filter(

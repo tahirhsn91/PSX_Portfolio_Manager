@@ -120,6 +120,11 @@ class MarketDataService {
     return this.provider.getSectorPerformance();
   }
 
+  /** The provider's most-active symbols — the Market overview's ranking source. */
+  async getTopSymbols(limit = 20): Promise<string[]> {
+    return this.provider.getTopSymbols(limit);
+  }
+
   async getMarketStatus(): Promise<MarketStatus> {
     return this.provider.getMarketStatus();
   }

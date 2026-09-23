@@ -6,23 +6,21 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CompanySearch } from '@/components/shared';
 import { SectorBarChart } from '@/features/charts';
-import { useKSE100, useSectorPerformance, useStockQuotes } from '@/hooks';
-import { PSX_COMPANIES } from '@/constants';
+import { useKSE100, useSectorPerformance, useStockQuotes, useTopSymbols } from '@/hooks';
 import { formatCurrency, formatPercent, formatVolume, formatCompactNumber } from '@/utils';
 import type { PSXCompany } from '@/types';
 import { ROUTES } from '@/constants';
 import { cn } from '@/lib/utils';
 
-// Show top 20 companies by market cap in the market overview
-const TOP_SYMBOLS = PSX_COMPANIES.sort((a, b) => b.marketCap - a.marketCap)
-  .slice(0, 20)
-  .map((c) => c.symbol);
-
 export function Market() {
   const navigate = useNavigate();
   const { data: kse100, isLoading: kseLoading } = useKSE100();
   const { data: sectors = [], isLoading: sectorLoading } = useSectorPerformance();
-  const { data: quotes = [], isLoading: quotesLoading } = useStockQuotes(TOP_SYMBOLS);
+  // Which symbols the overview lists: the feed's own most-traded. This used to rank a
+  // bundled catalogue by hardcoded market caps (the feed publishes none), so the list
+  // never changed and its order was fiction.
+  const { data: topSymbols = [], isLoading: symbolsLoading } = useTopSymbols(20);
+  const { data: quotes = [], isLoading: quotesLoading } = useStockQuotes(topSymbols);
 
   const handleCompanySelect = (company: PSXCompany) => {
     navigate(ROUTES.MARKET_STOCK_PATH(company.symbol));
@@ -39,6 +37,16 @@ export function Market() {
         placeholder="Search PSX company or ticker..."
         className="max-w-lg"
       />
+
+      {/* Say where the list comes from: every figure on this page is the scraper
+          feed's, and the ranking is the feed's own traded volume. */}
+      <p className="text-xs text-muted-foreground">
+        {symbolsLoading
+          ? 'Ranking the feed’s most-traded symbols…'
+          : quotes.length > 0
+            ? `Top ${quotes.length} symbols by traded volume — ranked and priced from the scraped PSX feed.`
+            : 'The feed has not reported any priced symbols, so there is nothing to rank yet.'}
+      </p>
 
       {/* KSE100 Banner */}
       <Card className="border-primary/20 bg-primary/5">
