@@ -78,12 +78,13 @@ export function MetricCard({
       : value.toLocaleString()
     : value;
 
-  const trend = (change ?? 0) > 0 ? 'up' : (change ?? 0) < 0 ? 'down' : 'neutral';
+  // The reading this tile is about: the amount moved when one was passed, else the
+  // percentage, else the value itself. A card stating "+30.99%" must not show the
+  // neutral "no change" icon merely because only a percentage was passed (the
+  // Total P&L and Today's P&L tiles do exactly that).
+  const reading = change ?? changePercent ?? (typeof value === 'number' ? value : 0);
+  const trend = reading > 0 ? 'up' : reading < 0 ? 'down' : 'neutral';
   const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : Minus;
-
-  // `change` is the amount moved; fall back to `value` for cards that only pass
-  // a P&L figure (Today's P&L passes changePercent, not change).
-  const reading = change ?? (typeof value === 'number' ? value : 0);
   const tone = toneBySign ? signTone(reading) : { card: '', value: '' };
 
   return (

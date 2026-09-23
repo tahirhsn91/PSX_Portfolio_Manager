@@ -143,7 +143,7 @@ export function HoldingsTable({
                   <div className="shrink-0 text-right">
                     {priced && m ? (
                       <>
-                        <div className="font-mono font-medium">{formatCurrency(m.currentValue, true)}</div>
+                        <div className="font-mono font-medium">{formatCurrency(m.currentValue)}</div>
                         <div className="mt-1"><PLBadge value={m.unrealizedPLPercent} /></div>
                       </>
                     ) : (
@@ -241,7 +241,7 @@ export function HoldingsTable({
                   <td className="px-4 py-3 text-right font-mono">{holding.shares.toLocaleString()}</td>
                   <td className="px-4 py-3 text-right font-mono">{formatCurrency(holding.averagePurchasePrice)}</td>
                   <td className="px-4 py-3 text-right font-mono">{priced && m ? formatCurrency(m.currentPrice) : '—'}</td>
-                  <td className="px-4 py-3 text-right font-mono font-medium">{priced && m ? formatCurrency(m.currentValue, true) : '—'}</td>
+                  <td className="px-4 py-3 text-right font-mono font-medium">{priced && m ? formatCurrency(m.currentValue) : '—'}</td>
                   <td className="px-4 py-3 text-right">
                     {priced && m && (
                       <span className={cn('font-mono text-xs', m.todayChangePercent >= 0 ? 'text-profit' : 'text-loss')}>
