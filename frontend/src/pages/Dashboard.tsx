@@ -61,12 +61,12 @@ export function Dashboard() {
     percent: (count / allHoldings.length) * 100,
   }));
 
-  // Best/worst across all portfolios
-  const bestPerformer = metricsPerPortfolio
-    .flatMap((m) => m.holdingMetrics)
+  // Best/worst across all portfolios — priced holdings only. An unpriced holding
+  // carries a 0% return that means "unknown", and used to be ranked as a real one.
+  const allMetrics = metricsPerPortfolio.flatMap((m) => m.holdingMetrics).filter((m) => m.priceAvailable);
+  const bestPerformer = allMetrics
     .reduce((best, m) => (!best || m.unrealizedPLPercent > best.unrealizedPLPercent ? m : best), null as (typeof metricsPerPortfolio[0]['holdingMetrics'][0]) | null);
-  const worstPerformer = metricsPerPortfolio
-    .flatMap((m) => m.holdingMetrics)
+  const worstPerformer = allMetrics
     .reduce((worst, m) => (!worst || m.unrealizedPLPercent < worst.unrealizedPLPercent ? m : worst), null as typeof bestPerformer);
   const bestSymbol = portfolios.flatMap((p) => p.holdings).find((h) => h.id === bestPerformer?.holdingId)?.symbol;
   const worstSymbol = portfolios.flatMap((p) => p.holdings).find((h) => h.id === worstPerformer?.holdingId)?.symbol;

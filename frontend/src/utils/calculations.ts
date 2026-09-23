@@ -10,25 +10,61 @@ import { CHART_COLORS } from '@/constants';
 /**
  * Calculate metrics for a single holding given the current market quote
  */
+/**
+ * Can this quote be used to value a position?
+ *
+ * A quote is usable only when it exists, is flagged available and carries a
+ * positive price. A 404 from the feed arrives as an explicitly unavailable quote
+ * (and a failed request as `null`); both used to be treated as a price of 0 —
+ * which read as "worth nothing" — or, when absent entirely, as the holding's own
+ * cost, which read as "hasn't moved".
+ */
+export function isQuoteUsable(quote: StockQuote | null | undefined): quote is StockQuote {
+  return !!quote && quote.priceAvailable !== false && Number.isFinite(quote.currentPrice) && quote.currentPrice > 0;
+}
+
 export function calculateHoldingMetrics(
   holding: Holding,
   quote: StockQuote | null,
   totalPortfolioValue: number
 ): HoldingMetrics {
-  const currentPrice = quote?.currentPrice ?? holding.averagePurchasePrice;
   const costBasis = holding.shares * holding.averagePurchasePrice;
+  const totalDividendIncome = holding.dividendsReceived.reduce((sum, d) => sum + d.totalAmount, 0);
+
+  if (!isQuoteUsable(quote)) {
+    // Facts only (cost, dividends). Everything price-derived is 0 and guarded by
+    // `priceAvailable` at every render site and aggregate.
+    return {
+      holdingId: holding.id,
+      priceAvailable: false,
+      currentPrice: 0,
+      currentValue: 0,
+      costBasis,
+      unrealizedPL: 0,
+      unrealizedPLPercent: 0,
+      todayChange: 0,
+      todayChangePercent: 0,
+      todayPL: 0,
+      totalDividendIncome,
+      totalReturn: 0,
+      totalReturnPercent: 0,
+      weightInPortfolio: 0,
+    };
+  }
+
+  const currentPrice = quote.currentPrice;
   const currentValue = holding.shares * currentPrice;
   const unrealizedPL = currentValue - costBasis;
   const unrealizedPLPercent = costBasis !== 0 ? (unrealizedPL / costBasis) * 100 : 0;
-  const todayChange = quote?.change ?? 0;
-  const todayChangePercent = quote?.changePercent ?? 0;
+  const todayChange = quote.change ?? 0;
+  const todayChangePercent = quote.changePercent ?? 0;
   const todayPL = todayChange * holding.shares;
-  const totalDividendIncome = holding.dividendsReceived.reduce((sum, d) => sum + d.totalAmount, 0);
   const totalReturn = unrealizedPL + totalDividendIncome;
   const totalReturnPercent = costBasis !== 0 ? (totalReturn / costBasis) * 100 : 0;
 
   return {
     holdingId: holding.id,
+    priceAvailable: true,
     currentPrice,
     currentValue,
     costBasis,
@@ -51,30 +87,36 @@ export function calculatePortfolioMetrics(
   portfolio: Portfolio,
   quotes: Record<string, StockQuote | null>
 ): PortfolioMetrics {
-  // First pass: get current value for weight calculation
-  const roughValues = portfolio.holdings.map((h) => {
+  const holdingMetrics = portfolio.holdings.map((h) => {
     const q = quotes[h.symbol] ?? null;
-    return h.shares * (q?.currentPrice ?? h.averagePurchasePrice);
+    return calculateHoldingMetrics(h, q, 0);   // weights need the priced total first
   });
-  const roughTotal = roughValues.reduce((s, v) => s + v, 0);
 
-  // Second pass: full metrics
-  const holdingMetrics = portfolio.holdings.map((h) =>
-    calculateHoldingMetrics(h, quotes[h.symbol] ?? null, roughTotal)
-  );
+  // The weight denominator counts only holdings the feed can price — an unpriced
+  // holding used to be counted at cost, which diluted every other weight.
+  const pricedMetrics = holdingMetrics.filter((m) => m.priceAvailable);
+  const pricedTotal = pricedMetrics.reduce((s, m) => s + m.currentValue, 0);
+  for (const m of pricedMetrics) {
+    m.weightInPortfolio = pricedTotal !== 0 ? (m.currentValue / pricedTotal) * 100 : 0;
+  }
 
-  const totalInvestment = holdingMetrics.reduce((s, m) => s + m.costBasis, 0);
-  const currentValue = holdingMetrics.reduce((s, m) => s + m.currentValue, 0);
+  const unpricedMetrics = holdingMetrics.filter((m) => !m.priceAvailable);
+
+  // Every figure below covers the priced holdings, so the on-screen arithmetic holds
+  // (Current Value − Invested = P&L). The page says how many were left out.
+  const totalInvestment = pricedMetrics.reduce((s, m) => s + m.costBasis, 0);
+  const currentValue = pricedTotal;
   const totalPL = currentValue - totalInvestment;
   const totalPLPercent = totalInvestment !== 0 ? (totalPL / totalInvestment) * 100 : 0;
   const todayPL = holdingMetrics.reduce((s, m) => s + m.todayPL, 0);
   const todayPLPercent = currentValue !== 0 ? (todayPL / currentValue) * 100 : 0;
-  const totalDividendIncome = holdingMetrics.reduce((s, m) => s + m.totalDividendIncome, 0);
+  const totalDividendIncome = pricedMetrics.reduce((s, m) => s + m.totalDividendIncome, 0);
   const totalReturn = totalPL + totalDividendIncome;
   const totalReturnPercent = totalInvestment !== 0 ? (totalReturn / totalInvestment) * 100 : 0;
 
-  // Best / worst performer by unrealized P&L %
-  const sorted = [...holdingMetrics].sort((a, b) => b.unrealizedPLPercent - a.unrealizedPLPercent);
+  // Best / worst performer by unrealized P&L % — priced holdings only: an unpriced
+  // holding would otherwise win "worst" with a fabricated return.
+  const sorted = [...pricedMetrics].sort((a, b) => b.unrealizedPLPercent - a.unrealizedPLPercent);
   const bestMetric = sorted[0];
   const worstMetric = sorted[sorted.length - 1];
   const bestHolder = portfolio.holdings.find((h) => h.id === bestMetric?.holdingId);
@@ -94,10 +136,14 @@ export function calculatePortfolioMetrics(
     bestPerformer: bestHolder
       ? { symbol: bestHolder.symbol, returnPercent: bestMetric.unrealizedPLPercent }
       : null,
-    worstPerformer: worstHolder && portfolio.holdings.length > 1
+    worstPerformer: worstHolder && pricedMetrics.length > 1
       ? { symbol: worstHolder.symbol, returnPercent: worstMetric.unrealizedPLPercent }
       : null,
     holdingMetrics,
+    unpricedHoldings: unpricedMetrics.length,
+    unpricedSymbols: portfolio.holdings
+      .filter((h) => unpricedMetrics.some((m) => m.holdingId === h.id))
+      .map((h) => h.symbol),
   };
 }
 
@@ -123,6 +169,10 @@ export function aggregatePortfolioMetrics(metrics: PortfolioMetrics[]): Omit<Por
   const totalDividendIncome = metrics.reduce((s, m) => s + m.totalDividendIncome, 0);
   const totalReturn = totalPL + totalDividendIncome;
 
+  // Carried through the aggregate so the dashboard can report the same caveat.
+  const unpricedHoldings = metrics.reduce((s, m) => s + m.unpricedHoldings, 0);
+  const unpricedSymbols = metrics.flatMap((m) => m.unpricedSymbols);
+
   return {
     totalInvestment,
     currentValue,
@@ -133,6 +183,8 @@ export function aggregatePortfolioMetrics(metrics: PortfolioMetrics[]): Omit<Por
     totalDividendIncome,
     totalReturn,
     totalReturnPercent: totalInvestment !== 0 ? (totalReturn / totalInvestment) * 100 : 0,
+    unpricedHoldings,
+    unpricedSymbols,
   };
 }
 
@@ -144,11 +196,13 @@ export function buildSectorAllocation(
   metrics: HoldingMetrics[]
 ): { sector: string; value: number; percent: number; color: string }[] {
   const sectorMap = new Map<string, number>();
-  const totalValue = metrics.reduce((s, m) => s + m.currentValue, 0);
+  const totalValue = metrics.reduce((s, m) => s + (m.priceAvailable ? m.currentValue : 0), 0);
 
   portfolio.holdings.forEach((h) => {
-    const m = metrics.find((m) => m.holdingId === h.id);
-    if (m) {
+    const m = metrics.find((metric) => metric.holdingId === h.id);
+    // Unpriced holdings are skipped rather than added as 0: a zero-value sector
+    // would put a 0% slice (and its legend entry) on the chart.
+    if (m?.priceAvailable) {
       sectorMap.set(h.sector, (sectorMap.get(h.sector) ?? 0) + m.currentValue);
     }
   });
@@ -181,12 +235,13 @@ export function buildHoldingAllocation(
   portfolio: Portfolio,
   metrics: HoldingMetrics[]
 ): { name: string; symbol: string; value: number; percent: number; color: string }[] {
-  const totalValue = metrics.reduce((s, m) => s + m.currentValue, 0);
+  const totalValue = metrics.reduce((s, m) => s + (m.priceAvailable ? m.currentValue : 0), 0);
 
   return portfolio.holdings
     .map((h) => {
       const m = metrics.find((metric) => metric.holdingId === h.id);
-      return m ? { symbol: h.symbol, name: h.symbol, value: m.currentValue } : null;
+      // Same rule as the sector pie: an unpriced holding has no share to draw.
+      return m?.priceAvailable ? { symbol: h.symbol, name: h.symbol, value: m.currentValue } : null;
     })
     .filter((entry): entry is { symbol: string; name: string; value: number } => entry !== null)
     .sort((a, b) => b.value - a.value)
