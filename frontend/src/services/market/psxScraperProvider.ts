@@ -251,6 +251,9 @@ function mapToStockQuote(stock: ScraperStock): StockQuote {
     marketCap:     p.marketCap     ?? 0,
     sector:        stock.sector    ?? 'Unknown',
     lastUpdated:   p.lastTradeDate ?? new Date().toISOString(),
+    // A tracked symbol the feed serves without a usable price is unavailable, not
+    // free: a 0 would flow into the holding's value and its return.
+    priceAvailable: Number.isFinite(price) && price > 0,
   };
 }
 
@@ -271,8 +274,13 @@ function mapToHistoricalPoint(row: ScraperPriceRow): HistoricalDataPoint | null 
   };
 }
 
-/** Zeroed placeholder returned while the scraper syncs a newly-added stock. */
-function placeholderQuote(symbol: string): StockQuote {
+/**
+ * Returned while the feed has no such symbol (404 — untracked, or a ticker PSX has
+ * renamed). It is explicitly NOT a quote: `priceAvailable: false`, and no timestamp,
+ * because stamping "now" made an unknown symbol look like fresh data. Every consumer
+ * branches on the flag; the zeros are never rendered.
+ */
+function unavailableQuote(symbol: string): StockQuote {
   return {
     symbol:        symbol.toUpperCase(),
     companyName:   symbol.toUpperCase(),
@@ -286,7 +294,8 @@ function placeholderQuote(symbol: string): StockQuote {
     volume:        0,
     marketCap:     0,
     sector:        'Unknown',
-    lastUpdated:   new Date().toISOString(),
+    lastUpdated:   '',
+    priceAvailable: false,
   };
 }
 
@@ -426,7 +435,7 @@ export class PSXScraperProvider implements IMarketDataProvider {
     } catch (err) {
       if (err instanceof ScraperHttpError && err.status === 404) {
         await this.ensureTracked(sym).catch(() => { /* best-effort */ });
-        return placeholderQuote(sym);
+        return unavailableQuote(sym);
       }
       throw err;
     }
@@ -455,7 +464,7 @@ export class PSXScraperProvider implements IMarketDataProvider {
       if (err instanceof ScraperHttpError && err.status === 404) {
         await this.ensureTracked(sym).catch(() => { /* best-effort */ });
         return {
-          ...placeholderQuote(sym),
+          ...unavailableQuote(sym),
           week52High: 0, week52Low: 0,
           peRatio: null, eps: null, bookValue: null,
           dividendYield: null, nextDividendDate: null, nextDividendAmount: null,

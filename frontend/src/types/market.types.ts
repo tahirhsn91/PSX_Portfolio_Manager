@@ -17,6 +17,13 @@ export interface StockQuote {
   marketCap: number;
   sector: string;
   lastUpdated: string; // ISO timestamp
+  /**
+   * False when the feed cannot price this symbol (unknown or renamed ticker, or a
+   * quote request that failed). Every numeric field above is then meaningless and
+   * must never be rendered — the UI shows "unavailable" instead. Absent means
+   * available, so providers that always price a symbol need no change.
+   */
+  priceAvailable?: boolean;
 }
 
 export interface StockDetail extends StockQuote {

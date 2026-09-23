@@ -29,6 +29,19 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'symbol', label: 'Symbol' },
 ];
 
+/**
+ * Shown on a holding the feed cannot price. It replaces every price-derived figure
+ * on the row: a 404 used to arrive as a zero quote and read as "worth nothing, down
+ * 100%", which is indistinguishable from a real loss.
+ */
+function UnavailableChip() {
+  return (
+    <span className="mt-1 inline-flex w-fit items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+      price unavailable
+    </span>
+  );
+}
+
 /** A label/value pair inside a phone card. */
 function Stat({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -112,6 +125,9 @@ export function HoldingsTable({
         <ul className="space-y-3">
           {sorted.map((holding) => {
             const m = metrics.find((x) => x.holdingId === holding.id);
+            // Nothing price-derived is rendered for an unpriced holding: no Rs 0.00,
+            // no fabricated return. Cost and the purchase date are still facts.
+            const priced = !!m?.priceAvailable;
             return (
               <li
                 key={holding.id}
@@ -122,20 +138,27 @@ export function HoldingsTable({
                   <div className="min-w-0">
                     <div className="font-mono font-bold text-primary">{holding.symbol}</div>
                     <div className="truncate text-xs text-muted-foreground">{holding.companyName}</div>
+                    {!priced && <UnavailableChip />}
                   </div>
                   <div className="shrink-0 text-right">
-                    <div className="font-mono font-medium">{m ? formatCurrency(m.currentValue, true) : '—'}</div>
-                    <div className="mt-1">{m && <PLBadge value={m.unrealizedPLPercent} />}</div>
+                    {priced && m ? (
+                      <>
+                        <div className="font-mono font-medium">{formatCurrency(m.currentValue, true)}</div>
+                        <div className="mt-1"><PLBadge value={m.unrealizedPLPercent} /></div>
+                      </>
+                    ) : (
+                      <div className="font-mono text-muted-foreground">—</div>
+                    )}
                   </div>
                 </div>
 
                 <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t pt-3 text-xs">
                   <Stat label="Shares">{holding.shares.toLocaleString()}</Stat>
                   <Stat label="Avg cost">{formatCurrency(holding.averagePurchasePrice)}</Stat>
-                  <Stat label="Price">{m ? formatCurrency(m.currentPrice) : '—'}</Stat>
-                  <Stat label="Weight">{m ? `${m.weightInPortfolio.toFixed(1)}%` : '—'}</Stat>
+                  <Stat label="Price">{priced && m ? formatCurrency(m.currentPrice) : '—'}</Stat>
+                  <Stat label="Weight">{priced && m ? `${m.weightInPortfolio.toFixed(1)}%` : '—'}</Stat>
                   <Stat label="Today">
-                    {m ? (
+                    {priced && m ? (
                       <span className={m.todayChangePercent >= 0 ? 'text-profit' : 'text-loss'}>
                         {formatPercent(m.todayChangePercent)}
                       </span>
@@ -201,6 +224,7 @@ export function HoldingsTable({
           <tbody>
             {sorted.map((holding) => {
               const m = metrics.find((m) => m.holdingId === holding.id);
+              const priced = !!m?.priceAvailable;
               return (
                 <tr
                   key={holding.id}
@@ -211,24 +235,25 @@ export function HoldingsTable({
                     <div className="flex flex-col">
                       <span className="font-mono font-bold text-primary">{holding.symbol}</span>
                       <span className="text-xs text-muted-foreground truncate max-w-[120px]">{holding.companyName}</span>
+                      {!priced && <UnavailableChip />}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-right font-mono">{holding.shares.toLocaleString()}</td>
                   <td className="px-4 py-3 text-right font-mono">{formatCurrency(holding.averagePurchasePrice)}</td>
-                  <td className="px-4 py-3 text-right font-mono">{m ? formatCurrency(m.currentPrice) : '—'}</td>
-                  <td className="px-4 py-3 text-right font-mono font-medium">{m ? formatCurrency(m.currentValue, true) : '—'}</td>
+                  <td className="px-4 py-3 text-right font-mono">{priced && m ? formatCurrency(m.currentPrice) : '—'}</td>
+                  <td className="px-4 py-3 text-right font-mono font-medium">{priced && m ? formatCurrency(m.currentValue, true) : '—'}</td>
                   <td className="px-4 py-3 text-right">
-                    {m && (
+                    {priced && m && (
                       <span className={cn('font-mono text-xs', m.todayChangePercent >= 0 ? 'text-profit' : 'text-loss')}>
                         {formatPercent(m.todayChangePercent)}
                       </span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {m && <PLBadge value={m.unrealizedPLPercent} />}
+                    {priced && m ? <PLBadge value={m.unrealizedPLPercent} /> : <span className="text-xs text-muted-foreground">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right text-xs text-muted-foreground">
-                    {m ? `${m.weightInPortfolio.toFixed(1)}%` : '—'}
+                    {priced && m ? `${m.weightInPortfolio.toFixed(1)}%` : '—'}
                   </td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
                     {formatDate(holding.purchaseDate)}

@@ -161,6 +161,21 @@ export function PortfolioDetail() {
         </Button>
       </div>
 
+      {/* A holding the feed can't price is left out of every figure below — say so,
+          rather than letting a total quietly mean "the holdings we could price". */}
+      {metrics && metrics.unpricedHoldings > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+          <p>
+            <span className="font-medium">
+              {metrics.unpricedHoldings} of {portfolio.holdings.length} holdings have no price
+            </span>{' '}
+            ({metrics.unpricedSymbols.join(', ')}) — the figures below cover the other{' '}
+            {portfolio.holdings.length - metrics.unpricedHoldings}.
+          </p>
+        </div>
+      )}
+
       {/* KPI Cards — five tiles, so the same two/three/five ramp as the Dashboard:
           a row of five only from 2xl, where each tile still fits its value on one line. */}
       <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-4">
