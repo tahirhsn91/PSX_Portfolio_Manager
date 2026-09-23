@@ -38,6 +38,14 @@ export interface DividendRecord {
 // Computed/derived values (not stored, calculated at runtime)
 export interface HoldingMetrics {
   holdingId: string;
+  /**
+   * False when the feed could not price this holding. `costBasis` and
+   * `totalDividendIncome` are still facts, but every price-derived figure below
+   * is 0 and MUST NOT be rendered — show "—" / "price unavailable" instead. Such a
+   * holding is also excluded from the portfolio totals, from the weight
+   * denominator and from best/worst performer, so the rest of the page stays true.
+   */
+  priceAvailable: boolean;
   currentPrice: number;
   currentValue: number;
   costBasis: number;
@@ -67,6 +75,10 @@ export interface PortfolioMetrics {
   bestPerformer: { symbol: string; returnPercent: number } | null;
   worstPerformer: { symbol: string; returnPercent: number } | null;
   holdingMetrics: HoldingMetrics[];
+  /** Holdings the feed could not price; they are excluded from every figure above. */
+  unpricedHoldings: number;
+  /** Symbols behind that count, for the "totals cover N of M" note. */
+  unpricedSymbols: string[];
 }
 
 // Forms
