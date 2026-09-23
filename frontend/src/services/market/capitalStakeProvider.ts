@@ -322,6 +322,16 @@ export class CapitalStakeMarketDataProvider implements IMarketDataProvider {
     };
   }
 
+  /**
+   * The provider's own tracked list, in the order it returns them. Its list payload
+   * carries no volume, so there is nothing to rank by and nothing is invented.
+   */
+  async getTopSymbols(limit = 20): Promise<string[]> {
+    const data = await this.cs<CSStock[]>('market/stocks');
+    const stocks = Array.isArray(data) ? data : [];
+    return stocks.map((s) => s.symbol).filter(Boolean).slice(0, limit);
+  }
+
   async searchCompanies(query: string): Promise<PSXCompany[]> {
     // Docs: GET /market/stocks?search={query}
     const data = await this.cs<CSStock[]>('market/stocks', { search: query });

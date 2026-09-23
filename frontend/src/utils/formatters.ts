@@ -84,7 +84,7 @@ export function formatDate(dateStr: string | null | undefined, format: 'short' |
  * Format a volume number
  * e.g. 2500000 → "2.50M"
  */
-export function formatVolume(value: number): string {
+export function formatVolume(value: number | null | undefined): string {
   return formatCompactNumber(value);
 }
 
