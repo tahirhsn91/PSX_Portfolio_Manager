@@ -109,7 +109,11 @@ export function calculatePortfolioMetrics(
   const totalPL = currentValue - totalInvestment;
   const totalPLPercent = totalInvestment !== 0 ? (totalPL / totalInvestment) * 100 : 0;
   const todayPL = holdingMetrics.reduce((s, m) => s + m.todayPL, 0);
-  const todayPLPercent = currentValue !== 0 ? (todayPL / currentValue) * 100 : 0;
+  // Measured against the *previous* value, not today's: the feed reports every change
+  // against its previous close (KSE-100: 830.43 on 171402.08 = 0.4845%), so dividing by
+  // the current value understated the day's move and left the portfolio's percentage
+  // incomparable with the index shown beside it.
+  const todayPLPercent = currentValue - todayPL !== 0 ? (todayPL / (currentValue - todayPL)) * 100 : 0;
   const totalDividendIncome = pricedMetrics.reduce((s, m) => s + m.totalDividendIncome, 0);
   const totalReturn = totalPL + totalDividendIncome;
   const totalReturnPercent = totalInvestment !== 0 ? (totalReturn / totalInvestment) * 100 : 0;
@@ -179,7 +183,8 @@ export function aggregatePortfolioMetrics(metrics: PortfolioMetrics[]): Omit<Por
     totalPL,
     totalPLPercent: totalInvestment !== 0 ? (totalPL / totalInvestment) * 100 : 0,
     todayPL,
-    todayPLPercent: currentValue !== 0 ? (todayPL / currentValue) * 100 : 0,
+    // Same convention as the single-portfolio metrics.
+    todayPLPercent: currentValue - todayPL !== 0 ? (todayPL / (currentValue - todayPL)) * 100 : 0,
     totalDividendIncome,
     totalReturn,
     totalReturnPercent: totalInvestment !== 0 ? (totalReturn / totalInvestment) * 100 : 0,

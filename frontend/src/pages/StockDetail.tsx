@@ -185,7 +185,7 @@ export function StockDetail() {
                     ['52W High', formatCurrency(detail.week52High)],
                     ['52W Low', formatCurrency(detail.week52Low)],
                     ['Avg Volume', formatVolume(detail.averageVolume)],
-                    ['Market Cap', formatCompactNumber(detail.marketCap) + ' PKR'],
+                    ['Market Cap', detail.marketCap == null ? '—' : formatCompactNumber(detail.marketCap) + ' PKR'],
                   ].map(([label, value]) => (
                     <div key={label} className="flex justify-between">
                       <span className="text-muted-foreground">{label}</span>

@@ -9,12 +9,18 @@ export interface StockQuote {
   currentPrice: number; // PKR
   change: number; // absolute change from previous close
   changePercent: number;
-  open: number;
-  high: number;
-  low: number;
+  /**
+   * Null where the feed does not publish the field. The scraper's payload omits
+   * `open` for most stocks and `marketCap` for all of them, and no provider may
+   * substitute a number: a mirrored price or a coerced 0 reads as real data
+   * ("PKR 0.00" for a market cap the exchange never sent).
+   */
+  open: number | null;
+  high: number | null;
+  low: number | null;
   previousClose: number;
   volume: number;
-  marketCap: number;
+  marketCap: number | null;
   sector: string;
   lastUpdated: string; // ISO timestamp
   /**
@@ -54,11 +60,13 @@ export interface IndexData {
   value: number;
   change: number;
   changePercent: number;
-  open: number;
-  high: number;
-  low: number;
+  /** Null where the feed's index summary omits them — it publishes value, change,
+   *  changePercent and previousClose only. */
+  open: number | null;
+  high: number | null;
+  low: number | null;
   previousClose: number;
-  volume: number;
+  volume: number | null;
   lastUpdated: string;
   historicalData: HistoricalDataPoint[];
 }

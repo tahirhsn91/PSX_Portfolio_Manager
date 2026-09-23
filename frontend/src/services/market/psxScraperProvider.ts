@@ -243,12 +243,15 @@ function mapToStockQuote(stock: ScraperStock): StockQuote {
     currentPrice:  price,
     change,
     changePercent: p.changePercent ?? 0,
-    open:          p.open          ?? price,
-    high:          p.high          ?? price,
-    low:           p.low           ?? price,
+    // The feed omits open for most symbols and marketCap for every one of them.
+    // Mirroring the price into them (the old behaviour) stated the close as the
+    // day's high, low and open, and `?? 0` printed a market cap of zero.
+    open:          p.open          ?? null,
+    high:          p.high          ?? null,
+    low:           p.low           ?? null,
     previousClose: price - change,          // not in API — derived
     volume:        Math.abs(p.volume ?? 0), // can be negative (scraper bug)
-    marketCap:     p.marketCap     ?? 0,
+    marketCap:     p.marketCap     ?? null,
     sector:        stock.sector    ?? 'Unknown',
     lastUpdated:   p.lastTradeDate ?? new Date().toISOString(),
     // A tracked symbol the feed serves without a usable price is unavailable, not
@@ -605,13 +608,15 @@ export class PSXScraperProvider implements IMarketDataProvider {
         value,
         change,
         changePercent: summary.changePercent ?? 0,
-        open:          summary.open          ?? value,
-        // The index series carries no high/low (upstream provides close/open/volume
-        // per day only), so mirror the value rather than reporting a fake 0.
-        high:          summary.high          ?? value,
-        low:           summary.low           ?? value,
+        // The index summary publishes value/change/changePercent/previousClose and
+        // nothing else. Mirroring the value into open/high/low (the old behaviour)
+        // stated the index's level as its own day high and low; the banner shows
+        // "—" for what the feed did not send.
+        open:          summary.open          ?? null,
+        high:          summary.high          ?? null,
+        low:           summary.low           ?? null,
         previousClose: summary.previousClose ?? value - change,
-        volume:        Math.abs(summary.volume ?? 0),
+        volume:        summary.volume == null ? null : Math.abs(summary.volume),
         lastUpdated:   summary.lastTradeDate ?? new Date().toISOString(),
         historicalData,
       };
