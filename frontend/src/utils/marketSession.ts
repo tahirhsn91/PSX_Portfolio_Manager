@@ -67,6 +67,20 @@ export function activeSessionDate(now: Date = new Date()): string {
   return pktDateKey(cursor);
 }
 
+/**
+ * The most recent day PSX actually traded, on or before `date`.
+ *
+ * A position can only have been bought on a session, so a form that defaults to
+ * "today" proposes a date the calendar itself refuses to accept when today is a
+ * weekend. Weekends step back to Friday; PSX holidays are not modelled, so this
+ * is the weekday rule and nothing more.
+ */
+export function mostRecentTradingDay(date: Date = new Date()): Date {
+  let cursor = date;
+  while (!isTradingDay(cursor)) cursor = new Date(cursor.getTime() - DAY_MS);
+  return cursor;
+}
+
 export type DayRangeSource = 'exchange' | 'observed';
 
 export interface DayRangeResult {
