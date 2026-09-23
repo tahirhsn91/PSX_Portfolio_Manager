@@ -293,6 +293,15 @@ export class YahooFinanceProvider implements IMarketDataProvider {
     return results;
   }
 
+  /**
+   * The provider's declared sector universes, flattened and de-duplicated. Yahoo's
+   * quote endpoint carries volume, but ranking would mean a request per symbol here;
+   * the declared order is returned instead of a ranking this provider hasn't made.
+   */
+  async getTopSymbols(limit = 20): Promise<string[]> {
+    return [...new Set(SECTORS.flatMap((s) => s.symbols))].slice(0, limit);
+  }
+
   async searchCompanies(query: string): Promise<PSXCompany[]> {
     const json = await yfGet<{ quotes?: Array<Record<string, unknown>> }>(
       `/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=20&newsCount=0&enableFuzzyQuery=true`

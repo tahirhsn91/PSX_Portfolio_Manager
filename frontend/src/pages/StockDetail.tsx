@@ -10,7 +10,7 @@ import { StockPriceChart } from '@/features/charts';
 import { PredictionPanel } from '@/features/prediction/PredictionPanel';
 import { useStockDetail, useHistoricalData, useStockPrediction } from '@/hooks';
 import { usePortfolioStore } from '@/store';
-import { formatCurrency, formatPercent, formatDate, formatVolume, formatCompactNumber, deriveDayRange } from '@/utils';
+import { formatCurrency, formatPercent, formatDate, formatVolume, formatCompactNumber, deriveDayRange, feedSessionDay, activeSessionDate } from '@/utils';
 import { ROUTES } from '@/constants';
 import { format, subYears, subDays, addDays } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -44,6 +44,11 @@ export function StockDetail() {
   );
 
   const isProfit = (detail?.changePercent ?? 0) >= 0;
+  // The feed stamps its rows with the session's close time in UTC (11:00Z = 16:00 PKT),
+  // so a plain datetime here would read as a time after the close — and mid-session, as
+  // the future. What belongs on screen is the session day the figures are from.
+  const sessionDay = feedSessionDay(detail?.lastUpdated);
+  const sessionIsCurrent = sessionDay !== null && sessionDay === activeSessionDate();
 
   // Today's range, scoped to the active PSX session: it clears at the 09:00 PKT
   // pre-open rather than carrying the previous session's numbers into the new day.
@@ -78,6 +83,12 @@ export function StockDetail() {
               )}
             </div>
             <p className="text-sm text-muted-foreground">{detail?.companyName ?? symbol}</p>
+            {sessionDay && (
+              <p className="text-xs text-muted-foreground">
+                {sessionIsCurrent ? 'Session' : 'Last session'} {format(new Date(`${sessionDay}T00:00:00`), 'd MMM yyyy')}
+                {!sessionIsCurrent && ' — the feed has not published a newer session yet'}
+              </p>
+            )}
           </div>
         </div>
         {detailLoading ? (
@@ -127,9 +138,16 @@ export function StockDetail() {
           low={detail?.week52Low ?? 0}
           high={detail?.week52High ?? 0}
           current={detail?.currentPrice ?? 0}
+          unavailableMessage="The feed publishes no 52-week range for this symbol."
           isLoading={detailLoading}
         />
-        <MetricCard title="Div. Yield" value={detail?.dividendYield ?? 0} isPercent isLoading={detailLoading} />
+        {/* The feed publishes no dividend data, so 0 was a claim that the company pays
+            nothing rather than a statement that it is not reported. */}
+        <MetricCard
+          title="Div. Yield"
+          value={detail?.dividendYield != null ? formatPercent(detail.dividendYield) : '—'}
+          isLoading={detailLoading}
+        />
         <MetricCard title="Volume" value={detail ? formatVolume(detail.volume) : '—'} isLoading={detailLoading} />
       </div>
 

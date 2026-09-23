@@ -1,5 +1,5 @@
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { format } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency, formatCompactNumber } from '@/utils';
 import type { HistoricalDataPoint } from '@/types';
@@ -15,6 +15,8 @@ interface PortfolioValueChartProps {
    */
   series: HistoricalDataPoint[];
   title?: string;
+  /** The selected window, so the card can say when history is shorter than it. */
+  rangeDays?: number;
 }
 
 const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) => {
@@ -29,7 +31,13 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
   );
 };
 
-export function PortfolioValueChart({ series, title = 'Portfolio Value' }: PortfolioValueChartProps) {
+export function PortfolioValueChart({ series, title = 'Portfolio Value', rangeDays }: PortfolioValueChartProps) {
+  // A series that starts after the window opened is limited by what the feed has, not
+  // by what the portfolio owned — say so instead of letting the line look complete.
+  const windowStart = rangeDays ? format(subDays(new Date(), rangeDays), 'yyyy-MM-dd') : null;
+  const seriesStart = series[0]?.date ?? null;
+  const limitedFrom = windowStart && seriesStart && seriesStart > windowStart ? seriesStart : null;
+
   // Use last 90 days
   const chartData = series.slice(-90).map((d) => ({
     date: format(new Date(d.date), 'MMM dd'),
@@ -47,6 +55,12 @@ export function PortfolioValueChart({ series, title = 'Portfolio Value' }: Portf
     <Card>
       <CardHeader>
         <CardTitle className="text-base">{title}</CardTitle>
+        {limitedFrom && (
+          <p className="text-xs text-muted-foreground">
+            Limited by available history — closes start {format(new Date(limitedFrom), 'd MMM yyyy')}{' '}
+            ({series.length} sessions).
+          </p>
+        )}
       </CardHeader>
       <CardContent>
         {chartData.length === 0 ? (

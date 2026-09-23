@@ -36,6 +36,20 @@ export function isTradingDay(date: Date): boolean {
 }
 
 /**
+ * The exchange session day a feed timestamp belongs to, as `YYYY-MM-DD`.
+ *
+ * The feed stamps every row with the session's close time in UTC — `11:00Z`, i.e.
+ * 16:00 PKT — so reading that field as a plain datetime reports a time after the
+ * close, and mid-session a time in the future. What the UI states is the *session
+ * day*, so the exchange offset is applied here, once, instead of at each call site.
+ */
+export function feedSessionDay(raw?: string | null): string | null {
+  if (!raw) return null;
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : pktDateKey(date);
+}
+
+/**
  * The session whose range should be on screen right now.
  *
  * - On a trading day at/after 09:00 PKT → **today**, so a fresh session starts
