@@ -4,21 +4,37 @@ import { cn } from '@/lib/utils';
 
 const Tabs = TabsPrimitive.Root;
 
+/**
+ * `default` is the page-level strip (scrolls, 40/44px tall, inset pill).
+ *
+ * `segmented` is a compact two-or-three-way switch that lives inside a card header:
+ * a bordered track with a solid `bg-primary` fill on the selected segment, matching
+ * the comparison-period control and the nav's active item. It carries no height, no
+ * padding and no background of its own so there is nothing for a call site to fight —
+ * the trigger reads the variant off the list via `group-data-[variant=…]`.
+ */
+export type TabsListVariant = 'default' | 'segmented';
+
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
->(({ className, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List> & { variant?: TabsListVariant }
+>(({ className, variant = 'default', ...props }, ref) => (
   <TabsPrimitive.List
     ref={ref}
+    data-variant={variant}
     className={cn(
-      // A strip whose labels are wider than the viewport (the portfolio page's
-      // third tab carries the portfolio name and the benchmark) used to run off
-      // the screen with no way to reach the last tab. `max-w-full overflow-x-auto`
-      // keeps the strip inside the page and lets it scroll within itself, and the
-      // triggers below are `shrink-0` so they scroll instead of squashing.
-      // Height: 44px on phones (a full-height item), back to the desktop 40px/32px
-      // pair from sm up, so desktop density is untouched.
-      'inline-flex h-11 max-w-full items-stretch justify-start overflow-x-auto rounded-md bg-muted p-0 text-muted-foreground sm:h-10 sm:items-center sm:p-1',
+      variant === 'segmented'
+        ? // A compact switch: bordered track, and (in the trigger) a solid fill on the
+          // selected half. No height/padding/background of its own to fight a call site.
+          'group inline-flex items-center justify-start gap-0.5 rounded-md border p-0.5 text-muted-foreground'
+        : // A strip whose labels are wider than the viewport (the portfolio page's
+          // third tab carries the portfolio name and the benchmark) used to run off
+          // the screen with no way to reach the last tab. `max-w-full overflow-x-auto`
+          // keeps the strip inside the page and lets it scroll within itself, and the
+          // triggers below are `shrink-0` so they scroll instead of squashing.
+          // Height: 44px on phones (a full-height item), back to the desktop 40px/32px
+          // pair from sm up, so desktop density is untouched.
+          'inline-flex h-11 max-w-full items-stretch justify-start overflow-x-auto rounded-md bg-muted p-0 text-muted-foreground sm:h-10 sm:items-center sm:p-1',
       className
     )}
     {...props}
@@ -34,6 +50,12 @@ const TabsTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       'inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm',
+      // Inside a `segmented` list: a compact hit area whose selection is a *solid* fill
+      // covering its whole segment. `bg-background` cannot be used here — in the dark
+      // theme it equals the card's own background, so the selected half would read as a
+      // hole while the unselected half read as the box (the reported "does not cover the
+      // box"). `bg-primary` is the app's selected-state colour everywhere else.
+      'group-data-[variant=segmented]:rounded group-data-[variant=segmented]:px-2.5 group-data-[variant=segmented]:py-1 group-data-[variant=segmented]:text-xs group-data-[variant=segmented]:hover:bg-muted group-data-[variant=segmented]:data-[state=active]:bg-primary group-data-[variant=segmented]:data-[state=active]:text-primary-foreground group-data-[variant=segmented]:data-[state=active]:shadow-none',
       className
     )}
     {...props}

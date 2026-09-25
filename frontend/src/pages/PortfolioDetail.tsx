@@ -245,9 +245,12 @@ export function PortfolioDetail() {
                     value={allocationView}
                     onValueChange={(value) => setAllocationView(value as AllocationView)}
                   >
-                    <TabsList className="h-11 sm:h-8">
-                      <TabsTrigger value="holdings" className="px-3 text-xs">Holdings</TabsTrigger>
-                      <TabsTrigger value="sector" className="px-3 text-xs">Sector</TabsTrigger>
+                    {/* Segmented (see TabsList): a bordered track whose selected half is a
+                        solid fill, so the switch reads the same way as the comparison-period
+                        control beside it. */}
+                    <TabsList variant="segmented">
+                      <TabsTrigger value="holdings">Holdings</TabsTrigger>
+                      <TabsTrigger value="sector">Sector</TabsTrigger>
                     </TabsList>
                   </Tabs>
                 }
