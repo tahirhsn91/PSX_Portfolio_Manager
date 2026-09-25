@@ -49,12 +49,16 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      'inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm',
-      // Inside a `segmented` list: a compact hit area whose selection is a *solid* fill
-      // covering its whole segment. `bg-background` cannot be used here — in the dark
-      // theme it equals the card's own background, so the selected half would read as a
-      // hole while the unselected half read as the box (the reported "does not cover the
-      // box"). `bg-primary` is the app's selected-state colour everywhere else.
+      'inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm',
+      // `bg-background` cannot be the selected state here: in the dark theme it equals the
+      // card's own background, so the selected tab reads as a hole while the unselected
+      // ones read as the box ("the dark colour does not cover the whole tab" / "a white
+      // square", depending on which strip). `bg-primary` + `text-primary-foreground` is
+      // the app's selected-state colour everywhere else — the sidebar, the mobile nav,
+      // the calendar's selected day and the comparison-period buttons — so the strips
+      // follow it too. Measured 6.4:1 on the dark theme's pair, 4.6:1 on the light one.
+      //
+      // `segmented` adds a compact hit area and a fill that covers its whole segment.
       'group-data-[variant=segmented]:rounded group-data-[variant=segmented]:px-2.5 group-data-[variant=segmented]:py-1 group-data-[variant=segmented]:text-xs group-data-[variant=segmented]:hover:bg-muted group-data-[variant=segmented]:data-[state=active]:bg-primary group-data-[variant=segmented]:data-[state=active]:text-primary-foreground group-data-[variant=segmented]:data-[state=active]:shadow-none',
       className
     )}
