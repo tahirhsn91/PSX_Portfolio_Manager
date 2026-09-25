@@ -74,6 +74,14 @@
   @apply bg-muted-foreground/30;
 }
 
+/* The corner where a horizontal and a vertical scrollbar meet is painted by the
+   browser, not by `::-webkit-scrollbar-track`/`-thumb`: unstyled it comes out light
+   even in dark mode, where it reads as a small white square at the bottom-right of
+   a scrollable strip (the tab strips are `overflow-x-auto`). */
+::-webkit-scrollbar-corner {
+  @apply bg-transparent;
+}
+
 /* Chart tooltip */
 .recharts-tooltip-wrapper {
   @apply !outline-none;
