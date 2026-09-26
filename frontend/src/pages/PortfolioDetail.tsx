@@ -15,7 +15,7 @@ import { usePortfolioStore, useUIStore } from '@/store';
 import { usePortfolioMetrics, useIndex, usePortfolioHistory, useCandles } from '@/hooks';
 import { buildSectorAllocation, buildHoldingAllocation } from '@/utils';
 import { ROUTES, PSX_INDICES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
-import { format, subDays, addDays } from 'date-fns';
+import { format, parseISO, subDays, addDays } from 'date-fns';
 import type { Holding, PSXCompany } from '@/types';
 import { formatCurrency, type HoldingFormValues, type BuyFormValues } from '@/utils';
 
@@ -59,7 +59,7 @@ export function PortfolioDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const portfolio = usePortfolioStore((s) => s.portfolios.find((p) => p.id === id));
-  const { addHolding, updateHolding, buyInto, updateBuy, deleteHolding } = usePortfolioStore();
+  const { addHolding, updateHolding, buyInto, updateBuy, deleteBuy, deleteHolding } = usePortfolioStore();
   const addNotification = useUIStore((s) => s.addNotification);
   const { metrics, isLoading } = usePortfolioMetrics(id);
   const [range, setRange] = useState<ComparisonRange>('3M');
@@ -131,6 +131,22 @@ export function PortfolioDetail() {
     addNotification({
       type: 'success',
       title: 'Purchase updated',
+      message: `${updated.symbol} is now ${updated.shares.toLocaleString()} shares at ${formatCurrency(updated.averagePurchasePrice)} average.`,
+    });
+  };
+
+  /**
+   * Removing a logged purchase: the store re-derives the position from what is
+   * left, so the reported numbers are the position's, not a subtraction.
+   */
+  const handleDeleteBuy = (buyId: string) => {
+    if (!editingHolding) return;
+    const removed = (editingHolding.buys ?? []).find((b) => b.id === buyId);
+    const updated = deleteBuy(id, editingHolding.id, buyId);
+    if (!updated || !removed) return;
+    addNotification({
+      type: 'success',
+      title: `Removed ${removed.shares.toLocaleString()} ${updated.symbol} bought ${format(parseISO(removed.date), 'dd MMM yyyy')}`,
       message: `${updated.symbol} is now ${updated.shares.toLocaleString()} shares at ${formatCurrency(updated.averagePurchasePrice)} average.`,
     });
   };
@@ -342,7 +358,8 @@ export function PortfolioDetail() {
 
       {/* Edit holding dialog */}
       <Dialog open={!!editingHolding} onOpenChange={(o) => !o && setEditingHolding(null)}>
-        <DialogContent className="max-w-xl">
+        {/* Wider only when it has a transactions table to show. */}
+        <DialogContent className={liveEditingHolding?.buys?.length ? 'max-w-2xl' : 'max-w-xl'}>
           <DialogHeader><DialogTitle>Edit Holding</DialogTitle></DialogHeader>
           {liveEditingHolding && (
             <HoldingForm
@@ -358,6 +375,7 @@ export function PortfolioDetail() {
               onBuy={handleBuy}
               buys={liveEditingHolding.buys ?? []}
               onUpdateBuy={handleUpdateBuy}
+              onDeleteBuy={handleDeleteBuy}
             />
           )}
         </DialogContent>
