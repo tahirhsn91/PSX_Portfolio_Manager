@@ -9,8 +9,11 @@ import type {
   CreateHoldingInput,
   UpdateHoldingInput,
   DividendRecord,
+  BuyInput,
+  BuyRecord,
 } from '@/types';
 import { STORAGE_KEYS, PORTFOLIO_COLORS } from '@/constants';
+import { blendPurchase, roundMoney } from '@/utils/calculations';
 
 interface PortfolioState {
   portfolios: Portfolio[];
@@ -26,6 +29,13 @@ interface PortfolioState {
   // Holding CRUD
   addHolding: (input: CreateHoldingInput) => Holding;
   updateHolding: (portfolioId: string, input: UpdateHoldingInput) => void;
+  /**
+   * Buy more of a stock already held: quantity adds up, the average becomes the
+   * weighted average, the position keeps its original purchase date, and the
+   * purchase is appended to `holding.buys`. Returns the updated holding so the
+   * caller can report the new average, or `undefined` if nothing matched.
+   */
+  buyInto: (portfolioId: string, input: BuyInput) => Holding | undefined;
   deleteHolding: (portfolioId: string, holdingId: string) => void;
 
   // Dividend
@@ -126,6 +136,7 @@ export const usePortfolioStore = create<PortfolioState>()(
           purchaseDate: input.purchaseDate,
           notes: input.notes,
           dividendsReceived: [],
+          buys: [],
         };
         set((state) => ({
           portfolios: state.portfolios.map((p) =>
@@ -162,6 +173,67 @@ export const usePortfolioStore = create<PortfolioState>()(
               : p
           ),
         }));
+      },
+
+      buyInto: (portfolioId, input) => {
+        let updated: Holding | undefined;
+
+        set((state) => ({
+          portfolios: state.portfolios.map((p) =>
+            p.id === portfolioId
+              ? {
+                  ...p,
+                  updatedAt: now(),
+                  holdings: p.holdings.map((h) => {
+                    if (h.id !== input.holdingId) return h;
+
+                    const log = h.buys ?? [];
+                    // A position with no log predates this feature (or came from
+                    // the Add path): seed it with what the position already was,
+                    // so the log reconciles for old rows as well as new ones.
+                    const opening: BuyRecord[] = log.length
+                      ? []
+                      : [{
+                          id: uuidv4(),
+                          holdingId: h.id,
+                          date: h.purchaseDate,
+                          shares: h.shares,
+                          pricePerShare: h.averagePurchasePrice,
+                          totalCost: roundMoney(h.shares * h.averagePurchasePrice),
+                          kind: 'opening',
+                        }];
+
+                    const blended = blendPurchase(h, input);
+                    updated = {
+                      ...h,
+                      shares: blended.shares,
+                      averagePurchasePrice: blended.averagePurchasePrice,
+                      // The position keeps its original date: the blended average
+                      // describes the position, not the latest purchase — that
+                      // purchase carries its own date in the log below.
+                      purchaseDate: h.purchaseDate,
+                      buys: [
+                        ...log,
+                        ...opening,
+                        {
+                          id: uuidv4(),
+                          holdingId: h.id,
+                          date: input.date,
+                          shares: input.shares,
+                          pricePerShare: input.pricePerShare,
+                          totalCost: roundMoney(input.shares * input.pricePerShare),
+                          kind: 'buy' as const,
+                        },
+                      ],
+                    };
+                    return updated;
+                  }),
+                }
+              : p
+          ),
+        }));
+
+        return updated;
       },
 
       deleteHolding: (portfolioId, holdingId) => {
@@ -242,6 +314,23 @@ export const usePortfolioStore = create<PortfolioState>()(
     {
       name: STORAGE_KEYS.PORTFOLIOS,
       storage: createJSONStorage(() => localStorage),
+      // Rows persisted before `buys` existed carry no log. Normalise on the way
+      // in so every consumer can read `holding.buys` as an array — old rows keep
+      // working untouched, and their first buy seeds an `opening` entry.
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Partial<PortfolioState>;
+        return {
+          ...current,
+          ...saved,
+          portfolios: (saved.portfolios ?? []).map((portfolio) => ({
+            ...portfolio,
+            holdings: (portfolio.holdings ?? []).map((holding) => ({
+              ...holding,
+              buys: holding.buys ?? [],
+            })),
+          })),
+        };
+      },
     }
   )
 );

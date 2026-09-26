@@ -17,7 +17,7 @@ import { buildSectorAllocation, buildHoldingAllocation } from '@/utils';
 import { ROUTES, PSX_INDICES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
 import { format, subDays, addDays } from 'date-fns';
 import type { Holding, PSXCompany } from '@/types';
-import type { HoldingFormValues } from '@/utils';
+import { formatCurrency, type HoldingFormValues, type BuyFormValues } from '@/utils';
 
 /**
  * Every PSX index, offered in the picker as a pseudo-company so indices and stocks
@@ -59,7 +59,7 @@ export function PortfolioDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const portfolio = usePortfolioStore((s) => s.portfolios.find((p) => p.id === id));
-  const { addHolding, updateHolding, deleteHolding } = usePortfolioStore();
+  const { addHolding, updateHolding, buyInto, deleteHolding } = usePortfolioStore();
   const addNotification = useUIStore((s) => s.addNotification);
   const { metrics, isLoading } = usePortfolioMetrics(id);
   const [range, setRange] = useState<ComparisonRange>('3M');
@@ -114,6 +114,29 @@ export function PortfolioDetail() {
     if (!editingHolding) return;
     updateHolding(id, { id: editingHolding.id, ...values });
     addNotification({ type: 'success', title: 'Holding updated' });
+    setEditingHolding(null);
+  };
+
+  /**
+   * A second purchase of a stock already held. The store blends the quantity
+   * and the weighted average and appends the purchase to the holding's log; all
+   * this has to do is report what changed.
+   */
+  const handleBuy = (values: BuyFormValues) => {
+    if (!editingHolding) return;
+    const before = `${editingHolding.shares.toLocaleString()} @ ${formatCurrency(editingHolding.averagePurchasePrice)}`;
+    const updated = buyInto(id, {
+      holdingId: editingHolding.id,
+      shares: values.shares,
+      pricePerShare: values.pricePerShare,
+      date: values.date,
+    });
+    if (!updated) return;
+    addNotification({
+      type: 'success',
+      title: `Bought ${values.shares.toLocaleString()} ${updated.symbol}`,
+      message: `Now ${updated.shares.toLocaleString()} shares at ${formatCurrency(updated.averagePurchasePrice)} average (was ${before}).`,
+    });
     setEditingHolding(null);
   };
 
@@ -302,6 +325,12 @@ export function PortfolioDetail() {
               onSubmit={handleUpdate}
               onCancel={() => setEditingHolding(null)}
               isEditing
+              position={{
+                symbol: editingHolding.symbol,
+                shares: editingHolding.shares,
+                averagePurchasePrice: editingHolding.averagePurchasePrice,
+              }}
+              onBuy={handleBuy}
             />
           )}
         </DialogContent>

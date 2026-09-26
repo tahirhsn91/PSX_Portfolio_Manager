@@ -22,6 +22,18 @@ export const dividendSchema = z.object({
   type: z.enum(['cash', 'stock', 'bonus']),
 });
 
+/**
+ * The Buy more action. Same limits as `holdingSchema` — a purchase recorded
+ * through the buy path must not accept anything the edit path would reject.
+ */
+export const buySchema = z.object({
+  shares: z.number({ required_error: 'Quantity is required' }).positive('Must be positive').max(10_000_000),
+  pricePerShare: z.number({ required_error: 'Buy price is required' }).positive('Must be positive').max(1_000_000),
+  date: z.string().min(1, 'Buy date is required'),
+});
+
+export type BuyFormValues = z.infer<typeof buySchema>;
+
 export type PortfolioFormValues = z.infer<typeof portfolioSchema>;
 export type HoldingFormValues = z.infer<typeof holdingSchema>;
 export type DividendFormValues = z.infer<typeof dividendSchema>;
