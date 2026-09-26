@@ -24,6 +24,32 @@ export interface Holding {
   purchaseDate: string; // ISO date string
   notes?: string;
   dividendsReceived: DividendRecord[];
+  /**
+   * Append-only log of how `shares` and `averagePurchasePrice` got to their
+   * current values. The two fields above stay the source of truth — nothing is
+   * ever derived from this list — it is a record, so a purchase history can be
+   * opened per holding later.
+   *
+   * `shares` is required rather than optional so every consumer can rely on it;
+   * rows persisted before this feature existed are normalised to `[]` when the
+   * store rehydrates (see `portfolioStore`'s `merge`).
+   */
+  buys: BuyRecord[];
+}
+
+/** One entry in a holding's buy log. */
+export interface BuyRecord {
+  id: string;
+  holdingId: string;
+  date: string; // ISO date string — the day of *this* purchase
+  shares: number; // quantity bought
+  pricePerShare: number; // PKR paid per share
+  totalCost: number; // shares * pricePerShare
+  /**
+   * `opening` reproduces the position as it stood before its first buy through
+   * this feature, so the log reconciles to the holding for old rows too.
+   */
+  kind: 'opening' | 'buy';
 }
 
 export interface DividendRecord {
@@ -105,4 +131,12 @@ export interface CreateHoldingInput {
 
 export interface UpdateHoldingInput extends Omit<CreateHoldingInput, 'portfolioId'> {
   id: string;
+}
+
+/** A purchase added to a position that already exists. */
+export interface BuyInput {
+  holdingId: string;
+  shares: number;
+  pricePerShare: number;
+  date: string; // ISO date string
 }
