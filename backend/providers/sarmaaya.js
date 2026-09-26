@@ -11,7 +11,11 @@
  * allows crawling everything except one plan page):
  *
  *   GET beta-restapi.sarmaaya.pk/api/stocks/listing?page=1&limit=1000
- *        → 505 listed symbols: name, close, change, changePercent, session date
+ *              &valuation=Large Cap Stocks
+ *        → 505 listed symbols: name, close, change, changePercent, session date.
+ *          The `valuation` filter is the site's own "Large Cap Stocks" screen and is what
+ *          makes each row carry `market_cap`; without it the same rows come back without
+ *          the field. Measured: 0.67s median either way, and all 505 rows carry a value.
  *   GET beta-restapi.sarmaaya.pk/api/stocks/ticker?index=ALLSHR
  *        → 484 traded symbols: price, change, changePercentage, volume
  *
@@ -47,10 +51,18 @@ const HEADERS = {
 const TTL_MS = 60_000;
 /** Upstream budget per call — the source answers in ~0.5s; 8s is already generous. */
 const TIMEOUT_MS = 8_000;
+/**
+ * The listing's own "Large Cap Stocks" screen. Requested purely because it is the only
+ * form of the listing that includes `market_cap` on every row.
+ */
+const VALUATION_FILTER = 'Large Cap Stocks';
 /** The broadest index the site publishes tickers for: 484 of the 505 listed symbols. */
 const TICKER_INDEX = 'ALLSHR';
 /** How many movers a snapshot keeps — the most any caller can ask for. */
 const MAX_MOVERS = 50;
+
+/** A finite number, or null. The source omits fields and sends nulls; neither is a zero. */
+const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 // ── HTTP ──────────────────────────────────────────────────────────────────────
 
@@ -93,7 +105,7 @@ async function sarmaayaGet(path) {
  */
 async function fetchSnapshot() {
   const [listing, tickers] = await Promise.all([
-    sarmaayaGet(`/stocks/listing?page=1&limit=1000`),
+    sarmaayaGet(`/stocks/listing?page=1&limit=1000&valuation=${encodeURIComponent(VALUATION_FILTER)}`),
     sarmaayaGet(`/stocks/ticker?index=${encodeURIComponent(TICKER_INDEX)}`),
   ]);
 
@@ -120,9 +132,10 @@ async function fetchSnapshot() {
       changePercent: t?.changePercentage ?? l.changePercent ?? null,
       volume:        t?.volume ?? null,
       isShariah:     l.isShariah ?? t?.isShariah ?? null,
-      // sarmaaya publishes no market capitalisation anywhere on these endpoints.
-      // Explicit null: the UI must render an em dash, never a zero.
-      marketCap:     null,
+      // PKR. Null when the row has none, so the UI renders an em dash rather than a zero.
+      // Cross-checked against the price: market_cap / close gives a whole share count
+      // (OGDC 1,360,125,597,216 / 316.24 = 4,300,928,400 shares).
+      marketCap:     num(l.market_cap),
     });
   }
 
@@ -136,7 +149,6 @@ async function fetchSnapshot() {
 /** Sort a copy — never the array the caller handed us. */
 function buildPayload(snapshot) {
   const { rows, sessionDate, listedCount, tradedCount } = snapshot;
-  const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
   // Only scrips that actually traded take part. A symbol with no ticker row has no
   // volume — it did not trade this session — and its day change is whatever the
