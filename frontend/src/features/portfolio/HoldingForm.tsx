@@ -10,7 +10,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CompanySearch } from '@/components/shared';
-import { Pencil } from 'lucide-react';
+import { Pencil, ShoppingCart, Trash2 } from 'lucide-react';
 import {
   holdingSchema, buySchema, tradeSchema, normalizeSector, sectorForSymbol, isCanonicalSector, displaySector,
   mostRecentTradingDay, blendPurchase, positionFromBuys, formatCurrency,
@@ -39,26 +39,42 @@ interface HoldingFormProps {
   buys?: BuyRecord[];
   /** Edit dialog only: correct a logged purchase's quantity and price. */
   onUpdateBuy?: (buyId: string, patch: { shares: number; pricePerShare: number }) => void;
+  /** Edit dialog only: remove a logged purchase. */
+  onDeleteBuy?: (buyId: string) => void;
 }
 
 /**
- * Every purchase behind a position, oldest first, each one correctable.
+ * Every purchase behind a position, oldest first, as the transactions that make
+ * it up — each one correctable, and removable.
  *
  * A trade's quantity and price are what the position's average is derived from,
- * so fixing a typo here re-prices the whole position from its own history —
- * which is the point of showing the trades rather than a single average.
+ * so correcting or removing one re-prices the whole position from its own
+ * history: the numbers below and the average they add up to cannot disagree.
+ *
+ * A table where there is room for one, and a card per purchase on a phone —
+ * four columns plus two actions do not fit 390px, and a table that scrolls
+ * sideways inside a dialog is a worse answer than a card.
  */
 function BuyHistory({
-  buys, onSave,
+  buys, onSave, onDelete,
 }: {
   buys: BuyRecord[];
   onSave: (buyId: string, patch: { shares: number; pricePerShare: number }) => void;
+  onDelete: (buyId: string) => void;
 }) {
   const [editing, setEditing] = useState<{ id: string; shares: string; price: string } | null>(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const position = positionFromBuys(buys);
+  const cost = buys.reduce((sum, b) => sum + b.shares * b.pricePerShare, 0);
+  // A position is the sum of its purchases, so the last one cannot be removed:
+  // the control stays visible and disabled rather than vanishing.
+  const onlyOne = buys.length <= 1;
+  const label = (b: BuyRecord) => `${format(parseISO(b.date), 'dd MMM yyyy')} of ${b.shares.toLocaleString()} shares`;
+  const isOpening = (b: BuyRecord) => b.kind === 'opening';
 
   const startEdit = (b: BuyRecord) => {
+    setConfirming(null);
     setEditing({ id: b.id, shares: String(b.shares), price: String(b.pricePerShare) });
     setError(null);
   };
@@ -87,81 +103,203 @@ function BuyHistory({
     setError(null);
   };
 
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <Label>Purchases ({buys.length})</Label>
-        <span className="text-xs text-muted-foreground">
-          {position.shares.toLocaleString()} shares at {formatCurrency(position.averagePurchasePrice)} average
+  /** The two actions, sized for the surface they sit on. */
+  const actions = (b: BuyRecord, size: 'phone' | 'table') => (
+    <div className={size === 'table' ? 'flex items-center justify-end gap-1' : 'flex items-center gap-1'}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className={size === 'table' ? 'h-8 w-8' : 'h-11 w-11'}
+        aria-label={`Edit trade ${label(b)}`}
+        onClick={() => startEdit(b)}
+      >
+        <Pencil className="h-3.5 w-3.5" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className={size === 'table' ? 'h-8 w-8 text-destructive hover:text-destructive' : 'h-11 w-11 text-destructive hover:text-destructive'}
+        aria-label={`Delete trade ${label(b)}`}
+        disabled={onlyOne}
+        title={onlyOne ? 'A holding has to keep at least one purchase' : undefined}
+        onClick={() => { setEditing(null); setConfirming(b.id); }}
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  );
+
+  /**
+   * The inline editor. Both surfaces are in the DOM (one hidden by a media
+   * query, as the holdings table does), so the field ids carry the surface to
+   * keep them unique in the document.
+   */
+  const editor = (b: BuyRecord, scope: 'table' | 'card') => (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor={`trade-shares-${b.id}-${scope}`}>Quantity</Label>
+          <Input
+            id={`trade-shares-${b.id}-${scope}`}
+            type="number"
+            step="1"
+            className="h-11 tabular-nums sm:h-10"
+            value={editing?.shares ?? ''}
+            onChange={(e) => setEditing(editing ? { ...editing, shares: e.target.value } : editing)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`trade-price-${b.id}-${scope}`}>Price (PKR)</Label>
+          <Input
+            id={`trade-price-${b.id}-${scope}`}
+            type="number"
+            step="0.01"
+            className="h-11 tabular-nums sm:h-10"
+            value={editing?.price ?? ''}
+            onChange={(e) => setEditing(editing ? { ...editing, price: e.target.value } : editing)}
+          />
+        </div>
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" className="h-11 sm:h-9" onClick={() => { setEditing(null); setError(null); }}>
+          Cancel
+        </Button>
+        <Button type="button" className="h-11 sm:h-9" onClick={save}>
+          Save trade
+        </Button>
+      </div>
+    </div>
+  );
+
+  /** Destructive actions get confirmed — never a silent delete. */
+  const confirmDelete = (b: BuyRecord) => (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <p className="text-sm">
+        Delete this purchase?{' '}
+        <span className="text-muted-foreground">
+          {format(parseISO(b.date), 'dd MMM yyyy')} · {b.shares.toLocaleString()} @ {formatCurrency(b.pricePerShare)}
         </span>
+      </p>
+      <div className="flex gap-2">
+        <Button type="button" variant="ghost" className="h-11 sm:h-9" onClick={() => setConfirming(null)}>
+          Keep
+        </Button>
+        <Button
+          type="button"
+          variant="destructive"
+          className="h-11 sm:h-9"
+          onClick={() => { onDelete(b.id); setConfirming(null); }}
+        >
+          Delete
+        </Button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex items-start gap-2">
+          <ShoppingCart className="mt-0.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          <div>
+            <p className="text-sm font-medium">Buy transactions</p>
+            <p className="text-xs text-muted-foreground">
+              {buys.length} {buys.length === 1 ? 'transaction that makes up' : 'transactions that make up'} this holding
+            </p>
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {position.shares.toLocaleString()} shares at {formatCurrency(position.averagePurchasePrice)} average
+        </p>
       </div>
 
-      <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
-        {buys.map((b) =>
-          editing?.id === b.id ? (
-            <li key={b.id} className="space-y-3 bg-muted/40 p-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor={`trade-shares-${b.id}`}>Quantity</Label>
-                  <Input
-                    id={`trade-shares-${b.id}`}
-                    type="number"
-                    step="1"
-                    className="h-11 sm:h-10"
-                    value={editing.shares}
-                    onChange={(e) => setEditing({ ...editing, shares: e.target.value })}
-                  />
+      {/* Room for a table: one row per purchase, which is the whole point. */}
+      <div className="hidden overflow-hidden rounded-lg border border-border sm:block">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/40">
+            <tr>
+              <th scope="col" className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Date</th>
+              <th scope="col" className="px-3 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">Shares</th>
+              <th scope="col" className="px-3 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">Buy price</th>
+              <th scope="col" className="px-3 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">Cost</th>
+              <th scope="col" className="w-[76px] px-3 py-2">
+                <span className="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {buys.map((b) => (
+              <tr key={b.id} className={editing?.id === b.id || confirming === b.id ? 'bg-muted/40' : undefined}>
+                {editing?.id === b.id ? (
+                  <td colSpan={5} className="px-3 py-3">{editor(b, 'table')}</td>
+                ) : confirming === b.id ? (
+                  <td colSpan={5} className="px-3 py-3">{confirmDelete(b)}</td>
+                ) : (
+                  <>
+                    <td className="whitespace-nowrap px-3 py-2.5">
+                      {format(parseISO(b.date), 'dd MMM yyyy')}
+                      {isOpening(b) && (
+                        <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">opening</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{b.shares.toLocaleString()}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{formatCurrency(b.pricePerShare)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{formatCurrency(b.totalCost)}</td>
+                    <td className="px-3 py-2.5">{actions(b, 'table')}</td>
+                  </>
+                )}
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="border-t border-border bg-muted/20">
+            <tr>
+              <td className="px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Total</td>
+              <td className="px-3 py-2 text-right text-xs font-medium tabular-nums">{position.shares.toLocaleString()}</td>
+              <td className="px-3 py-2 text-right text-xs font-medium tabular-nums text-muted-foreground">
+                {formatCurrency(position.averagePurchasePrice)}
+              </td>
+              <td className="px-3 py-2 text-right text-xs font-medium tabular-nums">{formatCurrency(cost)}</td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      {/* A phone gets one card per purchase instead of a table that scrolls. */}
+      <ul className="space-y-2 sm:hidden">
+        {buys.map((b) => (
+          <li key={b.id} className="rounded-lg border border-border">
+            {editing?.id === b.id ? (
+              <div className="p-3">{editor(b, 'card')}</div>
+            ) : confirming === b.id ? (
+              <div className="p-3">{confirmDelete(b)}</div>
+            ) : (
+              <div className="flex items-center justify-between gap-3 p-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm">
+                    {format(parseISO(b.date), 'dd MMM yyyy')}
+                    {isOpening(b) && (
+                      <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">opening</span>
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {b.shares.toLocaleString()} @ {formatCurrency(b.pricePerShare)} · total {formatCurrency(b.totalCost)}
+                  </p>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor={`trade-price-${b.id}`}>Price (PKR)</Label>
-                  <Input
-                    id={`trade-price-${b.id}`}
-                    type="number"
-                    step="0.01"
-                    className="h-11 sm:h-10"
-                    value={editing.price}
-                    onChange={(e) => setEditing({ ...editing, price: e.target.value })}
-                  />
-                </div>
+                {actions(b, 'phone')}
               </div>
-              {error && <p className="text-xs text-destructive">{error}</p>}
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="ghost" className="h-11 sm:h-9" onClick={() => { setEditing(null); setError(null); }}>
-                  Cancel
-                </Button>
-                <Button type="button" className="h-11 sm:h-9" onClick={save}>
-                  Save trade
-                </Button>
-              </div>
-            </li>
-          ) : (
-            <li key={b.id} className="flex items-center justify-between gap-3 p-3">
-              {/* The trade line wraps rather than truncating: `truncate`'s
-                  nowrap propagates a min-content width up through the dialog's
-                  grid track, which made the whole dialog wider than a phone. */}
-              <div className="min-w-0 flex-1 overflow-hidden">
-                <p className="text-sm">
-                  {format(parseISO(b.date), 'dd MMM yyyy')} ·{' '}
-                  <span className={b.kind === 'opening' ? 'text-muted-foreground' : ''}>
-                    {b.kind === 'opening' ? 'Opening position' : 'Buy'}
-                  </span>{' '}
-                  — {b.shares.toLocaleString()} @ {formatCurrency(b.pricePerShare)}
-                </p>
-                <p className="text-xs text-muted-foreground">Total {formatCurrency(b.totalCost)}</p>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-11 w-11 shrink-0 sm:h-8 sm:w-8"
-                aria-label={`Edit trade ${format(parseISO(b.date), 'dd MMM yyyy')} of ${b.shares} shares`}
-                onClick={() => startEdit(b)}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-            </li>
-          )
-        )}
+            )}
+          </li>
+        ))}
+        <li className="flex items-center justify-between gap-3 bg-muted/20 p-3 text-xs font-medium">
+          <span className="uppercase tracking-wide text-muted-foreground">Total</span>
+          <span className="tabular-nums">
+            {position.shares.toLocaleString()} shares · {formatCurrency(cost)}
+          </span>
+        </li>
       </ul>
     </div>
   );
@@ -248,7 +386,7 @@ function TradingDateField({
 }
 
 export function HoldingForm({
-  defaultValues, onSubmit, onCancel, isEditing, position, onBuy, buys, onUpdateBuy,
+  defaultValues, onSubmit, onCancel, isEditing, position, onBuy, buys, onUpdateBuy, onDeleteBuy,
 }: HoldingFormProps) {
   // 'edit' is the form as it was; 'buy' records a second purchase of the same
   // stock and blends it into the position.
@@ -510,7 +648,9 @@ export function HoldingForm({
             <Input id="notes" placeholder="Optional notes" {...register('notes')} className="h-11 sm:h-10" />
           </div>
 
-          {buys && buys.length > 0 && onUpdateBuy && <BuyHistory buys={buys} onSave={onUpdateBuy} />}
+          {buys && buys.length > 0 && onUpdateBuy && (
+            <BuyHistory buys={buys} onSave={onUpdateBuy} onDelete={onDeleteBuy ?? (() => {})} />
+          )}
         </>
       )}
 
