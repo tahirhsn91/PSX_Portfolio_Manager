@@ -145,11 +145,8 @@ export interface IMarketDataProvider {
 // ── sarmaaya.pk (a second source, for the Market page's lists) ────────────────
 
 /**
- * One row of sarmaaya.pk's PSX tape.
- *
- * `marketCap` is typed `null` on purpose: sarmaaya publishes no market
- * capitalisation on the endpoints the proxy reads, so the field exists only to
- * document that the column renders an em dash. It must never become a zero.
+ * One row of sarmaaya.pk's PSX tape — price, change, volume and market capitalisation,
+ * for the session the source names.
  */
 export interface SarmaayaRow {
   symbol: string;
@@ -159,7 +156,8 @@ export interface SarmaayaRow {
   changePercent: number | null;
   volume: number | null;
   isShariah: boolean | null;
-  marketCap: null;
+  /** PKR, as the source publishes it. Null when the row has none — never 0. */
+  marketCap: number | null;
 }
 
 /** Where a snapshot came from, and which session its numbers belong to. */
