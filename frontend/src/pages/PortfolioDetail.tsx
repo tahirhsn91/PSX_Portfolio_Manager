@@ -59,7 +59,7 @@ export function PortfolioDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const portfolio = usePortfolioStore((s) => s.portfolios.find((p) => p.id === id));
-  const { addHolding, updateHolding, buyInto, deleteHolding } = usePortfolioStore();
+  const { addHolding, updateHolding, buyInto, updateBuy, deleteHolding } = usePortfolioStore();
   const addNotification = useUIStore((s) => s.addNotification);
   const { metrics, isLoading } = usePortfolioMetrics(id);
   const [range, setRange] = useState<ComparisonRange>('3M');
@@ -104,10 +104,35 @@ export function PortfolioDetail() {
     );
   }
 
+  /**
+   * The holding the edit dialog is open on, read back from the store rather
+   * than from the snapshot that opened it: correcting a trade re-derives the
+   * position, and the dialog has to show that new position immediately.
+   */
+  const liveEditingHolding = editingHolding
+    ? portfolio.holdings.find((h) => h.id === editingHolding.id) ?? editingHolding
+    : null;
+
   const handleAdd = (values: HoldingFormValues) => {
     addHolding({ portfolioId: id, ...values });
     addNotification({ type: 'success', title: `${values.symbol} added to portfolio` });
     setAddOpen(false);
+  };
+
+  /**
+   * Correcting a logged purchase: the store re-derives the position's quantity
+   * and average from the whole log. The dialog stays open — the history it
+   * shows has just changed — and the notification reports the new position.
+   */
+  const handleUpdateBuy = (buyId: string, patch: { shares: number; pricePerShare: number }) => {
+    if (!editingHolding) return;
+    const updated = updateBuy(id, editingHolding.id, buyId, patch);
+    if (!updated) return;
+    addNotification({
+      type: 'success',
+      title: 'Purchase updated',
+      message: `${updated.symbol} is now ${updated.shares.toLocaleString()} shares at ${formatCurrency(updated.averagePurchasePrice)} average.`,
+    });
   };
 
   const handleUpdate = (values: HoldingFormValues) => {
@@ -319,18 +344,20 @@ export function PortfolioDetail() {
       <Dialog open={!!editingHolding} onOpenChange={(o) => !o && setEditingHolding(null)}>
         <DialogContent className="max-w-xl">
           <DialogHeader><DialogTitle>Edit Holding</DialogTitle></DialogHeader>
-          {editingHolding && (
+          {liveEditingHolding && (
             <HoldingForm
-              defaultValues={editingHolding}
+              defaultValues={liveEditingHolding}
               onSubmit={handleUpdate}
               onCancel={() => setEditingHolding(null)}
               isEditing
               position={{
-                symbol: editingHolding.symbol,
-                shares: editingHolding.shares,
-                averagePurchasePrice: editingHolding.averagePurchasePrice,
+                symbol: liveEditingHolding.symbol,
+                shares: liveEditingHolding.shares,
+                averagePurchasePrice: liveEditingHolding.averagePurchasePrice,
               }}
               onBuy={handleBuy}
+              buys={liveEditingHolding.buys ?? []}
+              onUpdateBuy={handleUpdateBuy}
             />
           )}
         </DialogContent>

@@ -32,6 +32,11 @@ export const buySchema = z.object({
   date: z.string().min(1, 'Buy date is required'),
 });
 
+/** Correcting a logged trade: the same numbers, the same limits. */
+export const tradeSchema = buySchema.pick({ shares: true, pricePerShare: true });
+
+export type TradeFormValues = z.infer<typeof tradeSchema>;
+
 export type BuyFormValues = z.infer<typeof buySchema>;
 
 export type PortfolioFormValues = z.infer<typeof portfolioSchema>;

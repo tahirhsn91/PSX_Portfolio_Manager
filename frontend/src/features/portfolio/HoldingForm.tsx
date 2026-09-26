@@ -10,14 +10,15 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CompanySearch } from '@/components/shared';
+import { Pencil } from 'lucide-react';
 import {
-  holdingSchema, buySchema, normalizeSector, sectorForSymbol, isCanonicalSector, displaySector,
-  mostRecentTradingDay, blendPurchase, formatCurrency,
+  holdingSchema, buySchema, tradeSchema, normalizeSector, sectorForSymbol, isCanonicalSector, displaySector,
+  mostRecentTradingDay, blendPurchase, positionFromBuys, formatCurrency,
   type HoldingFormValues, type BuyFormValues,
 } from '@/utils';
 import { PSX_SECTORS, EARLIEST_PURCHASE_DATE } from '@/constants';
 import { useCompanySearch, useStockQuote } from '@/hooks';
-import type { PSXCompany } from '@/types';
+import type { PSXCompany, BuyRecord } from '@/types';
 
 /** The position a buy would be blended into. */
 export interface PositionSnapshot {
@@ -34,6 +35,136 @@ interface HoldingFormProps {
   /** Edit dialog only. When given, the dialog offers "Buy more". */
   position?: PositionSnapshot;
   onBuy?: (values: BuyFormValues) => void;
+  /** Edit dialog only: the position's purchases, oldest first. */
+  buys?: BuyRecord[];
+  /** Edit dialog only: correct a logged purchase's quantity and price. */
+  onUpdateBuy?: (buyId: string, patch: { shares: number; pricePerShare: number }) => void;
+}
+
+/**
+ * Every purchase behind a position, oldest first, each one correctable.
+ *
+ * A trade's quantity and price are what the position's average is derived from,
+ * so fixing a typo here re-prices the whole position from its own history —
+ * which is the point of showing the trades rather than a single average.
+ */
+function BuyHistory({
+  buys, onSave,
+}: {
+  buys: BuyRecord[];
+  onSave: (buyId: string, patch: { shares: number; pricePerShare: number }) => void;
+}) {
+  const [editing, setEditing] = useState<{ id: string; shares: string; price: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const position = positionFromBuys(buys);
+
+  const startEdit = (b: BuyRecord) => {
+    setEditing({ id: b.id, shares: String(b.shares), price: String(b.pricePerShare) });
+    setError(null);
+  };
+
+  const save = () => {
+    if (!editing) return;
+    const shares = Number(editing.shares);
+    const price = Number(editing.price);
+    // Say which field is wrong in words a user would use: the schema's "expected
+    // number, received nan" is not something to put in front of them.
+    if (editing.shares.trim() === '' || !Number.isFinite(shares)) {
+      setError('Quantity must be a number, e.g. 100');
+      return;
+    }
+    if (editing.price.trim() === '' || !Number.isFinite(price)) {
+      setError('Price must be a number, e.g. 250.50');
+      return;
+    }
+    const parsed = tradeSchema.safeParse({ shares, pricePerShare: price });
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? 'Check the quantity and price');
+      return;
+    }
+    onSave(editing.id, parsed.data);
+    setEditing(null);
+    setError(null);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <Label>Purchases ({buys.length})</Label>
+        <span className="text-xs text-muted-foreground">
+          {position.shares.toLocaleString()} shares at {formatCurrency(position.averagePurchasePrice)} average
+        </span>
+      </div>
+
+      <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
+        {buys.map((b) =>
+          editing?.id === b.id ? (
+            <li key={b.id} className="space-y-3 bg-muted/40 p-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor={`trade-shares-${b.id}`}>Quantity</Label>
+                  <Input
+                    id={`trade-shares-${b.id}`}
+                    type="number"
+                    step="1"
+                    className="h-11 sm:h-10"
+                    value={editing.shares}
+                    onChange={(e) => setEditing({ ...editing, shares: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor={`trade-price-${b.id}`}>Price (PKR)</Label>
+                  <Input
+                    id={`trade-price-${b.id}`}
+                    type="number"
+                    step="0.01"
+                    className="h-11 sm:h-10"
+                    value={editing.price}
+                    onChange={(e) => setEditing({ ...editing, price: e.target.value })}
+                  />
+                </div>
+              </div>
+              {error && <p className="text-xs text-destructive">{error}</p>}
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="ghost" className="h-11 sm:h-9" onClick={() => { setEditing(null); setError(null); }}>
+                  Cancel
+                </Button>
+                <Button type="button" className="h-11 sm:h-9" onClick={save}>
+                  Save trade
+                </Button>
+              </div>
+            </li>
+          ) : (
+            <li key={b.id} className="flex items-center justify-between gap-3 p-3">
+              {/* The trade line wraps rather than truncating: `truncate`'s
+                  nowrap propagates a min-content width up through the dialog's
+                  grid track, which made the whole dialog wider than a phone. */}
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <p className="text-sm">
+                  {format(parseISO(b.date), 'dd MMM yyyy')} ·{' '}
+                  <span className={b.kind === 'opening' ? 'text-muted-foreground' : ''}>
+                    {b.kind === 'opening' ? 'Opening position' : 'Buy'}
+                  </span>{' '}
+                  — {b.shares.toLocaleString()} @ {formatCurrency(b.pricePerShare)}
+                </p>
+                <p className="text-xs text-muted-foreground">Total {formatCurrency(b.totalCost)}</p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-11 w-11 shrink-0 sm:h-8 sm:w-8"
+                aria-label={`Edit trade ${format(parseISO(b.date), 'dd MMM yyyy')} of ${b.shares} shares`}
+                onClick={() => startEdit(b)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            </li>
+          )
+        )}
+      </ul>
+    </div>
+  );
 }
 
 /**
@@ -116,7 +247,9 @@ function TradingDateField({
   );
 }
 
-export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing, position, onBuy }: HoldingFormProps) {
+export function HoldingForm({
+  defaultValues, onSubmit, onCancel, isEditing, position, onBuy, buys, onUpdateBuy,
+}: HoldingFormProps) {
   // 'edit' is the form as it was; 'buy' records a second purchase of the same
   // stock and blends it into the position.
   const [mode, setMode] = useState<'edit' | 'buy'>('edit');
@@ -131,6 +264,15 @@ export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing, posi
       ...defaultValues,
     },
   });
+
+  // Editing a purchase re-derives the position from the log, so the edit form's
+  // own quantity/average have to follow the live values — otherwise a later
+  // "Save Changes" would write the pre-edit numbers back over the derivation.
+  useEffect(() => {
+    if (!position) return;
+    setValue('shares', position.shares);
+    setValue('averagePurchasePrice', position.averagePurchasePrice);
+  }, [position?.shares, position?.averagePurchasePrice, setValue]);
 
   const buyForm = useForm<BuyFormValues>({
     resolver: zodResolver(buySchema),
@@ -367,6 +509,8 @@ export function HoldingForm({ defaultValues, onSubmit, onCancel, isEditing, posi
             <Label htmlFor="notes">Notes</Label>
             <Input id="notes" placeholder="Optional notes" {...register('notes')} className="h-11 sm:h-10" />
           </div>
+
+          {buys && buys.length > 0 && onUpdateBuy && <BuyHistory buys={buys} onSave={onUpdateBuy} />}
         </>
       )}
 
