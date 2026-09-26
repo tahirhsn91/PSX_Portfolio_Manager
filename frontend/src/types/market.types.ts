@@ -141,3 +141,52 @@ export interface IMarketDataProvider {
   getMarketStatus(): Promise<MarketStatus>;
   searchCompanies(query: string): Promise<PSXCompany[]>;
 }
+
+// ── sarmaaya.pk (a second source, for the Market page's lists) ────────────────
+
+/**
+ * One row of sarmaaya.pk's PSX tape.
+ *
+ * `marketCap` is typed `null` on purpose: sarmaaya publishes no market
+ * capitalisation on the endpoints the proxy reads, so the field exists only to
+ * document that the column renders an em dash. It must never become a zero.
+ */
+export interface SarmaayaRow {
+  symbol: string;
+  name: string;
+  price: number | null;
+  change: number | null;
+  changePercent: number | null;
+  volume: number | null;
+  isShariah: boolean | null;
+  marketCap: null;
+}
+
+/** Where a snapshot came from, and which session its numbers belong to. */
+export interface SarmaayaSource {
+  name: string;
+  url: string;
+  apiHost: string;
+  fetchedAt: string;
+  /** The exchange session the numbers are from — not the clock: a Saturday read is Friday's. */
+  sessionDate: string | null;
+  /** True when an upstream refresh failed and an older snapshot is being served. */
+  stale?: boolean;
+  staleReason?: string;
+}
+
+export interface SarmaayaMarketSnapshot {
+  source: SarmaayaSource;
+  counts: {
+    listed: number;
+    traded: number;
+    gainers: number;
+    losers: number;
+    flat: number;
+    returned: number;
+  };
+  gainers: SarmaayaRow[];
+  losers: SarmaayaRow[];
+  /** Every symbol with a traded volume, most-traded first. */
+  active: SarmaayaRow[];
+}

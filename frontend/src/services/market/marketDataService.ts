@@ -18,11 +18,13 @@ import type {
   SectorPerformance,
   MarketStatus,
   PSXCompany,
+  SarmaayaMarketSnapshot,
 } from '@/types';
 import { MockMarketDataProvider } from './mockMarketData';
 import { CapitalStakeMarketDataProvider } from './capitalStakeProvider';
 import { YahooFinanceProvider } from './yahooFinanceProvider';
 import { PSXScraperProvider } from './psxScraperProvider';
+import { fetchSarmaayaMarket } from './sarmaayaMarket';
 
 // ---------------------------------------------------------------------------
 // Provider factory
@@ -123,6 +125,15 @@ class MarketDataService {
   /** The provider's most-active symbols — the Market overview's ranking source. */
   async getTopSymbols(limit = 20): Promise<string[]> {
     return this.provider.getTopSymbols(limit);
+  }
+
+  /**
+   * sarmaaya.pk's snapshot for the Market overview: gainers, losers and every traded
+   * symbol. Deliberately independent of `provider` — it is a second source used by one
+   * page, not a swap of the app's feed.
+   */
+  async getSarmaayaMarket(limit = 5): Promise<SarmaayaMarketSnapshot> {
+    return fetchSarmaayaMarket(limit);
   }
 
   async getMarketStatus(): Promise<MarketStatus> {

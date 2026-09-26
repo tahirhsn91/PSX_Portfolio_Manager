@@ -1,4 +1,6 @@
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { format, parseISO } from 'date-fns';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -6,28 +8,110 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CompanySearch } from '@/components/shared';
 import { SectorBarChart } from '@/features/charts';
-import { useKSE100, useSectorPerformance, useStockQuotes, useTopSymbols } from '@/hooks';
+import { useKSE100, useSarmaayaMarket, useSectorPerformance, useStockQuotes, useTopSymbols } from '@/hooks';
 import { formatCurrency, formatPercent, formatVolume, formatCompactNumber } from '@/utils';
-import type { PSXCompany } from '@/types';
+import type { PSXCompany, SarmaayaRow, StockQuote } from '@/types';
 import { ROUTES } from '@/constants';
 import { cn } from '@/lib/utils';
+
+/** How many gainers and losers each card lists. */
+const MOVERS = 5;
+/**
+ * How many of the traded scrips the Active Stocks tab renders.
+ *
+ * The source carries ~484 of them; rendering every row (and a card per row on a
+ * phone) costs more than it tells the reader, so the list is capped and says so.
+ */
+const ACTIVE_CAP = 100;
+
+/** One shape for the list and the table, whichever source filled them. */
+interface ListRow {
+  symbol: string;
+  name: string;
+  price: number | null;
+  changePercent: number | null;
+  volume: number | null;
+  marketCap: number | null;
+}
+
+const fromSarmaaya = (r: SarmaayaRow): ListRow => ({
+  symbol: r.symbol,
+  name: r.name,
+  price: r.price,
+  changePercent: r.changePercent,
+  volume: r.volume,
+  marketCap: r.marketCap,
+});
+
+const fromQuote = (q: StockQuote): ListRow => ({
+  symbol: q.symbol,
+  name: q.companyName,
+  price: q.currentPrice ?? null,
+  changePercent: q.changePercent ?? null,
+  volume: q.volume ?? null,
+  marketCap: q.marketCap ?? null,
+});
+
+/** `formatPercent` takes a number — a missing change has to read as an em dash, not 0.00%. */
+const pct = (v: number | null) => (v == null || Number.isNaN(v) ? '—' : formatPercent(v));
 
 export function Market() {
   const navigate = useNavigate();
   const { data: kse100, isLoading: kseLoading } = useKSE100();
   const { data: sectors = [], isLoading: sectorLoading } = useSectorPerformance();
-  // Which symbols the overview lists: the feed's own most-traded. This used to rank a
-  // bundled catalogue by hardcoded market caps (the feed publishes none), so the list
-  // never changed and its order was fiction.
-  const { data: topSymbols = [], isLoading: symbolsLoading } = useTopSymbols(20);
-  const { data: quotes = [], isLoading: quotesLoading } = useStockQuotes(topSymbols);
+
+  // The lists below come from sarmaaya.pk: the whole market in two sub-second calls
+  // (see services/market/sarmaayaMarket.ts). The scraper feed stays as the fallback,
+  // and is only asked for once sarmaaya has failed — its own ranking needs a ~30-second
+  // three-page walk, so it must not run behind a source that already answered.
+  const { data: tape, isLoading: tapeLoading, error: tapeError, isFetching: tapeFetching } = useSarmaayaMarket(MOVERS);
+  const usingFeed = !!tapeError;
+  const { data: topSymbols = [] } = useTopSymbols(20, usingFeed);
+  const { data: feedQuotes = [], isLoading: feedLoading } = useStockQuotes(usingFeed ? topSymbols : []);
+
+  const servedByTape = !!tape && !usingFeed;
+
+  const active = useMemo<ListRow[]>(
+    () => (servedByTape ? tape!.active.map(fromSarmaaya) : feedQuotes.map(fromQuote)),
+    [servedByTape, tape, feedQuotes],
+  );
+
+  const gainers = useMemo<ListRow[]>(() => {
+    if (servedByTape) return tape!.gainers.map(fromSarmaaya);
+    return [...feedQuotes]
+      .filter((q) => (q.changePercent ?? 0) > 0)
+      .sort((a, b) => (b.changePercent ?? 0) - (a.changePercent ?? 0))
+      .slice(0, MOVERS)
+      .map(fromQuote);
+  }, [servedByTape, tape, feedQuotes]);
+
+  const losers = useMemo<ListRow[]>(() => {
+    if (servedByTape) return tape!.losers.map(fromSarmaaya);
+    return [...feedQuotes]
+      .filter((q) => (q.changePercent ?? 0) < 0)
+      .sort((a, b) => (a.changePercent ?? 0) - (b.changePercent ?? 0))
+      .slice(0, MOVERS)
+      .map(fromQuote);
+  }, [servedByTape, tape, feedQuotes]);
+
+  const listsLoading = usingFeed ? feedLoading && !feedQuotes.length : tapeLoading && !tape;
 
   const handleCompanySelect = (company: PSXCompany) => {
     navigate(ROUTES.MARKET_STOCK_PATH(company.symbol));
   };
 
-  const gainers = [...quotes].sort((a, b) => b.changePercent - a.changePercent).slice(0, 5);
-  const losers = [...quotes].sort((a, b) => a.changePercent - b.changePercent).slice(0, 5);
+  // Say where the numbers come from and which session they belong to. The session date
+  // is the source's own, not the clock's: read on a Saturday, this is Friday's tape.
+  const session = tape?.source.sessionDate ? format(parseISO(tape.source.sessionDate), 'EEE d MMM yyyy') : null;
+  const caption = usingFeed
+    ? `sarmaaya.pk could not be reached (${tapeError instanceof Error ? tapeError.message : 'request failed'}) — these lists are the PSX feed's own ranking instead.`
+    : tape
+      ? tape.source.stale
+        ? `sarmaaya.pk stopped answering, so this is the last good snapshot it gave us — ${tape.counts.traded} traded scrips, session ${session}.`
+        : `${tape.counts.traded} traded scrips from sarmaaya.pk, session ${session} — ${tape.counts.gainers} up, ${tape.counts.losers} down, and the list ranked by traded volume. Refreshed every minute.`
+      : 'Reading the PSX tape from sarmaaya.pk…';
+
+  const visible = active.slice(0, ACTIVE_CAP);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -38,15 +122,7 @@ export function Market() {
         className="max-w-lg"
       />
 
-      {/* Say where the list comes from: every figure on this page is the scraper
-          feed's, and the ranking is the feed's own traded volume. */}
-      <p className="text-xs text-muted-foreground">
-        {symbolsLoading
-          ? 'Ranking the feed’s most-traded symbols…'
-          : quotes.length > 0
-            ? `Top ${quotes.length} symbols by traded volume — ranked and priced from the scraped PSX feed.`
-            : 'The feed has not reported any priced symbols, so there is nothing to rank yet.'}
-      </p>
+      <p className="text-xs text-muted-foreground">{caption}</p>
 
       {/* KSE100 Banner */}
       <Card className="border-primary/20 bg-primary/5">
@@ -91,7 +167,7 @@ export function Market() {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="sectors">Sectors</TabsTrigger>
-          <TabsTrigger value="all">All Stocks</TabsTrigger>
+          <TabsTrigger value="active">Active Stocks</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4">
@@ -101,30 +177,33 @@ export function Market() {
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-profit" /> Top Gainers
+                  {tapeFetching && !listsLoading && <span className="text-xs font-normal text-muted-foreground">refreshing…</span>}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {quotesLoading ? (
+                {listsLoading ? (
                   <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
-                ) : (
+                ) : gainers.length ? (
                   <div className="space-y-2">
-                    {gainers.map((q) => (
+                    {gainers.map((r) => (
                       <button
-                        key={q.symbol}
-                        onClick={() => navigate(ROUTES.MARKET_STOCK_PATH(q.symbol))}
+                        key={r.symbol}
+                        onClick={() => navigate(ROUTES.MARKET_STOCK_PATH(r.symbol))}
                         className="flex w-full items-center justify-between rounded-md p-2 hover:bg-muted/50 transition-colors"
                       >
                         <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-sm text-primary">{q.symbol}</span>
-                          <span className="text-xs text-muted-foreground hidden sm:block">{q.companyName.split(' ').slice(0, 3).join(' ')}</span>
+                          <span className="font-mono font-bold text-sm text-primary">{r.symbol}</span>
+                          <span className="text-xs text-muted-foreground hidden sm:block">{r.name.split(' ').slice(0, 3).join(' ')}</span>
                         </div>
                         <div className="flex items-center gap-3 text-sm">
-                          <span className="font-mono">{formatCurrency(q.currentPrice)}</span>
-                          <Badge variant="profit">+{q.changePercent.toFixed(2)}%</Badge>
+                          <span className="font-mono">{formatCurrency(r.price)}</span>
+                          <Badge variant="profit">{pct(r.changePercent)}</Badge>
                         </div>
                       </button>
                     ))}
                   </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Nothing gained ground in this session.</p>
                 )}
               </CardContent>
             </Card>
@@ -134,30 +213,33 @@ export function Market() {
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <TrendingDown className="h-4 w-4 text-loss" /> Top Losers
+                  {tapeFetching && !listsLoading && <span className="text-xs font-normal text-muted-foreground">refreshing…</span>}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {quotesLoading ? (
+                {listsLoading ? (
                   <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
-                ) : (
+                ) : losers.length ? (
                   <div className="space-y-2">
-                    {losers.map((q) => (
+                    {losers.map((r) => (
                       <button
-                        key={q.symbol}
-                        onClick={() => navigate(ROUTES.MARKET_STOCK_PATH(q.symbol))}
+                        key={r.symbol}
+                        onClick={() => navigate(ROUTES.MARKET_STOCK_PATH(r.symbol))}
                         className="flex w-full items-center justify-between rounded-md p-2 hover:bg-muted/50 transition-colors"
                       >
                         <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-sm text-primary">{q.symbol}</span>
-                          <span className="text-xs text-muted-foreground hidden sm:block">{q.companyName.split(' ').slice(0, 3).join(' ')}</span>
+                          <span className="font-mono font-bold text-sm text-primary">{r.symbol}</span>
+                          <span className="text-xs text-muted-foreground hidden sm:block">{r.name.split(' ').slice(0, 3).join(' ')}</span>
                         </div>
                         <div className="flex items-center gap-3 text-sm">
-                          <span className="font-mono">{formatCurrency(q.currentPrice)}</span>
-                          <Badge variant="loss">{q.changePercent.toFixed(2)}%</Badge>
+                          <span className="font-mono">{formatCurrency(r.price)}</span>
+                          <Badge variant="loss">{pct(r.changePercent)}</Badge>
                         </div>
                       </button>
                     ))}
                   </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Nothing lost ground in this session.</p>
                 )}
               </CardContent>
             </Card>
@@ -172,11 +254,18 @@ export function Market() {
           )}
         </TabsContent>
 
-        <TabsContent value="all" className="mt-4">
+        <TabsContent value="active" className="mt-4">
+          {active.length > visible.length && (
+            <p className="mb-3 text-xs text-muted-foreground">
+              Showing the {visible.length} most-traded of {active.length} traded scrips — most-traded first. A scrip
+              outside this list is one symbol search away.
+            </p>
+          )}
+
           {/* Phones get cards: six numeric columns at 390px are not a readable
               list, and the row is the tap target for the stock page. */}
           <ul className="space-y-3 lg:hidden">
-            {quotesLoading
+            {listsLoading
               ? Array.from({ length: 6 }).map((_, i) => (
                   <li key={i} className="rounded-lg border bg-card p-4">
                     <Skeleton className="h-5 w-24" />
@@ -184,32 +273,32 @@ export function Market() {
                     <Skeleton className="mt-3 h-4 w-full" />
                   </li>
                 ))
-              : quotes.map((q) => (
+              : visible.map((r) => (
                   <li
-                    key={q.symbol}
+                    key={r.symbol}
                     className="rounded-lg border bg-card p-4 active:bg-muted/30"
-                    onClick={() => navigate(ROUTES.MARKET_STOCK_PATH(q.symbol))}
+                    onClick={() => navigate(ROUTES.MARKET_STOCK_PATH(r.symbol))}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="font-mono font-bold text-primary">{q.symbol}</div>
-                        <div className="truncate text-xs text-muted-foreground">{q.companyName}</div>
+                        <div className="font-mono font-bold text-primary">{r.symbol}</div>
+                        <div className="truncate text-xs text-muted-foreground">{r.name}</div>
                       </div>
                       <div className="shrink-0 text-right">
-                        <div className="font-mono">{formatCurrency(q.currentPrice)}</div>
-                        <div className={cn('font-mono text-xs font-medium', q.changePercent >= 0 ? 'text-profit' : 'text-loss')}>
-                          {formatPercent(q.changePercent)}
+                        <div className="font-mono">{formatCurrency(r.price)}</div>
+                        <div className={cn('font-mono text-xs font-medium', (r.changePercent ?? 0) >= 0 ? 'text-profit' : 'text-loss')}>
+                          {pct(r.changePercent)}
                         </div>
                       </div>
                     </div>
                     <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t pt-3 text-xs">
                       <div className="flex items-baseline justify-between gap-2">
                         <dt className="text-muted-foreground">Volume</dt>
-                        <dd className="font-mono">{formatVolume(q.volume)}</dd>
+                        <dd className="font-mono">{formatVolume(r.volume)}</dd>
                       </div>
                       <div className="flex items-baseline justify-between gap-2">
                         <dt className="text-muted-foreground">Mkt Cap</dt>
-                        <dd className="font-mono">{formatCompactNumber(q.marketCap)}</dd>
+                        <dd className="font-mono">{formatCompactNumber(r.marketCap)}</dd>
                       </div>
                     </dl>
                   </li>
@@ -229,7 +318,7 @@ export function Market() {
                 </tr>
               </thead>
               <tbody>
-                {quotesLoading
+                {listsLoading
                   ? Array.from({ length: 10 }).map((_, i) => (
                       <tr key={i} className="border-b">
                         {Array.from({ length: 6 }).map((_, j) => (
@@ -237,25 +326,33 @@ export function Market() {
                         ))}
                       </tr>
                     ))
-                  : quotes.map((q) => (
+                  : visible.map((r) => (
                       <tr
-                        key={q.symbol}
+                        key={r.symbol}
                         className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
-                        onClick={() => navigate(ROUTES.MARKET_STOCK_PATH(q.symbol))}
+                        onClick={() => navigate(ROUTES.MARKET_STOCK_PATH(r.symbol))}
                       >
-                        <td className="px-4 py-3 font-mono font-bold text-primary">{q.symbol}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{q.companyName}</td>
-                        <td className="px-4 py-3 text-right font-mono">{formatCurrency(q.currentPrice)}</td>
-                        <td className={cn('px-4 py-3 text-right font-medium', q.changePercent >= 0 ? 'text-profit' : 'text-loss')}>
-                          {formatPercent(q.changePercent)}
+                        <td className="px-4 py-3 font-mono font-bold text-primary">{r.symbol}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{r.name}</td>
+                        <td className="px-4 py-3 text-right font-mono">{formatCurrency(r.price)}</td>
+                        <td className={cn('px-4 py-3 text-right font-medium', (r.changePercent ?? 0) >= 0 ? 'text-profit' : 'text-loss')}>
+                          {pct(r.changePercent)}
                         </td>
-                        <td className="px-4 py-3 text-right text-muted-foreground">{formatVolume(q.volume)}</td>
-                        <td className="px-4 py-3 text-right text-muted-foreground">{formatCompactNumber(q.marketCap)}</td>
+                        <td className="px-4 py-3 text-right text-muted-foreground">{formatVolume(r.volume)}</td>
+                        <td className="px-4 py-3 text-right text-muted-foreground">{formatCompactNumber(r.marketCap)}</td>
                       </tr>
                     ))}
               </tbody>
             </table>
           </div>
+
+          {!listsLoading && !visible.length && (
+            <p className="text-sm text-muted-foreground">
+              {usingFeed
+                ? 'The PSX feed returned no priced symbols, so there is nothing to list.'
+                : 'sarmaaya.pk returned no traded symbols for this session.'}
+            </p>
+          )}
         </TabsContent>
       </Tabs>
     </div>

@@ -13,6 +13,12 @@
  *      Routes: GET /api/cs/*  → passthrough to https://csapis.com/3.0/*
  *      Real-time PSX data.
  *
+ *   3. sarmaaya.pk  (FREE, no API key)
+ *      Routes: GET /api/sarmaaya/*
+ *      Reads the public endpoints sarmaaya's own web client calls, for the Market
+ *      page's gainers / losers / most-traded lists. The whole market answers in two
+ *      sub-second calls, where the PSX Scraper feed needs a ~30s three-page walk.
+ *
  * Environment variables:
  *   PROXY_PORT             — port to listen on (default: 4000)
  *   ALLOWED_ORIGIN         — CORS origin (default: http://localhost:3000)
@@ -29,6 +35,8 @@
  *   GET /api/yf/market-status      — is PSX open right now?
  *   GET /api/yf/search             — company search (?q=query)
  *   GET /api/cs/*                  — Capital Stake passthrough (requires API key)
+ *   GET /api/sarmaaya/market       — gainers, losers + every traded symbol (?limit=)
+ *                                    with provenance (source, session date, counts)
  */
 
 'use strict';
@@ -38,6 +46,7 @@ const cors         = require('cors');
 const fetch        = require('node-fetch');
 const cookieParser = require('cookie-parser');
 const yf           = require('./providers/yahooFinance');
+const sarmaaya     = require('./providers/sarmaaya');
 const { runMigrations }   = require('./db/migrate');
 const { ping: pingDb }    = require('./db/pool');
 const authRoutes          = require('./routes/auth');
@@ -86,6 +95,7 @@ app.get('/health', (_req, res) => {
     providers: {
       psxScraper:   `proxy → ${PSX_SCRAPER_URL}`,
       yahooFinance: 'active (no key required)',
+      sarmaaya:     'active (no key required)',
       capitalStake: CS_API_KEY ? 'configured' : 'not configured',
     },
     database: dbReady ? 'connected' : 'unavailable',
@@ -184,6 +194,25 @@ app.get('/api/yf/search', async (req, res) => {
     res.json(data);
   } catch (err) {
     handleError(res, err, `search?q=${q}`);
+  }
+});
+
+// ── sarmaaya.pk (Market page lists) ───────────────────────────────────────────
+//
+// The Market page's gainers / losers / most-traded lists. sarmaaya's public endpoints
+// are read server-side (the browser cannot call them: no CORS headers) and joined into
+// one snapshot that is cached for a minute, so a page that refreshes every minute still
+// costs two upstream calls a minute however many readers there are.
+
+// GET /api/sarmaaya/market?limit=5
+app.get('/api/sarmaaya/market', async (req, res) => {
+  const raw   = parseInt(req.query.limit ?? '5', 10);
+  const limit = Math.min(Math.max(Number.isFinite(raw) ? raw : 5, 1), sarmaaya.MAX_MOVERS);
+  try {
+    const market = await sarmaaya.getMarket();
+    res.json({ ...market, gainers: market.gainers.slice(0, limit), losers: market.losers.slice(0, limit) });
+  } catch (err) {
+    handleError(res, err, 'sarmaaya/market');
   }
 });
 
