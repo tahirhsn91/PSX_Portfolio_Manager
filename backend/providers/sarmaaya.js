@@ -56,6 +56,8 @@ const TIMEOUT_MS = 8_000;
  * form of the listing that includes `market_cap` on every row.
  */
 const VALUATION_FILTER = 'Large Cap Stocks';
+/** The headline index whose session levels ride the snapshot. */
+const INDEX_CODE = 'KSE100';
 /** The broadest index the site publishes tickers for: 484 of the 505 listed symbols. */
 const TICKER_INDEX = 'ALLSHR';
 /** How many movers a snapshot keeps — the most any caller can ask for. */
@@ -104,9 +106,14 @@ async function sarmaayaGet(path) {
  * with no ticker row simply has no traded volume yet).
  */
 async function fetchSnapshot() {
-  const [listing, tickers] = await Promise.all([
+  const [listing, tickers, index] = await Promise.all([
     sarmaayaGet(`/stocks/listing?page=1&limit=1000&valuation=${encodeURIComponent(VALUATION_FILTER)}`),
     sarmaayaGet(`/stocks/ticker?index=${encodeURIComponent(TICKER_INDEX)}`),
+    // The index's own session levels: close, high, low, volume, previous close. sarmaaya
+    // publishes no *opening* level for an index anywhere — its index namespace has no
+    // OHLC route, and /indices/price-history is daily closes only. Optional, so a
+    // failure here costs the levels and not the lists.
+    sarmaayaGet(`/indices/overview/${INDEX_CODE}`).catch(() => null),
   ]);
 
   const listed = Array.isArray(listing?.data) ? listing.data : [];
@@ -143,12 +150,32 @@ async function fetchSnapshot() {
   // Saturday request returns Friday's session, which is the point.
   const sessionDate = (traded[0]?.date ?? listed[0]?.date ?? null)?.slice(0, 10) ?? null;
 
-  return { rows, sessionDate, listedCount: listed.length, tradedCount: traded.length };
+  // Null when the optional call failed or answered nothing — the banner then shows the
+  // feed's own index reading, and its em dashes, rather than mixing the two.
+  const levels = index && typeof index === 'object'
+    ? {
+        code:          index.symbol ?? INDEX_CODE,
+        name:          index.name ?? 'KSE-100 Index',
+        close:         num(index.close),
+        change:        num(index.change),
+        // Percent units, like every other row here: 0.16 means +0.16%.
+        changePercent: num(index.changePercent),
+        high:          num(index.high),
+        low:           num(index.low),
+        volume:        num(index.volume),
+        previousClose: num(index.prevClose),
+        updatedAt:     index.updatedAt ?? null,
+        // The way sarmaaya timestamps a tape: its own session, not the clock's.
+        sessionDate:   typeof index.updatedAt === 'string' ? index.updatedAt.slice(0, 10) : null,
+      }
+    : null;
+
+  return { rows, sessionDate, listedCount: listed.length, tradedCount: traded.length, levels };
 }
 
 /** Sort a copy — never the array the caller handed us. */
 function buildPayload(snapshot) {
-  const { rows, sessionDate, listedCount, tradedCount } = snapshot;
+  const { rows, sessionDate, listedCount, tradedCount, levels } = snapshot;
 
   // Only scrips that actually traded take part. A symbol with no ticker row has no
   // volume — it did not trade this session — and its day change is whatever the
@@ -188,6 +215,8 @@ function buildPayload(snapshot) {
     gainers: gainers.slice(0, MAX_MOVERS),
     losers:  losers.slice(0, MAX_MOVERS),
     active,
+    // The KSE-100 banner's levels, from the same snapshot as the lists.
+    index: levels,
   };
 }
 
