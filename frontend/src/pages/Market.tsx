@@ -52,6 +52,12 @@ const fromQuote = (q: StockQuote): ListRow => ({
   marketCap: q.marketCap ?? null,
 });
 
+/** An index level with thousands separators, or an em dash when the source sends none. */
+const levelText = (v: number | null | undefined) => (v == null || Number.isNaN(v) ? '—' : v.toLocaleString());
+
+/** A whole-market volume in the page's compact units, or an em dash. */
+const compactText = (v: number | null | undefined) => (v == null || Number.isNaN(v) ? '—' : formatCompactNumber(v));
+
 /** `formatPercent` takes a number — a missing change has to read as an em dash, not 0.00%. */
 const pct = (v: number | null) => (v == null || Number.isNaN(v) ? '—' : formatPercent(v));
 
@@ -70,6 +76,17 @@ export function Market() {
   const { data: feedQuotes = [], isLoading: feedLoading } = useStockQuotes(usingFeed ? topSymbols : []);
 
   const servedByTape = !!tape && !usingFeed;
+
+  // The KSE-100 banner. sarmaaya is the only source that publishes an index's high, low,
+  // volume and close; the feed's index history is the only one that carries an *opening*
+  // level, and it has held `open: null` since 23 Sep — so that tile shows an em dash for
+  // those sessions rather than a substituted number. The feed's own index reading is the
+  // whole fallback: when sarmaaya is unreachable the banner comes from the feed, em dashes
+  // included, and the two are never mixed in one row.
+  const levels = servedByTape ? tape?.index ?? null : null;
+  const indexValue = levels?.close ?? kse100?.value ?? null;
+  const indexChangePercent = levels?.changePercent ?? kse100?.changePercent ?? null;
+  const feedOpen = kse100?.open ?? null;
 
   const active = useMemo<ListRow[]>(
     () => (servedByTape ? tape!.active.map(fromSarmaaya) : feedQuotes.map(fromQuote)),
@@ -130,15 +147,17 @@ export function Market() {
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
               <p className="text-sm text-muted-foreground">KSE-100 Index</p>
-              {kseLoading ? (
+              {kseLoading && indexValue == null ? (
                 <Skeleton className="h-8 w-32" />
-              ) : kse100 ? (
+              ) : indexValue != null ? (
                 <div className="flex items-baseline gap-3">
-                  <p className="text-3xl font-bold">{kse100.value.toLocaleString()}</p>
-                  <Badge variant={kse100.changePercent >= 0 ? 'profit' : 'loss'} className="text-sm gap-1">
-                    {kse100.changePercent >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-                    {formatPercent(kse100.changePercent)}
-                  </Badge>
+                  <p className="text-3xl font-bold">{indexValue.toLocaleString()}</p>
+                  {indexChangePercent != null && (
+                    <Badge variant={indexChangePercent >= 0 ? 'profit' : 'loss'} className="text-sm gap-1">
+                      {indexChangePercent >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                      {formatPercent(indexChangePercent)}
+                    </Badge>
+                  )}
                 </div>
               ) : (
                 // No index from the provider — say so instead of printing 0, which
@@ -146,20 +165,29 @@ export function Market() {
                 <p className="text-2xl font-bold text-muted-foreground">Not available</p>
               )}
             </div>
-            <div className="flex gap-6 text-sm">
+            {/* Wraps: five levels do not fit one line at phone width, and a row that
+                clips inside the card still reports no *page* overflow. */}
+            <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
               {[
-                ['Open', kse100?.open],
-                ['High', kse100?.high],
-                ['Low', kse100?.low],
-                ['Volume', kse100 ? formatCompactNumber(kse100.volume) : null],
+                ['Open', levelText(feedOpen)],
+                ['High', levelText(levels?.high ?? kse100?.high)],
+                ['Low', levelText(levels?.low ?? kse100?.low)],
+                ['Close', levelText(indexValue)],
+                ['Volume', compactText(levels?.volume ?? kse100?.volume)],
               ].map(([label, val]) => (
                 <div key={label}>
                   <p className="text-muted-foreground">{label}</p>
-                  <p className="font-semibold">{val?.toLocaleString() ?? '—'}</p>
+                  <p className="font-semibold">{val}</p>
                 </div>
               ))}
             </div>
           </div>
+          {levels && (
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              Session levels (high, low, close, volume) from sarmaaya.pk · open from the PSX
+              feed&apos;s index history, which holds no opening level for this session.
+            </p>
+          )}
         </CardContent>
       </Card>
 
