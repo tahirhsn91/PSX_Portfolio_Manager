@@ -13,7 +13,7 @@ import type {
   BuyRecord,
 } from '@/types';
 import { STORAGE_KEYS, PORTFOLIO_COLORS } from '@/constants';
-import { blendPurchase, roundMoney } from '@/utils/calculations';
+import { positionFromBuys, roundMoney } from '@/utils/calculations';
 
 interface PortfolioState {
   portfolios: Portfolio[];
@@ -36,6 +36,18 @@ interface PortfolioState {
    * caller can report the new average, or `undefined` if nothing matched.
    */
   buyInto: (portfolioId: string, input: BuyInput) => Holding | undefined;
+  /**
+   * Correct a logged purchase (its quantity and the price paid). The holding's
+   * quantity and average are then re-derived from the whole log, so fixing one
+   * trade re-prices the position from it. The position's own purchase date and
+   * every other trade are left alone.
+   */
+  updateBuy: (
+    portfolioId: string,
+    holdingId: string,
+    buyId: string,
+    patch: { shares: number; pricePerShare: number }
+  ) => Holding | undefined;
   deleteHolding: (portfolioId: string, holdingId: string) => void;
 
   // Dividend
@@ -203,28 +215,73 @@ export const usePortfolioStore = create<PortfolioState>()(
                           kind: 'opening',
                         }];
 
-                    const blended = blendPurchase(h, input);
+                    const buys = [
+                      ...log,
+                      ...opening,
+                      {
+                        id: uuidv4(),
+                        holdingId: h.id,
+                        date: input.date,
+                        shares: input.shares,
+                        pricePerShare: input.pricePerShare,
+                        totalCost: roundMoney(input.shares * input.pricePerShare),
+                        kind: 'buy' as const,
+                      },
+                    ];
+                    // Derive the position from the log rather than blending into
+                    // the old numbers: identical arithmetic, one code path, and
+                    // the same path an edited trade takes below.
+                    const position = positionFromBuys(buys);
                     updated = {
                       ...h,
-                      shares: blended.shares,
-                      averagePurchasePrice: blended.averagePurchasePrice,
-                      // The position keeps its original date: the blended average
+                      shares: position.shares,
+                      averagePurchasePrice: position.averagePurchasePrice,
+                      // The position keeps its original date: the average
                       // describes the position, not the latest purchase — that
-                      // purchase carries its own date in the log below.
+                      // purchase carries its own date in the log.
                       purchaseDate: h.purchaseDate,
-                      buys: [
-                        ...log,
-                        ...opening,
-                        {
-                          id: uuidv4(),
-                          holdingId: h.id,
-                          date: input.date,
-                          shares: input.shares,
-                          pricePerShare: input.pricePerShare,
-                          totalCost: roundMoney(input.shares * input.pricePerShare),
-                          kind: 'buy' as const,
-                        },
-                      ],
+                      buys,
+                    };
+                    return updated;
+                  }),
+                }
+              : p
+          ),
+        }));
+
+        return updated;
+      },
+
+      updateBuy: (portfolioId, holdingId, buyId, patch) => {
+        let updated: Holding | undefined;
+
+        set((state) => ({
+          portfolios: state.portfolios.map((p) =>
+            p.id === portfolioId
+              ? {
+                  ...p,
+                  updatedAt: now(),
+                  holdings: p.holdings.map((h) => {
+                    if (h.id !== holdingId) return h;
+                    const log = h.buys ?? [];
+                    if (!log.some((b) => b.id === buyId)) return h;
+
+                    const buys = log.map((b) =>
+                      b.id === buyId
+                        ? {
+                            ...b,
+                            shares: patch.shares,
+                            pricePerShare: patch.pricePerShare,
+                            totalCost: roundMoney(patch.shares * patch.pricePerShare),
+                          }
+                        : b
+                    );
+                    const position = positionFromBuys(buys);
+                    updated = {
+                      ...h,
+                      shares: position.shares,
+                      averagePurchasePrice: position.averagePurchasePrice,
+                      buys,
                     };
                     return updated;
                   }),
