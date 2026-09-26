@@ -11,6 +11,7 @@ import type {
   DividendRecord,
   BuyInput,
   BuyRecord,
+  DeleteBuyResult,
 } from '@/types';
 import { STORAGE_KEYS, PORTFOLIO_COLORS } from '@/constants';
 import { positionFromBuys, roundMoney } from '@/utils/calculations';
@@ -49,11 +50,11 @@ interface PortfolioState {
     patch: { shares: number; pricePerShare: number }
   ) => Holding | undefined;
   /**
-   * Remove a logged purchase and re-derive the position from what is left.
-   * Refuses the last one: a position *is* its purchases, so an empty log would
-   * describe nothing (delete the holding instead).
+   * Remove any logged purchase and re-derive the position from what is left.
+   * The last purchase is the position itself, so removing it removes the
+   * holding — an empty log would describe nothing.
    */
-  deleteBuy: (portfolioId: string, holdingId: string, buyId: string) => Holding | undefined;
+  deleteBuy: (portfolioId: string, holdingId: string, buyId: string) => DeleteBuyResult | undefined;
   deleteHolding: (portfolioId: string, holdingId: string) => void;
 
   // Dividend
@@ -300,35 +301,41 @@ export const usePortfolioStore = create<PortfolioState>()(
       },
 
       deleteBuy: (portfolioId, holdingId, buyId) => {
-        let updated: Holding | undefined;
+        let result: DeleteBuyResult | undefined;
 
         set((state) => ({
-          portfolios: state.portfolios.map((p) =>
-            p.id === portfolioId
-              ? {
-                  ...p,
-                  updatedAt: now(),
-                  holdings: p.holdings.map((h) => {
-                    if (h.id !== holdingId) return h;
-                    const log = h.buys ?? [];
-                    if (log.length <= 1 || !log.some((b) => b.id === buyId)) return h;
+          portfolios: state.portfolios.map((p) => {
+            if (p.id !== portfolioId) return p;
+            const holding = p.holdings.find((h) => h.id === holdingId);
+            if (!holding) return p;
+            const log = holding.buys ?? [];
+            if (!log.some((b) => b.id === buyId)) return p;
 
-                    const buys = log.filter((b) => b.id !== buyId);
-                    const position = positionFromBuys(buys);
-                    updated = {
-                      ...h,
-                      shares: position.shares,
-                      averagePurchasePrice: position.averagePurchasePrice,
-                      buys,
-                    };
-                    return updated;
-                  }),
-                }
-              : p
-          ),
+            // The last purchase *is* the position: without it there is nothing
+            // left to describe, so the holding goes with it.
+            if (log.length <= 1) {
+              result = { kind: 'holding-removed' };
+              return { ...p, updatedAt: now(), holdings: p.holdings.filter((h) => h.id !== holdingId) };
+            }
+
+            const buys = log.filter((b) => b.id !== buyId);
+            const position = positionFromBuys(buys);
+            const updated: Holding = {
+              ...holding,
+              shares: position.shares,
+              averagePurchasePrice: position.averagePurchasePrice,
+              buys,
+            };
+            result = { kind: 'updated', holding: updated };
+            return {
+              ...p,
+              updatedAt: now(),
+              holdings: p.holdings.map((h) => (h.id === holdingId ? updated : h)),
+            };
+          }),
         }));
 
-        return updated;
+        return result;
       },
 
       deleteHolding: (portfolioId, holdingId) => {
