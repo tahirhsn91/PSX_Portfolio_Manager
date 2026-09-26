@@ -58,6 +58,23 @@ export function blendPurchase(
   };
 }
 
+/**
+ * The position a buy log describes: quantity, and the weighted average of what
+ * each logged purchase cost. This is what makes a **trade's own numbers**
+ * editable — change a purchase's price or quantity and the position is
+ * re-derived from the whole log, so the average can never drift from it.
+ *
+ * Deriving and blending are the same arithmetic (weighted means compose), so
+ * appending through here and blending incrementally agree to the cent.
+ */
+export function positionFromBuys(
+  buys: { shares: number; pricePerShare: number }[]
+): { shares: number; averagePurchasePrice: number } {
+  const shares = buys.reduce((s, b) => s + b.shares, 0);
+  const cost = buys.reduce((s, b) => s + b.shares * b.pricePerShare, 0);
+  return { shares, averagePurchasePrice: shares > 0 ? roundMoney(cost / shares) : 0 };
+}
+
 /** Quantity and cost a buy log accounts for. */
 export function buyLogTotals(buys: { shares: number; pricePerShare: number }[]): { shares: number; cost: number } {
   return buys.reduce(
