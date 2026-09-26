@@ -78,15 +78,24 @@ export function Market() {
   const servedByTape = !!tape && !usingFeed;
 
   // The KSE-100 banner. sarmaaya is the only source that publishes an index's high, low,
-  // volume and close; the feed's index history is the only one that carries an *opening*
-  // level, and it has held `open: null` since 23 Sep — so that tile shows an em dash for
-  // those sessions rather than a substituted number. The feed's own index reading is the
-  // whole fallback: when sarmaaya is unreachable the banner comes from the feed, em dashes
-  // included, and the two are never mixed in one row.
+  // volume and close, and it publishes no opening level at all; the feed's own index reading
+  // does carry one — the first reading of the session, captured by the scraper — so the tile
+  // takes it from there, and only when that reading is the *same session* as the levels above.
+  // A feed a session behind would otherwise print its open beside a newer close, which is what
+  // reads as one session's row. The feed is the whole fallback: when sarmaaya is unreachable the
+  // banner comes from the feed, em dashes included, and the two are never mixed in one row.
   const levels = servedByTape ? tape?.index ?? null : null;
   const indexValue = levels?.close ?? kse100?.value ?? null;
   const indexChangePercent = levels?.changePercent ?? kse100?.changePercent ?? null;
   const feedOpen = kse100?.open ?? null;
+  // Both sources quote the exchange's own level, so agreeing to within a hair of a percent means
+  // they are describing the same session — that is the test, because the feed's reading carries
+  // no date of its own. A reading from another session shows the dash it stands in for.
+  const feedIsSameSession =
+    indexValue !== null &&
+    kse100?.value != null &&
+    Math.abs(kse100.value - indexValue) <= Math.max(1, indexValue * 0.0005);
+  const openShown = levels ? (feedIsSameSession ? feedOpen : null) : feedOpen;
 
   const active = useMemo<ListRow[]>(
     () => (servedByTape ? tape!.active.map(fromSarmaaya) : feedQuotes.map(fromQuote)),
@@ -169,7 +178,7 @@ export function Market() {
                 clips inside the card still reports no *page* overflow. */}
             <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
               {[
-                ['Open', levelText(feedOpen)],
+                ['Open', levelText(openShown)],
                 ['High', levelText(levels?.high ?? kse100?.high)],
                 ['Low', levelText(levels?.low ?? kse100?.low)],
                 ['Close', levelText(indexValue)],
@@ -185,7 +194,8 @@ export function Market() {
           {levels && (
             <p className="mt-3 text-[11px] text-muted-foreground">
               Session levels (high, low, close, volume) from sarmaaya.pk · open from the PSX
-              feed&apos;s index history, which holds no opening level for this session.
+              feed&apos;s own index reading, its first reading of the session, shown when it belongs
+              to the same session as these levels.
             </p>
           )}
         </CardContent>
