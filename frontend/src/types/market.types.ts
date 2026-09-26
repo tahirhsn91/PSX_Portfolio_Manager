@@ -173,6 +173,28 @@ export interface SarmaayaSource {
   staleReason?: string;
 }
 
+/**
+ * The headline index's session levels, as sarmaaya publishes them.
+ *
+ * `close` is the level the page shows as the index value. There is deliberately **no
+ * `open`**: sarmaaya publishes an index's high, low, volume and previous close, and no
+ * opening level — so the banner takes its open from the feed's own index history.
+ */
+export interface SarmaayaIndexRow {
+  code: string;
+  name: string;
+  close: number | null;
+  change: number | null;
+  /** Percent units, like every other row here: 0.16 is +0.16%. */
+  changePercent: number | null;
+  high: number | null;
+  low: number | null;
+  volume: number | null;
+  previousClose: number | null;
+  updatedAt: string | null;
+  sessionDate: string | null;
+}
+
 export interface SarmaayaMarketSnapshot {
   source: SarmaayaSource;
   counts: {
@@ -187,4 +209,6 @@ export interface SarmaayaMarketSnapshot {
   losers: SarmaayaRow[];
   /** Every symbol with a traded volume, most-traded first. */
   active: SarmaayaRow[];
+  /** The KSE-100 banner's levels; null when the source did not answer for them. */
+  index: SarmaayaIndexRow | null;
 }

@@ -654,6 +654,15 @@ export class PSXScraperProvider implements IMarketDataProvider {
         .map(mapToHistoricalPoint)
         .filter((d): d is HistoricalDataPoint => d !== null);
 
+      // The index summary carries no opening level. /history's newest row sometimes
+      // does, and using it needs the *same* session — an opening level from another day
+      // would be a different number wearing this day's label.
+      const newest = history?.items?.[0];
+      const sameSession =
+        !!newest &&
+        (newest.lastTradeDate ?? '').slice(0, 10) === (summary.lastTradeDate ?? '').slice(0, 10);
+      const historyOpen = sameSession ? newest.open ?? null : null;
+
       return {
         value,
         change,
@@ -662,7 +671,7 @@ export class PSXScraperProvider implements IMarketDataProvider {
         // nothing else. Mirroring the value into open/high/low (the old behaviour)
         // stated the index's level as its own day high and low; the banner shows
         // "—" for what the feed did not send.
-        open:          summary.open          ?? null,
+        open:          summary.open ?? historyOpen ?? null,
         high:          summary.high          ?? null,
         low:           summary.low           ?? null,
         previousClose: summary.previousClose ?? value - change,
