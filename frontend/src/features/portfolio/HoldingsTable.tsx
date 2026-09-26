@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PLBadge } from '@/components/shared';
+import { PLValue } from '@/components/shared';
 import { formatCurrency, formatPercent, formatDate } from '@/utils';
 import type { Holding, HoldingMetrics } from '@/types';
 import { cn } from '@/lib/utils';
@@ -144,7 +144,7 @@ export function HoldingsTable({
                     {priced && m ? (
                       <>
                         <div className="font-mono font-medium">{formatCurrency(m.currentValue)}</div>
-                        <div className="mt-1"><PLBadge value={m.unrealizedPLPercent} /></div>
+                        <div className="mt-1"><PLValue value={m.unrealizedPLPercent} /></div>
                       </>
                     ) : (
                       <div className="font-mono text-muted-foreground">—</div>
@@ -250,7 +250,7 @@ export function HoldingsTable({
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {priced && m ? <PLBadge value={m.unrealizedPLPercent} /> : <span className="text-xs text-muted-foreground">—</span>}
+                    {priced && m ? <PLValue value={m.unrealizedPLPercent} /> : <span className="text-xs text-muted-foreground">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right text-xs text-muted-foreground">
                     {priced && m ? `${m.weightInPortfolio.toFixed(1)}%` : '—'}
