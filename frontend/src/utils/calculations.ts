@@ -23,6 +23,66 @@ export function isQuoteUsable(quote: StockQuote | null | undefined): quote is St
   return !!quote && quote.priceAvailable !== false && Number.isFinite(quote.currentPrice) && quote.currentPrice > 0;
 }
 
+// ─── Buying more of a stock you already hold ────────────────────────────────
+
+/** Money in PKR, to the cent. */
+export function roundMoney(amount: number): number {
+  return Math.round(amount * 100) / 100;
+}
+
+/**
+ * Blend a purchase into an existing position.
+ *
+ * Quantity adds up and the average becomes the weighted average of what the
+ * position already cost and what the new shares cost:
+ *
+ *   shares' = s + q
+ *   average' = (s·a + q·p) / (s + q)
+ *
+ * The average is the number that matters: `calculateHoldingMetrics` derives
+ * cost basis, and therefore every P&L and return figure, from
+ * `shares × averagePurchasePrice`. Rounding to the cent means the recomputed
+ * cost basis can differ from the true one by up to half a cent per share, which
+ * is what the reconciliation tolerance below accounts for.
+ */
+export function blendPurchase(
+  position: { shares: number; averagePurchasePrice: number },
+  purchase: { shares: number; pricePerShare: number }
+): { shares: number; averagePurchasePrice: number; totalCost: number } {
+  const shares = position.shares + purchase.shares;
+  const totalCost = position.shares * position.averagePurchasePrice + purchase.shares * purchase.pricePerShare;
+  return {
+    shares,
+    averagePurchasePrice: shares > 0 ? roundMoney(totalCost / shares) : 0,
+    totalCost: roundMoney(totalCost),
+  };
+}
+
+/** Quantity and cost a buy log accounts for. */
+export function buyLogTotals(buys: { shares: number; pricePerShare: number }[]): { shares: number; cost: number } {
+  return buys.reduce(
+    (acc, b) => ({ shares: acc.shares + b.shares, cost: acc.cost + b.shares * b.pricePerShare }),
+    { shares: 0, cost: 0 }
+  );
+}
+
+/**
+ * Does a holding's buy log account for the position it sits on?
+ *
+ * Both halves are checked: the logged quantity is the holding's quantity, and
+ * the logged cost is its cost basis to within half a cent per share (the
+ * average is stored rounded, so an exact match cannot be required).
+ */
+export function buyLogReconciles(holding: Holding): boolean {
+  if (!holding.buys?.length) return false;
+  const { shares, cost } = buyLogTotals(holding.buys);
+  const tolerance = 0.01 * holding.shares;
+  return (
+    Math.abs(shares - holding.shares) < 1e-9 &&
+    Math.abs(cost - holding.shares * holding.averagePurchasePrice) <= tolerance
+  );
+}
+
 export function calculateHoldingMetrics(
   holding: Holding,
   quote: StockQuote | null,
