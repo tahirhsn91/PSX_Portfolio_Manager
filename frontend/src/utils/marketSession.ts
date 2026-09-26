@@ -78,7 +78,12 @@ export function activeSessionDate(now: Date = new Date()): string {
 export function mostRecentTradingDay(date: Date = new Date()): Date {
   let cursor = date;
   while (!isTradingDay(cursor)) cursor = new Date(cursor.getTime() - DAY_MS);
-  return cursor;
+  // Return the *day* that was found, not the instant it was found at. The weekday above
+  // is decided in Karachi time, and `format()`/`toISOString()` on that instant read the
+  // browser's own zone — so between 00:00 and 05:00 PKT (19:00–24:00 UTC) the previous
+  // calendar day came out, and both purchase forms defaulted to Thursday when Friday was
+  // the last session. Local midnight of the Karachi day formats as that day everywhere.
+  return new Date(`${pktDateKey(cursor)}T00:00:00`);
 }
 
 export type DayRangeSource = 'exchange' | 'observed';
