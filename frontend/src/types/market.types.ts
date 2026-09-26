@@ -178,7 +178,8 @@ export interface SarmaayaSource {
  *
  * `close` is the level the page shows as the index value. There is deliberately **no
  * `open`**: sarmaaya publishes an index's high, low, volume and previous close, and no
- * opening level — so the banner takes its open from the feed's own index history.
+ * opening level — so the banner takes its open from the feed's own index reading, which captures
+ * the session's first reading, and only when that reading belongs to the same session.
  */
 export interface SarmaayaIndexRow {
   code: string;
