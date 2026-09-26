@@ -3,5 +3,5 @@ export { EmptyState } from './EmptyState';
 export { EnvBanner } from './EnvBanner';
 export { MetricCard } from './MetricCard';
 export { RangeBar } from './RangeBar';
-export { PLBadge } from './PLBadge';
+export { PLValue } from './PLValue';
 export { CompanySearch } from './CompanySearch';
