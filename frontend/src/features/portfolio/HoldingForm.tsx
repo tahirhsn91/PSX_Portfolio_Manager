@@ -56,8 +56,9 @@ interface HoldingFormProps {
  * sideways inside a dialog is a worse answer than a card.
  */
 function BuyHistory({
-  buys, onSave, onDelete,
+  symbol, buys, onSave, onDelete,
 }: {
+  symbol: string;
   buys: BuyRecord[];
   onSave: (buyId: string, patch: { shares: number; pricePerShare: number }) => void;
   onDelete: (buyId: string) => void;
@@ -67,9 +68,6 @@ function BuyHistory({
   const [error, setError] = useState<string | null>(null);
   const position = positionFromBuys(buys);
   const cost = buys.reduce((sum, b) => sum + b.shares * b.pricePerShare, 0);
-  // A position is the sum of its purchases, so the last one cannot be removed:
-  // the control stays visible and disabled rather than vanishing.
-  const onlyOne = buys.length <= 1;
   const label = (b: BuyRecord) => `${format(parseISO(b.date), 'dd MMM yyyy')} of ${b.shares.toLocaleString()} shares`;
   const isOpening = (b: BuyRecord) => b.kind === 'opening';
 
@@ -122,8 +120,6 @@ function BuyHistory({
         size="icon"
         className={size === 'table' ? 'h-8 w-8 text-destructive hover:text-destructive' : 'h-11 w-11 text-destructive hover:text-destructive'}
         aria-label={`Delete trade ${label(b)}`}
-        disabled={onlyOne}
-        title={onlyOne ? 'A holding has to keep at least one purchase' : undefined}
         onClick={() => { setEditing(null); setConfirming(b.id); }}
       >
         <Trash2 className="h-3.5 w-3.5" />
@@ -174,30 +170,37 @@ function BuyHistory({
     </div>
   );
 
-  /** Destructive actions get confirmed — never a silent delete. */
-  const confirmDelete = (b: BuyRecord) => (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-sm">
-        Delete this purchase?{' '}
-        <span className="text-muted-foreground">
-          {format(parseISO(b.date), 'dd MMM yyyy')} · {b.shares.toLocaleString()} @ {formatCurrency(b.pricePerShare)}
-        </span>
-      </p>
-      <div className="flex gap-2">
-        <Button type="button" variant="ghost" className="h-11 sm:h-9" onClick={() => setConfirming(null)}>
-          Keep
-        </Button>
-        <Button
-          type="button"
-          variant="destructive"
-          className="h-11 sm:h-9"
-          onClick={() => { onDelete(b.id); setConfirming(null); }}
-        >
-          Delete
-        </Button>
+  /**
+   * Destructive actions get confirmed — never a silent delete. The last
+   * purchase is the position itself, so it says plainly what it takes with it.
+   */
+  const confirmDelete = (b: BuyRecord) => {
+    const last = buys.length <= 1;
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm">
+          {last ? 'Delete the last purchase?' : 'Delete this purchase?'}{' '}
+          <span className="text-muted-foreground">
+            {format(parseISO(b.date), 'dd MMM yyyy')} · {b.shares.toLocaleString()} @ {formatCurrency(b.pricePerShare)}
+            {last && ` — ${symbol} has no other purchases, so it leaves this portfolio`}
+          </span>
+        </p>
+        <div className="flex gap-2">
+          <Button type="button" variant="ghost" className="h-11 sm:h-9" onClick={() => setConfirming(null)}>
+            Keep
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            className="h-11 sm:h-9"
+            onClick={() => { onDelete(b.id); setConfirming(null); }}
+          >
+            {last ? 'Remove holding' : 'Delete'}
+          </Button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-3">
@@ -649,7 +652,12 @@ export function HoldingForm({
           </div>
 
           {buys && buys.length > 0 && onUpdateBuy && (
-            <BuyHistory buys={buys} onSave={onUpdateBuy} onDelete={onDeleteBuy ?? (() => {})} />
+            <BuyHistory
+              symbol={defaultValues?.symbol ?? ''}
+              buys={buys}
+              onSave={onUpdateBuy}
+              onDelete={onDeleteBuy ?? (() => {})}
+            />
           )}
         </>
       )}
