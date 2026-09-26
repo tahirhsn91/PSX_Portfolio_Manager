@@ -136,14 +136,28 @@ export function PortfolioDetail() {
   };
 
   /**
-   * Removing a logged purchase: the store re-derives the position from what is
-   * left, so the reported numbers are the position's, not a subtraction.
+   * Removing a logged purchase. The store re-derives the position from what is
+   * left, so the numbers reported are the position's, not a subtraction — and
+   * when the purchase removed was the last one, the holding goes with it.
    */
   const handleDeleteBuy = (buyId: string) => {
     if (!editingHolding) return;
     const removed = (editingHolding.buys ?? []).find((b) => b.id === buyId);
-    const updated = deleteBuy(id, editingHolding.id, buyId);
-    if (!updated || !removed) return;
+    const result = deleteBuy(id, editingHolding.id, buyId);
+    if (!result || !removed) return;
+
+    if (result.kind === 'holding-removed') {
+      // Nothing left to edit: close the dialog rather than show a stale row.
+      setEditingHolding(null);
+      addNotification({
+        type: 'success',
+        title: `${editingHolding.symbol} removed from the portfolio`,
+        message: `Its last purchase — ${removed.shares.toLocaleString()} at ${formatCurrency(removed.pricePerShare)} — was deleted.`,
+      });
+      return;
+    }
+
+    const updated = result.holding;
     addNotification({
       type: 'success',
       title: `Removed ${removed.shares.toLocaleString()} ${updated.symbol} bought ${format(parseISO(removed.date), 'dd MMM yyyy')}`,

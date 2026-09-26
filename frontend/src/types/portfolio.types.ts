@@ -52,6 +52,14 @@ export interface BuyRecord {
   kind: 'opening' | 'buy';
 }
 
+/**
+ * Deleting a purchase either leaves a position behind (re-derived from the
+ * purchases that remain) or takes the last one — and with it, the holding.
+ */
+export type DeleteBuyResult =
+  | { kind: 'updated'; holding: Holding }
+  | { kind: 'holding-removed' };
+
 export interface DividendRecord {
   id: string;
   holdingId: string;
