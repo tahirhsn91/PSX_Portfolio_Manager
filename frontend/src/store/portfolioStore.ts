@@ -48,6 +48,12 @@ interface PortfolioState {
     buyId: string,
     patch: { shares: number; pricePerShare: number }
   ) => Holding | undefined;
+  /**
+   * Remove a logged purchase and re-derive the position from what is left.
+   * Refuses the last one: a position *is* its purchases, so an empty log would
+   * describe nothing (delete the holding instead).
+   */
+  deleteBuy: (portfolioId: string, holdingId: string, buyId: string) => Holding | undefined;
   deleteHolding: (portfolioId: string, holdingId: string) => void;
 
   // Dividend
@@ -276,6 +282,38 @@ export const usePortfolioStore = create<PortfolioState>()(
                           }
                         : b
                     );
+                    const position = positionFromBuys(buys);
+                    updated = {
+                      ...h,
+                      shares: position.shares,
+                      averagePurchasePrice: position.averagePurchasePrice,
+                      buys,
+                    };
+                    return updated;
+                  }),
+                }
+              : p
+          ),
+        }));
+
+        return updated;
+      },
+
+      deleteBuy: (portfolioId, holdingId, buyId) => {
+        let updated: Holding | undefined;
+
+        set((state) => ({
+          portfolios: state.portfolios.map((p) =>
+            p.id === portfolioId
+              ? {
+                  ...p,
+                  updatedAt: now(),
+                  holdings: p.holdings.map((h) => {
+                    if (h.id !== holdingId) return h;
+                    const log = h.buys ?? [];
+                    if (log.length <= 1 || !log.some((b) => b.id === buyId)) return h;
+
+                    const buys = log.filter((b) => b.id !== buyId);
                     const position = positionFromBuys(buys);
                     updated = {
                       ...h,
