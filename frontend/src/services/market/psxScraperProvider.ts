@@ -100,6 +100,10 @@ export interface ScraperValuationSource {
   /** Book value per share, top-level. Until the feed serves it here, the same figure
    *  comes from `ratios.bookValue`; an explicit `null` means the source publishes none. */
   bookValue?: number | null;
+  /** Earnings per share, top-level (PSX_Scraper#83) — the source's own snapshot figure, and the
+   *  one its stock page prints. A payload from before that serves it inside `financials`; an
+   *  explicit `null` here is the feed saying the source publishes none. */
+  eps?: number | null;
   /** ISO announcement date of the newest dividend — no upstream source publishes an ex-date. */
   nextDividendDate?: string | null;
   /** Per-share amount of that newest dividend. */
@@ -409,10 +413,15 @@ export function mapScraperValuation(stock: ScraperValuationSource): ScraperValua
   const div    = stock.dividends?.[0]  ?? {};
 
   const bookValue = stock.bookValue !== undefined ? stock.bookValue : ratios.bookValue;
+  // EPS is served top-level since PSX_Scraper#83 — read the same way as book value, and for the
+  // same reason: an explicit top-level `null` is the feed stating the source publishes none, and
+  // it must win over a financial row that may predate the statement. Only an *absent* key falls
+  // through to the older shape.
+  const eps = stock.eps !== undefined ? stock.eps : (fin.eps as number | null | undefined);
 
   return {
     peRatio:            ratios.peRatio ?? null,
-    eps:                (fin.eps as number | null | undefined) ?? null,
+    eps:                eps ?? null,
     bookValue:          bookValue ?? null,
     dividendYield:      ratios.dividendYield ?? null,  // already a percentage
     nextDividendDate:   stock.nextDividendDate ?? div.date ?? div.announcementDate ?? null,
