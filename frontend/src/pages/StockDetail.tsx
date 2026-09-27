@@ -216,18 +216,31 @@ export function StockDetail() {
                 <CardHeader><CardTitle className="text-base">Valuation</CardTitle></CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   {[
-                    ['P/E Ratio', detail.peRatio?.toFixed(2) ?? '—'],
-                    ['EPS', detail.eps ? formatCurrency(detail.eps) : '—'],
-                    ['Book Value', detail.bookValue ? formatCurrency(detail.bookValue) : '—'],
-                    ['Dividend Yield', detail.dividendYield ? `${detail.dividendYield.toFixed(2)}%` : '—'],
-                    ['Next Dividend', detail.nextDividendAmount ? formatCurrency(detail.nextDividendAmount) + '/share' : '—'],
-                    ['Next Div. Date', formatDate(detail.nextDividendDate)],
-                    ['Beta', detail.beta?.toFixed(2) ?? '—'],
-                    ['Sector', detail.sector],
-                  ].map(([label, value]) => (
-                    <div key={label} className="flex justify-between">
+                    { label: 'P/E Ratio', value: detail.peRatio?.toFixed(2) ?? '—' },
+                    { label: 'EPS', value: detail.eps ? formatCurrency(detail.eps) : '—' },
+                    // The figure the feed serves for this symbol, or the dash when it
+                    // publishes none — never a 0, and never another row's number.
+                    // (PSX_Scraper#79: this row was hardcoded to a dash in the provider.)
+                    { label: 'Book Value', value: detail.bookValue != null ? formatCurrency(detail.bookValue) : '—' },
+                    { label: 'Dividend Yield', value: detail.dividendYield ? `${detail.dividendYield.toFixed(2)}%` : '—' },
+                    { label: 'Next Dividend', value: detail.nextDividendAmount ? formatCurrency(detail.nextDividendAmount) + '/share' : '—' },
+                    {
+                      // The value here is the dividend's *announcement* date: no source
+                      // upstream publishes an ex-date. A bare date under a date label
+                      // would read as the ex-date, so the row names the date it carries.
+                      label: 'Next Dividend Date',
+                      value: formatDate(detail.nextDividendDate),
+                      note: detail.nextDividendDate ? `Announced ${formatDate(detail.nextDividendDate)}` : undefined,
+                    },
+                    { label: 'Beta', value: detail.beta?.toFixed(2) ?? '—' },
+                    { label: 'Sector', value: detail.sector },
+                  ].map(({ label, value, note }: { label: string; value: string; note?: string }) => (
+                    <div key={label} className="flex justify-between gap-3">
                       <span className="text-muted-foreground">{label}</span>
-                      <span className="font-medium">{value}</span>
+                      <span className="text-right">
+                        <span className="font-medium">{value}</span>
+                        {note && <span className="block text-xs text-muted-foreground">{note}</span>}
+                      </span>
                     </div>
                   ))}
                 </CardContent>
