@@ -271,32 +271,44 @@ export function aggregatePortfolioMetrics(metrics: PortfolioMetrics[]): Omit<Por
 }
 
 /**
- * Build sector allocation data from portfolio holdings + metrics
+ * Build sector allocation data from portfolio holdings + metrics.
+ *
+ * Each sector also carries the aggregate unrealised P&L of the holdings inside it,
+ * which is what gives its slice its colour on the chart: a sector is "profitable"
+ * when the positions in it are, and that is a sum of the metrics the page already
+ * loads, not a market figure.
  */
 export function buildSectorAllocation(
   portfolio: Portfolio,
   metrics: HoldingMetrics[]
-): { sector: string; value: number; percent: number; color: string }[] {
-  const sectorMap = new Map<string, number>();
+): { sector: string; value: number; percent: number; color: string; gain: number; gainPercent: number }[] {
+  const sectorMap = new Map<string, { value: number; cost: number; gain: number }>();
   const totalValue = metrics.reduce((s, m) => s + (m.priceAvailable ? m.currentValue : 0), 0);
 
   portfolio.holdings.forEach((h) => {
     const m = metrics.find((metric) => metric.holdingId === h.id);
     // Unpriced holdings are skipped rather than added as 0: a zero-value sector
-    // would put a 0% slice (and its legend entry) on the chart.
+    // would put a 0% slice (and its legend entry) on the chart. Skipping them also
+    // keeps an unknown out of the sector's P&L — it can't be called a gain or a loss.
     if (m?.priceAvailable) {
-      sectorMap.set(h.sector, (sectorMap.get(h.sector) ?? 0) + m.currentValue);
+      const agg = sectorMap.get(h.sector) ?? { value: 0, cost: 0, gain: 0 };
+      agg.value += m.currentValue;
+      agg.cost += m.costBasis;
+      agg.gain += m.unrealizedPL;
+      sectorMap.set(h.sector, agg);
     }
   });
 
   const colors = ['#00a651','#3b82f6','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316','#6366f1','#84cc16','#06b6d4'];
   return Array.from(sectorMap.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([sector, value], i) => ({
+    .sort((a, b) => b[1].value - a[1].value)
+    .map(([sector, agg], i) => ({
       sector,
-      value,
-      percent: totalValue !== 0 ? (value / totalValue) * 100 : 0,
+      value: agg.value,
+      percent: totalValue !== 0 ? (agg.value / totalValue) * 100 : 0,
       color: colors[i % colors.length],
+      gain: agg.gain,
+      gainPercent: agg.cost !== 0 ? (agg.gain / agg.cost) * 100 : 0,
     }));
 }
 
@@ -316,16 +328,20 @@ export function buildSectorAllocation(
 export function buildHoldingAllocation(
   portfolio: Portfolio,
   metrics: HoldingMetrics[]
-): { name: string; symbol: string; value: number; percent: number; color: string }[] {
+): { name: string; symbol: string; value: number; percent: number; color: string; gain: number; gainPercent: number }[] {
   const totalValue = metrics.reduce((s, m) => s + (m.priceAvailable ? m.currentValue : 0), 0);
 
   return portfolio.holdings
     .map((h) => {
       const m = metrics.find((metric) => metric.holdingId === h.id);
       // Same rule as the sector pie: an unpriced holding has no share to draw.
-      return m?.priceAvailable ? { symbol: h.symbol, name: h.symbol, value: m.currentValue } : null;
+      return m?.priceAvailable
+        ? { symbol: h.symbol, name: h.symbol, value: m.currentValue, gain: m.unrealizedPL, gainPercent: m.unrealizedPLPercent }
+        : null;
     })
-    .filter((entry): entry is { symbol: string; name: string; value: number } => entry !== null)
+    .filter(
+      (entry): entry is { symbol: string; name: string; value: number; gain: number; gainPercent: number } => entry !== null
+    )
     .sort((a, b) => b.value - a.value)
     // CHART_COLORS rather than another local literal: the first eight entries are
     // the same colours buildSectorAllocation uses, so holdings keep the sector
