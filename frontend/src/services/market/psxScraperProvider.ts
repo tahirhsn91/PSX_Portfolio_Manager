@@ -64,6 +64,9 @@ interface ScraperRatios {
   pbRatio: number | null;
   dividendYield: number | null;
   beta: number | null;
+  /** Where the feed publishes book value per share today (PSX_Scraper#79 moves it to
+   *  the top level; this is read until then). */
+  bookValue?: number | null;
   [key: string]: number | null | undefined;
 }
 
@@ -73,20 +76,42 @@ interface ScraperFinancial {
 }
 
 interface ScraperDividend {
+  /** The keys the feed's dividend rows carry today. */
+  announcementDate?: string | null;
+  dividend?: number | null;
+  /** The keys an older payload used for the same two figures. */
   amount?: number | null;
   date?: string | null;
   [key: string]: unknown;
 }
 
-interface ScraperStock {
+/**
+ * The payload fields the Valuation card's mapping reads (PSX_Scraper#79).
+ *
+ * Split out from `ScraperStock` so the mapping can be exercised with only the keys it
+ * uses, and so the fields the feed only began serving in #79 stay *optional* in the
+ * type: a scraper that predates them answers without them, and an absent key must map
+ * to `null` (the card's dash) rather than to anything a payload would have to assert.
+ */
+export interface ScraperValuationSource {
+  ratios?: ScraperRatios | null;
+  financials?: ScraperFinancial[] | null;
+  dividends?: ScraperDividend[] | null;
+  /** Book value per share, top-level. Until the feed serves it here, the same figure
+   *  comes from `ratios.bookValue`; an explicit `null` means the source publishes none. */
+  bookValue?: number | null;
+  /** ISO announcement date of the newest dividend — no upstream source publishes an ex-date. */
+  nextDividendDate?: string | null;
+  /** Per-share amount of that newest dividend. */
+  nextDividendAmount?: number | null;
+}
+
+interface ScraperStock extends ScraperValuationSource {
   id: string;
   symbol: string;
   companyName: string;
   sector: string;
   price: ScraperPriceData;
-  ratios: ScraperRatios;
-  financials: ScraperFinancial[];
-  dividends: ScraperDividend[];
   lastSync?: { status: string; [key: string]: unknown };
 }
 
@@ -348,6 +373,61 @@ function unavailableQuote(symbol: string): StockQuote {
   };
 }
 
+// ── Valuation mapping (the Stock Detail card's figures) ───────────────────────
+
+/** The Valuation card's figures. Each one is `null` when the feed publishes none. */
+export type ScraperValuation = Pick<
+  StockDetail,
+  'peRatio' | 'eps' | 'bookValue' | 'dividendYield' | 'nextDividendDate' | 'nextDividendAmount' | 'beta'
+>;
+
+/**
+ * The feed's valuation figures → the card's fields (PSX_Scraper#79).
+ *
+ * Pure and exported so the mapping is testable without a network or a browser. The rule
+ * it keeps, and the reason it never sees a default: a figure the feed does not publish
+ * is `null`, which the card renders as the dash — never `0`, and never last time's
+ * number read off some other row.
+ *
+ * `bookValue`, `nextDividendDate` and `nextDividendAmount` are top-level in the payload
+ * (#79). Two fallbacks keep the rows filled while a feed serves only the older shape,
+ * and neither of them can outlive the field that replaces it:
+ *
+ * - book value: until the top-level field lands the feed publishes the same figure under
+ *   `ratios.bookValue`, which is read then. A top-level `null` — the feed saying the
+ *   source publishes none — is honoured, not shadowed by the ratios copy.
+ * - the newest dividend: read from `dividends[0]` (the feed's rows carry
+ *   `announcementDate`/`dividend`; older payloads used `date`/`amount`). One dividend
+ *   stated by a second field is not a carried-forward value; an older entry in the array
+ *   is never consulted.
+ *
+ * Where both are present the top-level field wins.
+ */
+export function mapScraperValuation(stock: ScraperValuationSource): ScraperValuation {
+  const ratios = stock.ratios ?? ({} as ScraperRatios);
+  const fin    = stock.financials?.[0] ?? {};
+  const div    = stock.dividends?.[0]  ?? {};
+
+  const bookValue = stock.bookValue !== undefined ? stock.bookValue : ratios.bookValue;
+
+  return {
+    peRatio:            ratios.peRatio ?? null,
+    eps:                (fin.eps as number | null | undefined) ?? null,
+    bookValue:          bookValue ?? null,
+    dividendYield:      ratios.dividendYield ?? null,  // already a percentage
+    nextDividendDate:   stock.nextDividendDate ?? div.date ?? div.announcementDate ?? null,
+    nextDividendAmount: stock.nextDividendAmount ?? div.amount ?? div.dividend ?? null,
+    beta:               ratios.beta ?? null,
+  };
+}
+
+/** Nothing served — an untracked symbol, or a feed that will not answer. All nulls, so
+ *  every row of the card shows the dash instead of a zero. */
+const NO_VALUATION: ScraperValuation = {
+  peRatio: null, eps: null, bookValue: null, dividendYield: null,
+  nextDividendDate: null, nextDividendAmount: null, beta: null,
+};
+
 // ── Provider ──────────────────────────────────────────────────────────────────
 
 /** How long the tracked-symbol list is reused before it's refetched. */
@@ -519,18 +599,14 @@ export class PSXScraperProvider implements IMarketDataProvider {
           // Nulls, not zeros: a 0 52-week range draws a bar from zero and "0"
           // average volume reads as a measured figure.
           week52High: null, week52Low: null,
-          peRatio: null, eps: null, bookValue: null,
-          dividendYield: null, nextDividendDate: null, nextDividendAmount: null,
-          beta: null, averageVolume: null, description: '',
+          ...NO_VALUATION,
+          averageVolume: null, description: '',
         };
       }
       throw err;
     }
 
     const base = mapToStockQuote(stock);
-    const r    = stock.ratios     ?? ({} as ScraperRatios);
-    const fin  = stock.financials?.[0] ?? {};
-    const div  = stock.dividends?.[0]  ?? {};
 
     // Compute 52-week stats from history (history is newest-first)
     const closes = (history?.items ?? [])
@@ -552,13 +628,9 @@ export class PSXScraperProvider implements IMarketDataProvider {
       ...base,
       week52High,
       week52Low,
-      peRatio:            r.peRatio ?? null,
-      eps:                (fin.eps as number | null | undefined) ?? null,
-      bookValue:          null,
-      dividendYield:      r.dividendYield ?? null,  // already a percentage
-      nextDividendDate:   (div.date as string | null | undefined) ?? null,
-      nextDividendAmount: (div.amount as number | null | undefined) ?? null,
-      beta:               r.beta ?? null,
+      // Book value, EPS, the ratios and the newest dividend's announcement date and
+      // amount (PSX_Scraper#79).
+      ...mapScraperValuation(stock),
       averageVolume,
       description:        '',
     };
