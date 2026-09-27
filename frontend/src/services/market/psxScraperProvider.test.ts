@@ -33,9 +33,10 @@ const EFERT: ScraperValuationSource = {
   nextDividendAmount: 4.5,
 };
 
-/** EFERT as the dev feed answers on 2026-09-27 (`GET /api/v1/stocks/EFERT`, quoted from
- *  the payload): ratios filled — book value among them — the top-level dividend fields
- *  served, no top-level `bookValue` yet, `financials` empty, `beta` not computed. */
+/** The payload shape *before* PSX_Scraper#83 (`GET /api/v1/stocks/EFERT`, quoted on
+ *  2026-09-27): ratios filled — book value among them — the top-level dividend fields
+ *  served, no top-level `bookValue`, `financials` empty, `beta` not computed. Kept because
+ *  a feed that predates a field must still map: it is the fallback path's own fixture. */
 const LIVE_EFERT_2026_09_27: ScraperValuationSource = {
   ratios: { peRatio: 12.48, pbRatio: 5.95, roe: 49.444, roa: 10.717, dividendYield: 6.16, bookValue: 32.842, beta: null },
   financials: [],
@@ -43,6 +44,25 @@ const LIVE_EFERT_2026_09_27: ScraperValuationSource = {
     { announcementDate: '2026-08-10T00:00:00.000Z', bookClosure: null, paymentDate: null, dividend: 1.75 },
     { announcementDate: '2026-05-04T00:00:00.000Z', bookClosure: null, paymentDate: null, dividend: 2 },
   ],
+  nextDividendDate: '2026-08-10T00:00:00.000Z',
+  nextDividendAmount: 1.75,
+};
+
+/** EFERT as the feed answers once #83 landed — measured on the dev stack after a sync:
+ *  `eps` served top-level (15.94, the figure the source's own page prints) as well as under
+ *  `ratios`, `bookValue` likewise, and `financials` still empty. The card's EPS row reads the
+ *  top-level figure; there is no financial row behind it. */
+const LIVE_EFERT_AFTER_83: ScraperValuationSource = {
+  ratios: {
+    peRatio: 12.48, pbRatio: 5.95, roe: 49.444, roa: 10.717,
+    dividendYield: 6.16, bookValue: 32.842, eps: 15.94, beta: null,
+  },
+  financials: [],
+  dividends: [
+    { announcementDate: '2026-08-10T00:00:00.000Z', bookClosure: null, paymentDate: null, dividend: 1.75 },
+  ],
+  bookValue: 32.842,
+  eps: 15.94,
   nextDividendDate: '2026-08-10T00:00:00.000Z',
   nextDividendAmount: 1.75,
 };
@@ -119,6 +139,26 @@ describe('mapScraperValuation', () => {
     // EFERT as the dev feed answers on 2026-09-27: ratios filled (book value among
     // them), the top-level dividend fields served, no top-level bookValue yet.
     expect(mapScraperValuation(LIVE_EFERT_2026_09_27).bookValue).toBe(32.842);
+  });
+
+  it('reads the top-level EPS the feed serves, with no financial row to fall back on', () => {
+    // The live shape after #83. The mapping used to read only `financials[0].eps`, so with
+    // `financials` empty the row stayed a dash even once the feed was serving the figure.
+    expect(mapScraperValuation(LIVE_EFERT_AFTER_83).eps).toBe(15.94);
+  });
+
+  it('keeps an EPS of exactly zero — break-even is a reading, not a dash', () => {
+    // `?? null`, never `|| null`: a truthiness test would turn a served 0 into the dash, and a
+    // zero EPS is a real figure for a company that broke even.
+    expect(mapScraperValuation({ eps: 0 }).eps).toBe(0);
+  });
+
+  it('honours an explicit top-level null EPS over a financial row that predates it', () => {
+    const sourcePublishesNone: ScraperValuationSource = {
+      financials: [{ eps: 15.94 }],
+      eps: null,
+    };
+    expect(mapScraperValuation(sourcePublishesNone).eps).toBeNull();
   });
 
   it('honours an explicit top-level null instead of the ratios copy — a figure is never carried forward', () => {

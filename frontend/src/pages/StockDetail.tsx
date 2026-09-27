@@ -217,7 +217,10 @@ export function StockDetail() {
                 <CardContent className="space-y-3 text-sm">
                   {[
                     { label: 'P/E Ratio', value: detail.peRatio?.toFixed(2) ?? '—' },
-                    { label: 'EPS', value: detail.eps ? formatCurrency(detail.eps) : '—' },
+                    // `!= null`, not a truthiness test: a genuine 0.00 EPS (a company at
+                    // break-even) is a reading, and a truthiness check would render it as the
+                    // dash — the same mistake in the other direction.
+                    { label: 'EPS', value: detail.eps != null ? formatCurrency(detail.eps) : '—' },
                     // The figure the feed serves for this symbol, or the dash when it
                     // publishes none — never a 0, and never another row's number.
                     // (PSX_Scraper#79: this row was hardcoded to a dash in the provider.)
