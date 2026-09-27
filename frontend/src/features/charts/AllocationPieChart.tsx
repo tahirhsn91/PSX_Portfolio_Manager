@@ -3,12 +3,25 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recha
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency, formatPercent } from '@/utils';
 import { CHART_COLORS } from '@/constants';
+import { assignTones, FAMILY_TEXT, FLAT_TONE, type ChartTone, type ToneFamily } from './chartTones';
 
 interface AllocationData {
   name: string;
   value: number;
   percent: number;
   color?: string;
+  /**
+   * Unrealised P&L of what this slice is made of, in PKR — the sign decides the
+   * colour: green for a gain, red for a loss, slate for a priced position at
+   * break-even. `null` means the feed couldn't price it, which is not a profit, so
+   * it takes the slate too.
+   *
+   * Call sites that have no P&L to offer (the dashboard's allocation card) omit the
+   * field entirely and keep the plain palette, rather than claiming a family.
+   */
+  gain?: number | null;
+  /** The same figure as a percentage of cost, for the legend and the tooltip. */
+  gainPercent?: number | null;
 }
 
 interface AllocationPieChartProps {
@@ -23,7 +36,18 @@ interface AllocationPieChartProps {
   headerExtra?: ReactNode;
 }
 
-const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: { name: string; value: number; payload: AllocationData }[] }) => {
+type Slice = AllocationData & { tone: ChartTone; family: ToneFamily };
+
+/** Ink for a slice with no tone of its own (the plain-palette path). */
+const DEFAULT_INK = 'fill-white';
+
+/** `+PKR 12,345.67` / `-PKR 900.00`, and an em dash when the feed couldn't price it. */
+function gainLabel(gain: number | null): string {
+  if (gain === null) return '—';
+  return `${gain > 0 ? '+' : ''}${formatCurrency(gain)}`;
+}
+
+const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: { name: string; value: number; payload: Slice }[] }) => {
   if (!active || !payload?.length) return null;
   const item = payload[0].payload;
   return (
@@ -31,11 +55,31 @@ const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: { name
       <p className="font-semibold">{item.name}</p>
       <p className="text-muted-foreground">{formatCurrency(item.value, true)}</p>
       <p className="text-muted-foreground">{formatPercent(item.percent, false)} of portfolio</p>
+      {/* The qualitative signal, spelled out: the slice's colour says it too, but a
+          colour is not something a screen reader or a colour-blind reader has. */}
+      {item.gain !== undefined && (
+        <p className={`mt-1 font-medium ${FAMILY_TEXT[item.family]}`}>
+          P&amp;L {gainLabel(item.gain)}
+          {item.gain !== null && item.gainPercent != null && (
+            <span className="font-normal"> ({formatPercent(item.gainPercent)})</span>
+          )}
+        </p>
+      )}
     </div>
   );
 };
 
-const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: { cx: number; cy: number; midAngle: number; innerRadius: number; outerRadius: number; percent: number }) => {
+interface LabelProps {
+  cx: number;
+  cy: number;
+  midAngle: number;
+  innerRadius: number;
+  outerRadius: number;
+  percent: number;
+  index?: number;
+}
+
+const SliceLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, slices }: LabelProps & { slices: Slice[] }) => {
   // Recharts 2.15 hands this callback `percent` already scaled to a percentage —
   // measured on the running app: a 2-of-3 sector arrives as 66.67 (the old
   // `percent * 100` rendered "6667%") and a 0.16% sliver arrives as 0.16. So use
@@ -48,15 +92,34 @@ const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: { 
   const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  // The tone's own ink: these labels sit on the slice, and a light tone needs dark
+  // text on it to clear 4.5:1 at 11px. Falls back to white for the plain palette.
+  const tone = typeof index === 'number' ? slices[index]?.tone : undefined;
   return (
-    <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight="bold">
+    <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight="bold" className={tone?.ink ?? DEFAULT_INK}>
       {`${percentValue.toFixed(0)}%`}
     </text>
   );
 };
 
 export function AllocationPieChart({ data, title = 'Portfolio Allocation', headerExtra }: AllocationPieChartProps) {
-  const chartData = data.map((d, i) => ({ ...d, color: d.color ?? CHART_COLORS[i % CHART_COLORS.length] }));
+  /**
+   * Two palettes, chosen by whether the data can answer "did this make money":
+   *
+   *  - With P&L, the slice is green or red by sign and the tone tells one slice from
+   *    the next. This is what the portfolio's Holdings and Sector breakdowns use —
+   *    one green for every profitable holding made them impossible to tell apart.
+   *  - Without it, the original cycling palette, untouched.
+   */
+  const hasGain = data.some((d) => d.gain !== undefined);
+  const chartData: Slice[] = hasGain
+    ? assignTones(data)
+    : data.map((entry, i) => ({
+        ...entry,
+        family: 'flat' as ToneFamily,
+        tone: FLAT_TONE,
+        color: entry.color ?? CHART_COLORS[i % CHART_COLORS.length],
+      }));
 
   return (
     <Card>
@@ -76,7 +139,7 @@ export function AllocationPieChart({ data, title = 'Portfolio Allocation', heade
               cx="50%"
               cy="50%"
               labelLine={false}
-              label={CustomLabel as unknown as boolean}
+              label={((props: LabelProps) => <SliceLabel {...props} slices={chartData} />) as unknown as boolean}
               /* Percentage, not a fixed radius. A number is used verbatim, while
                  recharts resolves a string against maxPieRadius =
                  getMaxRadius(plotWidth, plotHeight) = min(w, h) / 2 of the
@@ -88,14 +151,40 @@ export function AllocationPieChart({ data, title = 'Portfolio Allocation', heade
               dataKey="value"
               nameKey="name"
             >
-              {chartData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
-              ))}
+              {chartData.map((entry, index) =>
+                hasGain ? (
+                  // A class, not a `fill` attribute: the tone is a CSS variable, so the
+                  // same slice is correct in the light and the dark theme.
+                  <Cell key={`cell-${index}`} className={entry.tone.fill} />
+                ) : (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                )
+              )}
             </Pie>
             <Tooltip content={<CustomTooltip />} />
+            {/* A custom legend rather than the built-in one: its swatch is drawn from
+                the slice's `fill` *prop*, and the tones are set as classes (they have
+                to be, or the light/dark variables never resolve), so the default
+                swatches came out the SVG default grey. This also gives each entry the
+                signed return, so the legend still says green/red to a reader who
+                can't see green or red. */}
             <Legend
-              formatter={(value) => (
-                <span className="text-xs text-foreground">{value}</span>
+              content={() => (
+                <ul className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 px-2">
+                  {chartData.map((entry, index) => (
+                    <li key={`legend-${index}`} className="flex items-center gap-1.5 text-xs text-foreground">
+                      <span
+                        aria-hidden="true"
+                        className={`h-2.5 w-2.5 shrink-0 rounded-full ${hasGain ? entry.tone.swatch : ''}`}
+                        style={hasGain ? undefined : { backgroundColor: entry.color }}
+                      />
+                      <span>{entry.name}</span>
+                      {hasGain && entry.gain !== undefined && entry.gainPercent != null && (
+                        <span className={`font-medium ${FAMILY_TEXT[entry.family]}`}>{formatPercent(entry.gainPercent)}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               )}
             />
           </PieChart>
