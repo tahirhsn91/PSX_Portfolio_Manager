@@ -23,6 +23,38 @@
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 142 72% 29%;
+    /* Profit/loss tone ladders for the allocation charts.
+       The family carries the meaning — green made money, red lost it — and the tone
+       keeps neighbouring slices apart: one green for every profitable holding made
+       them impossible to tell apart, which is the whole point of the palette.
+       Each tone carries the ink that is legible *on it* (the in-slice percentage
+       labels sit on the slice, not on the card), and each fill clears 3:1 against the
+       card so a slice reads as a shape too. Every pair below was measured on the
+       running app — ink/fill first, fill/card second, minimum 4.5 and 3.0:
+         profit 7.13 5.02 7.68 5.48 5.19   loss 8.31 6.47 4.83 6.29 4.70   flat 4.76 */
+    --chart-profit-1: #166534;
+    --chart-profit-2: #15803d;
+    --chart-profit-3: #065f46;
+    --chart-profit-4: #047857;
+    --chart-profit-5: #059669;
+    --chart-profit-1-ink: #ffffff;
+    --chart-profit-2-ink: #ffffff;
+    --chart-profit-3-ink: #ffffff;
+    --chart-profit-4-ink: #ffffff;
+    --chart-profit-5-ink: #020f08;
+    --chart-loss-1: #991b1b;
+    --chart-loss-2: #b91c1c;
+    --chart-loss-3: #dc2626;
+    --chart-loss-4: #be123c;
+    --chart-loss-5: #e11d48;
+    --chart-loss-1-ink: #ffffff;
+    --chart-loss-2-ink: #ffffff;
+    --chart-loss-3-ink: #ffffff;
+    --chart-loss-4-ink: #ffffff;
+    --chart-loss-5-ink: #ffffff;
+    /* Neither a profit nor a loss: a priced holding at exactly break-even. */
+    --chart-flat: #64748b;
+    --chart-flat-ink: #ffffff;
     --radius: 0.5rem;
   }
 
@@ -46,6 +78,32 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 142 70% 45%;
+    /* Same ladders, lifted for the dark card: the light-theme greens sat too close
+       to the background to read as shapes. Measured the same way against #020817 —
+       ink/fill first, fill/card second:
+         profit 5.02 5.93 8.58 10.17 11.22   loss 6.47 4.83 4.95 6.74 9.82   flat 6.96 */
+    --chart-profit-1: #15803d;
+    --chart-profit-2: #16a34a;
+    --chart-profit-3: #22c55e;
+    --chart-profit-4: #34d399;
+    --chart-profit-5: #4ade80;
+    --chart-profit-1-ink: #ffffff;
+    --chart-profit-2-ink: #020f08;
+    --chart-profit-3-ink: #020f08;
+    --chart-profit-4-ink: #020f08;
+    --chart-profit-5-ink: #020f08;
+    --chart-loss-1: #b91c1c;
+    --chart-loss-2: #dc2626;
+    --chart-loss-3: #ef4444;
+    --chart-loss-4: #f87171;
+    --chart-loss-5: #fca5a5;
+    --chart-loss-1-ink: #ffffff;
+    --chart-loss-2-ink: #ffffff;
+    --chart-loss-3-ink: #2a0606;
+    --chart-loss-4-ink: #2a0606;
+    --chart-loss-5-ink: #2a0606;
+    --chart-flat: #94a3b8;
+    --chart-flat-ink: #0f172a;
   }
 }
 

@@ -60,6 +60,27 @@ export default {
           green: '#00a651',
           emerald: '#009444',
         },
+        // Profit/loss tone ladders for the allocation charts. The values are CSS
+        // variables (src/index.css) so one class is right in both themes; `ink` is
+        // the colour that stays legible on its own tone, for the in-slice labels.
+        // The keys are quoted kebab-case because Tailwind uses a config key verbatim:
+        // a `chartProfit` key would generate `fill-chartProfit-1`, which is not the
+        // class the chart asks for.
+        'chart-profit': {
+          1: { DEFAULT: 'var(--chart-profit-1)', ink: 'var(--chart-profit-1-ink)' },
+          2: { DEFAULT: 'var(--chart-profit-2)', ink: 'var(--chart-profit-2-ink)' },
+          3: { DEFAULT: 'var(--chart-profit-3)', ink: 'var(--chart-profit-3-ink)' },
+          4: { DEFAULT: 'var(--chart-profit-4)', ink: 'var(--chart-profit-4-ink)' },
+          5: { DEFAULT: 'var(--chart-profit-5)', ink: 'var(--chart-profit-5-ink)' },
+        },
+        'chart-loss': {
+          1: { DEFAULT: 'var(--chart-loss-1)', ink: 'var(--chart-loss-1-ink)' },
+          2: { DEFAULT: 'var(--chart-loss-2)', ink: 'var(--chart-loss-2-ink)' },
+          3: { DEFAULT: 'var(--chart-loss-3)', ink: 'var(--chart-loss-3-ink)' },
+          4: { DEFAULT: 'var(--chart-loss-4)', ink: 'var(--chart-loss-4-ink)' },
+          5: { DEFAULT: 'var(--chart-loss-5)', ink: 'var(--chart-loss-5-ink)' },
+        },
+        'chart-flat': { DEFAULT: 'var(--chart-flat)', ink: 'var(--chart-flat-ink)' },
       },
       borderRadius: {
         lg: 'var(--radius)',

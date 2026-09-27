@@ -208,9 +208,12 @@ export function PortfolioDetail() {
 
   // One card, two breakdowns: whichever the switch has selected is the pie that
   // is mounted, so the row spends a single slot on the question either way.
+  // `gain` rides along so the pie can colour a slice green or red by whether the
+  // holding (or the sector's holdings) is up or down, and pick a tone within that
+  // family so neighbouring slices stay distinguishable.
   const allocationData = allocationView === 'holdings'
-    ? holdingAlloc.map((h) => ({ name: h.name, value: h.value, percent: h.percent, color: h.color }))
-    : sectorAlloc.map((s) => ({ name: s.sector, value: s.value, percent: s.percent, color: s.color }));
+    ? holdingAlloc.map((h) => ({ name: h.name, value: h.value, percent: h.percent, color: h.color, gain: h.gain, gainPercent: h.gainPercent }))
+    : sectorAlloc.map((s) => ({ name: s.sector, value: s.value, percent: s.percent, color: s.color, gain: s.gain, gainPercent: s.gainPercent }));
   const allocationTitle = allocationView === 'holdings' ? 'Holdings Allocation' : 'Sector Allocation';
 
   return (
