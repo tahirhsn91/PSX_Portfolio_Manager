@@ -176,9 +176,8 @@ export default {
         exit: 'var(--ease-exit)',
       },
       /*
-       * Only the keyframes that something actually animates: the accordion pair
-       * and `shimmer` had no call site, so they are gone (the skeleton that
-       * wants a shimmer gets one when it is built).
+       * Only the keyframes something actually animates: the accordion pair had no
+       * call site, so it is gone. `shimmer` is back because the skeleton uses it.
        */
       keyframes: {
         'fade-in': {
@@ -189,10 +188,15 @@ export default {
           from: { transform: 'translateX(-100%)' },
           to: { transform: 'translateX(0)' },
         },
+        shimmer: {
+          '0%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
+        },
       },
       animation: {
         'fade-in': 'fade-in 0.3s ease-out',
         'slide-in': 'slide-in 0.3s ease-out',
+        shimmer: 'shimmer 2s infinite linear',
       },
     },
   },
