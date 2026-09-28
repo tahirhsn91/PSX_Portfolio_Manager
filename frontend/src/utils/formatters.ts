@@ -97,15 +97,6 @@ export function formatPrice(value: number): string {
 }
 
 /**
- * Format P&L value with color class
- */
-export function getPLColorClass(value: number): string {
-  if (value > 0) return 'text-profit';
-  if (value < 0) return 'text-loss';
-  return 'text-muted-foreground';
-}
-
-/**
  * Format confidence score to label
  */
 export function formatConfidence(score: number): string {
