@@ -1,0 +1,40 @@
+name: Deploy to Production
+
+# Fires when `main` moves — which, because releases arrive as merged pull requests, is the
+# canonical GitHub equivalent of "a release landed". `workflow_dispatch` exists so a deploy can
+# be re-run by hand from the Actions tab.
+#
+# The remote side of this job is deliberately thin. The SSH key is bound to a forced command on
+# the host (~/.ssh/authorized_keys → /home/deploy/bin/psx-pm-ci-deploy), so whatever this step
+# sends is IGNORED: the host runs its own fixed sequence — reset
+# /home/deploy/hermes_project/PSX_Portfolio_Manager_Prod to origin/main, then exec the repo's
+# scripts/deploy.sh. The key cannot obtain a shell or run arbitrary commands; it can only cause a
+# deploy of reviewed, merged code. The literal below makes the job fail loudly if that forced
+# command is ever removed, instead of silently running something unexpected.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy main to production
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 40
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          timeout: 30s
+          command_timeout: 35m
+          script: |
+            deploy main
