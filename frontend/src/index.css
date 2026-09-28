@@ -328,3 +328,21 @@ select.calendar-select option:hover {
   background-color: hsl(var(--accent));
   color: hsl(var(--accent-foreground));
 }
+
+/*
+ * Dev-only chrome: the React Query devtools button is pinned to the bottom-right
+ * corner at z-index 100000, and on a phone it sat on the bottom bar's last tab
+ * (measured 48x48 over "Settings", tab unreachable by hit test and the icon
+ * covered). Lift it clear of the bar while that bar is on screen.
+ *
+ * This rule lives at the end of the file, outside every @layer, on purpose: the
+ * devtools library injects its own unlayered styled-jsx CSS, and a rule inside
+ * `@layer base` loses to unlayered CSS no matter how specific it is or whether it
+ * carries !important. Placed inside the layer it silently did nothing (measured
+ * still overlapping); here it wins. A production bundle never renders the element.
+ */
+@media (max-width: 767px) {
+  .tsqd-open-btn-container {
+    bottom: calc(4.5rem + env(safe-area-inset-bottom)) !important;
+  }
+}
