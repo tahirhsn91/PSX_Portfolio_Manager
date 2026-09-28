@@ -103,6 +103,26 @@
     /* Neither a profit nor a loss: a priced holding at exactly break-even. */
     --chart-flat: #64748b;
     --chart-flat-ink: #ffffff;
+
+    /* The category ladder — for a breakdown that carries no P&L at all (the
+       dashboard's sector composition counts holdings, so no slice is up or down).
+       It stays inside the brand hue on purpose: painting those slices green and
+       red would claim a direction the data does not have, and green/red are
+       reserved for money. Six steps, then it wraps; every step carries the ink
+       that clears 4.5:1 on it, and each fill clears 3:1 against the card:
+         navy 10.36  blue 6.70  bright-blue 5.17  indigo 7.90  sky 5.93  cyan 7.27 */
+    --chart-cat-1: #1E3A8A;
+    --chart-cat-2: #1D4ED8;
+    --chart-cat-3: #2563EB;
+    --chart-cat-4: #4338CA;
+    --chart-cat-5: #0369A1;
+    --chart-cat-6: #155E75;
+    --chart-cat-1-ink: #ffffff;
+    --chart-cat-2-ink: #ffffff;
+    --chart-cat-3-ink: #ffffff;
+    --chart-cat-4-ink: #ffffff;
+    --chart-cat-5-ink: #ffffff;
+    --chart-cat-6-ink: #ffffff;
     /* Named series, so a chart stops carrying a hex of its own. Measured
        against the card: benchmark 6.70, volume 4.76, buy 5.02, support 5.69,
        resistance 6.57, neutral 7.58. */
@@ -184,6 +204,22 @@
     --chart-loss-5-ink: #2a0606;
     --chart-flat: #94a3b8;
     --chart-flat-ink: #0f172a;
+    /* Same category ladder, lifted for the dark card — the light-theme steps are
+       too close to the background there to read as shapes. Ink/fill first, then
+       fill/card: 5.09/4.39, 7.36/6.34, 10.38/8.95, 9.39/8.09, 11.23/9.68,
+       13.18/11.35. */
+    --chart-cat-1: #3B82F6;
+    --chart-cat-2: #60A5FA;
+    --chart-cat-3: #93C5FD;
+    --chart-cat-4: #A5B4FC;
+    --chart-cat-5: #7DD3FC;
+    --chart-cat-6: #BFDBFE;
+    --chart-cat-1-ink: #0b1220;
+    --chart-cat-2-ink: #0b1220;
+    --chart-cat-3-ink: #0b1220;
+    --chart-cat-4-ink: #0b1220;
+    --chart-cat-5-ink: #0b1220;
+    --chart-cat-6-ink: #0b1220;
     /* Measured against the dark card: benchmark 4.99, volume 6.29, buy 9.66,
        support 8.39, resistance 5.83, neutral 10.87. */
     --chart-benchmark: #5b8def;
