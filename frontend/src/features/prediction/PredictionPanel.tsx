@@ -17,7 +17,7 @@ const TREND_CONFIG = {
   bullish: { label: 'Bullish', color: 'text-profit', icon: TrendingUp, badgeClass: 'bg-profit-light text-profit-dark' },
   bearish: { label: 'Bearish', color: 'text-loss', icon: TrendingDown, badgeClass: 'bg-loss-light text-loss-dark' },
   neutral: { label: 'Neutral', color: 'text-muted-foreground', icon: Minus, badgeClass: '' },
-  sideways: { label: 'Sideways', color: 'text-amber-500', icon: Minus, badgeClass: 'bg-amber-50 text-amber-700' },
+  sideways: { label: 'Sideways', color: 'text-warning', icon: Minus, badgeClass: 'bg-warning-light text-warning-dark' },
 };
 
 export function PredictionPanel({ prediction, isLoading }: PredictionPanelProps) {
@@ -73,7 +73,7 @@ export function PredictionPanel({ prediction, isLoading }: PredictionPanelProps)
             </div>
             <p className={cn('text-xs mt-1 font-medium capitalize', {
               'text-profit': prediction.confidenceLevel === 'high',
-              'text-amber-500': prediction.confidenceLevel === 'medium',
+              'text-warning': prediction.confidenceLevel === 'medium',
               'text-loss': prediction.confidenceLevel === 'low',
             })}>
               {prediction.confidenceLevel} confidence
@@ -118,7 +118,7 @@ export function PredictionPanel({ prediction, isLoading }: PredictionPanelProps)
                     <span className="font-mono font-medium">{formatCurrency(s.price)}</span>
                     <span className={cn('capitalize', {
                       'text-profit font-semibold': s.strength === 'strong',
-                      'text-amber-500': s.strength === 'moderate',
+                      'text-warning': s.strength === 'moderate',
                       'text-muted-foreground': s.strength === 'weak',
                     })}>
                       {s.strength}
@@ -139,7 +139,7 @@ export function PredictionPanel({ prediction, isLoading }: PredictionPanelProps)
                     <span className="font-mono font-medium">{formatCurrency(r.price)}</span>
                     <span className={cn('capitalize', {
                       'text-loss font-semibold': r.strength === 'strong',
-                      'text-amber-500': r.strength === 'moderate',
+                      'text-warning': r.strength === 'moderate',
                       'text-muted-foreground': r.strength === 'weak',
                     })}>
                       {r.strength}
@@ -207,13 +207,13 @@ export function PredictionPanel({ prediction, isLoading }: PredictionPanelProps)
             <Separator />
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <AlertTriangle className="h-4 w-4 text-warning" />
                 <p className="text-sm font-semibold">Risk Factors</p>
               </div>
               <ul className="space-y-1">
                 {prediction.risks.map((risk) => (
                   <li key={risk} className="text-xs text-muted-foreground flex gap-2">
-                    <span className="text-amber-500">•</span>{risk}
+                    <span className="text-warning">•</span>{risk}
                   </li>
                 ))}
               </ul>

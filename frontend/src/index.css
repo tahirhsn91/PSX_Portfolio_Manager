@@ -65,6 +65,12 @@
     --info-light: 206.2 100% 96.9%; /* #EFF8FF */
     --info-dark: 209.6 88.1% 32.9%; /* #0A559E */
 
+    /* The dev-only environment strip. Deliberately has no `.dark` counterpart:
+       it must stay the same red in both themes so a dev build can never be
+       mistaken for production. Tokens belong here, not as a hex in a component. */
+    --dev-banner-bg: #c62828;
+    --dev-banner-fg: #ffffff;
+
     /* Profit/loss tone ladders for the allocation charts.
        The family carries the meaning — green made money, red lost it — and the tone
        keeps neighbouring slices apart: one green for every profitable holding made

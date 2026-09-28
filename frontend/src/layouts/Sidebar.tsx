@@ -49,7 +49,7 @@ export function Sidebar() {
           {NAV_GROUPS.map((group) => (
             <div key={group.label}>
               {!isSidebarCollapsed && (
-                <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {group.label}
                 </p>
               )}

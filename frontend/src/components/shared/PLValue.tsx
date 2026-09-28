@@ -18,8 +18,8 @@ interface PLValueProps {
  *
  * The tone is the pair `MetricCard` uses for the same figure, so the ink
  * matches the KPI tiles in both themes — and it has to be theme-aware: this
- * text sits on the page/card background, where `#22c55e` on white is 1.9:1 but
- * `#15803d` on white is 4.6:1, and the reverse in dark mode.
+ * text sits on the page/card background, where the 500-weight green on white is
+ * 1.9:1 but the 700-weight green on white is 4.6:1, and the reverse in dark mode.
  */
 export function PLValue({ value, showIcon = true, suffix, className }: PLValueProps) {
   const isPositive = value > 0;

@@ -51,6 +51,9 @@ export default {
           '2': 'hsl(var(--surface-2))',
         },
         overlay: 'hsl(var(--overlay))',
+        /* The dev-only strip's fixed red: one colour in both themes, on purpose. */
+        'dev-banner': 'var(--dev-banner-bg)',
+        'dev-banner-fg': 'var(--dev-banner-fg)',
         primary: {
           DEFAULT: 'hsl(var(--primary))',
           hover: 'hsl(var(--primary-hover))',
