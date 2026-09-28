@@ -40,12 +40,14 @@ export function PageHeader({ title, description, breadcrumbs, actions, meta, cla
                   {crumb.to ? (
                     <Link
                       to={crumb.to}
-                      className="rounded-sm underline-offset-4 transition-colors duration-base ease-standard hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      /* min-h-11: the crumb is a link, so it is a control — measured at
+                         37x16px in the live app before this, well under the 44px floor. */
+                      className="inline-flex min-h-11 items-center rounded-sm underline-offset-4 transition-colors duration-base ease-standard hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     >
                       {crumb.label}
                     </Link>
                   ) : (
-                    <span className="text-foreground">{crumb.label}</span>
+                    <span className="inline-flex min-h-11 items-center text-foreground">{crumb.label}</span>
                   )}
                 </li>
               ))}

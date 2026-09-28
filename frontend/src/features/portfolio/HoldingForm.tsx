@@ -27,6 +27,19 @@ export interface PositionSnapshot {
   averagePurchasePrice: number;
 }
 
+/**
+ * Register options for a numeric field.
+ *
+ * `valueAsNumber` alone turns an empty field into `NaN`, and zod then reports
+ * "Expected number, received nan" — a message no one should ever read. It also
+ * takes precedence over `setValueAs`, so the conversion is done here instead: an
+ * empty field arrives as `undefined`, which makes the schema's own
+ * "… is required" the message that lands next to the field.
+ */
+const asNumber = {
+  setValueAs: (value: unknown) => (value === '' || value === null ? undefined : Number(value)),
+} as const;
+
 interface HoldingFormProps {
   defaultValues?: Partial<HoldingFormValues>;
   onSubmit: (values: HoldingFormValues) => void;
@@ -101,28 +114,30 @@ function BuyHistory({
     setError(null);
   };
 
-  /** The two actions, sized for the surface they sit on. */
-  const actions = (b: BuyRecord, size: 'phone' | 'table') => (
-    <div className={size === 'table' ? 'flex items-center justify-end gap-1' : 'flex items-center gap-1'}>
+  /**
+   * The two actions on a logged purchase. 44x44 on both surfaces: a table row is
+   * not an excuse to shrink a target, and neither is a dialog.
+   */
+  const actions = (b: BuyRecord) => (
+    <div className="flex items-center justify-end gap-1">
       <Button
         type="button"
         variant="ghost"
         size="icon"
-        className={size === 'table' ? 'h-8 w-8' : 'h-11 w-11'}
         aria-label={`Edit trade ${label(b)}`}
         onClick={() => startEdit(b)}
       >
-        <Pencil className="h-3.5 w-3.5" />
+        <Pencil aria-hidden="true" className="h-4 w-4" />
       </Button>
       <Button
         type="button"
         variant="ghost"
         size="icon"
-        className={size === 'table' ? 'h-8 w-8 text-destructive hover:text-destructive' : 'h-11 w-11 text-destructive hover:text-destructive'}
+        className="text-destructive hover:text-destructive"
         aria-label={`Delete trade ${label(b)}`}
         onClick={() => { setEditing(null); setConfirming(b.id); }}
       >
-        <Trash2 className="h-3.5 w-3.5" />
+        <Trash2 aria-hidden="true" className="h-4 w-4" />
       </Button>
     </div>
   );
@@ -134,14 +149,16 @@ function BuyHistory({
    */
   const editor = (b: BuyRecord, scope: 'table' | 'card') => (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor={`trade-shares-${b.id}-${scope}`}>Quantity</Label>
           <Input
             id={`trade-shares-${b.id}-${scope}`}
             type="number"
             step="1"
-            className="h-11 tabular-nums sm:h-10"
+            className="h-11 tabular-nums"
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? `trade-error-${b.id}-${scope}` : undefined}
             value={editing?.shares ?? ''}
             onChange={(e) => setEditing(editing ? { ...editing, shares: e.target.value } : editing)}
           />
@@ -152,18 +169,20 @@ function BuyHistory({
             id={`trade-price-${b.id}-${scope}`}
             type="number"
             step="0.01"
-            className="h-11 tabular-nums sm:h-10"
+            className="h-11 tabular-nums"
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? `trade-error-${b.id}-${scope}` : undefined}
             value={editing?.price ?? ''}
             onChange={(e) => setEditing(editing ? { ...editing, price: e.target.value } : editing)}
           />
         </div>
       </div>
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p id={`trade-error-${b.id}-${scope}`} className="text-xs text-destructive">{error}</p>}
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" className="h-11 sm:h-9" onClick={() => { setEditing(null); setError(null); }}>
+        <Button type="button" variant="ghost" onClick={() => { setEditing(null); setError(null); }}>
           Cancel
         </Button>
-        <Button type="button" className="h-11 sm:h-9" onClick={save}>
+        <Button type="button" onClick={save}>
           Save trade
         </Button>
       </div>
@@ -186,13 +205,12 @@ function BuyHistory({
           </span>
         </p>
         <div className="flex gap-2">
-          <Button type="button" variant="ghost" className="h-11 sm:h-9" onClick={() => setConfirming(null)}>
+          <Button type="button" variant="ghost" onClick={() => setConfirming(null)}>
             Keep
           </Button>
           <Button
             type="button"
             variant="destructive"
-            className="h-11 sm:h-9"
             onClick={() => { onDelete(b.id); setConfirming(null); }}
           >
             {last ? 'Remove holding' : 'Delete'}
@@ -228,7 +246,7 @@ function BuyHistory({
               <th scope="col" className="px-3 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">Shares</th>
               <th scope="col" className="px-3 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">Buy price</th>
               <th scope="col" className="px-3 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">Cost</th>
-              <th scope="col" className="w-[76px] px-3 py-2">
+              <th scope="col" className="w-[104px] px-3 py-2">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
@@ -245,13 +263,13 @@ function BuyHistory({
                     <td className="whitespace-nowrap px-3 py-2.5">
                       {format(parseISO(b.date), 'dd MMM yyyy')}
                       {isOpening(b) && (
-                        <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">opening</span>
+                        <span className="ml-2 text-xs uppercase tracking-wide text-muted-foreground">opening</span>
                       )}
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums">{b.shares.toLocaleString()}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums">{formatCurrency(b.pricePerShare)}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums">{formatCurrency(b.totalCost)}</td>
-                    <td className="px-3 py-2.5">{actions(b, 'table')}</td>
+                    <td className="px-3 py-2.5">{actions(b)}</td>
                   </>
                 )}
               </tr>
@@ -285,14 +303,14 @@ function BuyHistory({
                   <p className="text-sm">
                     {format(parseISO(b.date), 'dd MMM yyyy')}
                     {isOpening(b) && (
-                      <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">opening</span>
+                      <span className="ml-2 text-xs uppercase tracking-wide text-muted-foreground">opening</span>
                     )}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground tabular-nums">
                     {b.shares.toLocaleString()} @ {formatCurrency(b.pricePerShare)} · total {formatCurrency(b.totalCost)}
                   </p>
                 </div>
-                {actions(b, 'phone')}
+                {actions(b)}
               </div>
             )}
           </li>
@@ -345,7 +363,9 @@ function TradingDateField({
             onClick={() => setOpen(true)}
             aria-haspopup="dialog"
             aria-expanded={open}
-            className="h-11 cursor-pointer pr-11 sm:h-10 sm:pr-10"
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
+            className="h-11 cursor-pointer pr-11"
           />
           <PopoverTrigger asChild>
             <Button
@@ -353,9 +373,9 @@ function TradingDateField({
               variant="ghost"
               size="icon"
               aria-label={`Choose ${label.replace(' *', '').toLowerCase()}`}
-              className="absolute right-0 top-1/2 h-11 w-11 -translate-y-1/2 text-muted-foreground hover:bg-accent hover:text-accent-foreground sm:right-0.5 sm:h-8 sm:w-8"
+              className="absolute right-0 top-1/2 -translate-y-1/2 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             >
-              <CalendarIcon className="h-4 w-4" />
+              <CalendarIcon aria-hidden="true" className="h-4 w-4" />
             </Button>
           </PopoverTrigger>
         </div>
@@ -380,9 +400,9 @@ function TradingDateField({
         </PopoverContent>
       </Popover>
       {error ? (
-        <p className="text-xs text-destructive">{error}</p>
+        <p id={`${id}-error`} className="text-xs text-destructive">{error}</p>
       ) : (
-        hint && <p className="text-xs text-muted-foreground">{hint}</p>
+        hint && <p id={`${id}-hint`} className="text-xs text-muted-foreground">{hint}</p>
       )}
     </div>
   );
@@ -402,6 +422,9 @@ export function HoldingForm({
       // The most recent session by default, so the field is never empty on a new
       // holding — and never proposes a weekend, which the calendar below refuses.
       purchaseDate: format(mostRecentTradingDay(), 'yyyy-MM-dd'),
+      // An empty select is `''`, not `undefined`: zod's message for a missing
+      // string is "Sector is required" rather than its bare "Required".
+      sector: '',
       ...defaultValues,
     },
   });
@@ -475,7 +498,6 @@ export function HoldingForm({
       : null;
 
   const submitBuy = buyForm.handleSubmit((values) => onBuy?.(values));
-
   /** The read-only restatement of a position's identity while buying. */
   const positionSummary = position && (
     <div className="space-y-1 rounded-lg border border-border bg-muted/40 p-3">
@@ -498,7 +520,7 @@ export function HoldingForm({
         <>
           {positionSummary}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="buyShares">Quantity to buy *</Label>
               <Input
@@ -506,11 +528,13 @@ export function HoldingForm({
                 type="number"
                 step="1"
                 placeholder="How many shares"
-                className="h-11 sm:h-10"
-                {...buyForm.register('shares', { valueAsNumber: true })}
+                className="h-11 tabular-nums"
+                aria-invalid={buyForm.formState.errors.shares ? true : undefined}
+                aria-describedby={buyForm.formState.errors.shares ? 'buyShares-error' : undefined}
+                {...buyForm.register('shares', asNumber)}
               />
               {buyForm.formState.errors.shares && (
-                <p className="text-xs text-destructive">{buyForm.formState.errors.shares.message}</p>
+                <p id="buyShares-error" className="text-xs text-destructive">{buyForm.formState.errors.shares.message}</p>
               )}
             </div>
             <div className="space-y-2">
@@ -522,13 +546,17 @@ export function HoldingForm({
                 // Deliberately not a number: a placeholder is not a value, and a
                 // price-looking one reads as a price the user forgot they paid.
                 placeholder="Price you paid"
-                className="h-11 sm:h-10"
-                {...buyForm.register('pricePerShare', { valueAsNumber: true })}
+                className="h-11 tabular-nums"
+                aria-invalid={buyForm.formState.errors.pricePerShare ? true : undefined}
+                aria-describedby={
+                  buyForm.formState.errors.pricePerShare ? 'buyPrice-error' : 'buyPrice-hint'
+                }
+                {...buyForm.register('pricePerShare', asNumber)}
               />
               {buyForm.formState.errors.pricePerShare ? (
-                <p className="text-xs text-destructive">{buyForm.formState.errors.pricePerShare.message}</p>
+                <p id="buyPrice-error" className="text-xs text-destructive">{buyForm.formState.errors.pricePerShare.message}</p>
               ) : (
-                <p className="text-xs text-muted-foreground">
+                <p id="buyPrice-hint" className="text-xs text-muted-foreground">
                   {livePrice != null
                     ? `Filled from the live quote (${formatCurrency(livePrice)}) — edit it if you paid something else.`
                     : `No live price for ${position?.symbol ?? 'this symbol'} — enter the price you paid.`}
@@ -558,38 +586,59 @@ export function HoldingForm({
         <>
           {/* Company Search (only show when adding) */}
           {!isEditing && (
-            <div className="space-y-2">
-              <Label>Search Company</Label>
+            <div className="space-y-2" role="group" aria-labelledby="company-search-label">
+              <Label id="company-search-label">Search company</Label>
               <CompanySearch onSelect={handleCompanySelect} />
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="symbol">Ticker Symbol *</Label>
-              <Input id="symbol" placeholder="ENGRO" {...register('symbol')} className="h-11 uppercase sm:h-10" />
-              {errors.symbol && <p className="text-xs text-destructive">{errors.symbol.message}</p>}
+              <Label htmlFor="symbol">Ticker symbol *</Label>
+              <Input
+                id="symbol"
+                placeholder="ENGRO"
+                className="h-11 uppercase"
+                aria-invalid={errors.symbol ? true : undefined}
+                aria-describedby={errors.symbol ? 'symbol-error' : tickerMatch ? 'symbol-hint' : undefined}
+                {...register('symbol')}
+              />
+              {errors.symbol && <p id="symbol-error" className="text-xs text-destructive">{errors.symbol.message}</p>}
               {!errors.symbol && tickerMatch && (
-                <p className="text-xs text-muted-foreground">
+                <p id="symbol-hint" className="text-xs text-muted-foreground">
                   {tickerMatch.name} · {displaySector(tickerMatch.sector)}
                 </p>
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="companyName">Company Name *</Label>
-              <Input id="companyName" placeholder="Engro Corporation" {...register('companyName')} className="h-11 sm:h-10" />
-              {errors.companyName && <p className="text-xs text-destructive">{errors.companyName.message}</p>}
+              <Label htmlFor="companyName">Company name *</Label>
+              <Input
+                id="companyName"
+                placeholder="Engro Corporation"
+                className="h-11"
+                aria-invalid={errors.companyName ? true : undefined}
+                aria-describedby={errors.companyName ? 'companyName-error' : undefined}
+                {...register('companyName')}
+              />
+              {errors.companyName && (
+                <p id="companyName-error" className="text-xs text-destructive">{errors.companyName.message}</p>
+              )}
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label>Sector *</Label>
+            <Label htmlFor="sector">Sector *</Label>
             <Controller
               name="sector"
               control={control}
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger className="h-11 sm:h-10">
+                <Select value={field.value ?? ''} onValueChange={field.onChange}>
+                  <SelectTrigger
+                    id="sector"
+                    className="h-11"
+                    aria-invalid={errors.sector ? true : undefined}
+                    aria-describedby={errors.sector ? 'sector-error' : undefined}
+                  >
                     <SelectValue placeholder="Select sector" />
                   </SelectTrigger>
                   <SelectContent>
@@ -607,39 +656,47 @@ export function HoldingForm({
                 </Select>
               )}
             />
-            {errors.sector && <p className="text-xs text-destructive">{errors.sector.message}</p>}
+            {errors.sector && <p id="sector-error" className="text-xs text-destructive">{errors.sector.message}</p>}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="shares">Number of Shares *</Label>
+              <Label htmlFor="shares">Number of shares *</Label>
               <Input
                 id="shares"
                 type="number"
                 placeholder="500"
                 step="1"
-                className="h-11 sm:h-10"
-                {...register('shares', { valueAsNumber: true })}
+                className="h-11 tabular-nums"
+                aria-invalid={errors.shares ? true : undefined}
+                aria-describedby={errors.shares ? 'shares-error' : undefined}
+                {...register('shares', asNumber)}
               />
-              {errors.shares && <p className="text-xs text-destructive">{errors.shares.message}</p>}
+              {errors.shares && <p id="shares-error" className="text-xs text-destructive">{errors.shares.message}</p>}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="averagePurchasePrice">Avg. Buy Price (PKR) *</Label>
+              <Label htmlFor="averagePurchasePrice">Avg. buy price (PKR) *</Label>
               <Input
                 id="averagePurchasePrice"
                 type="number"
                 placeholder="145.50"
                 step="0.01"
-                className="h-11 sm:h-10"
-                {...register('averagePurchasePrice', { valueAsNumber: true })}
+                className="h-11 tabular-nums"
+                aria-invalid={errors.averagePurchasePrice ? true : undefined}
+                aria-describedby={errors.averagePurchasePrice ? 'averagePurchasePrice-error' : undefined}
+                {...register('averagePurchasePrice', asNumber)}
               />
-              {errors.averagePurchasePrice && <p className="text-xs text-destructive">{errors.averagePurchasePrice.message}</p>}
+              {errors.averagePurchasePrice && (
+                <p id="averagePurchasePrice-error" className="text-xs text-destructive">
+                  {errors.averagePurchasePrice.message}
+                </p>
+              )}
             </div>
           </div>
 
           <TradingDateField
             id="purchaseDate"
-            label="Purchase Date *"
+            label="Purchase date *"
             value={watch('purchaseDate') ?? ''}
             error={errors.purchaseDate?.message}
             hint="PSX trades Monday to Friday — weekends can't be selected."
@@ -648,7 +705,7 @@ export function HoldingForm({
 
           <div className="space-y-2">
             <Label htmlFor="notes">Notes</Label>
-            <Input id="notes" placeholder="Optional notes" {...register('notes')} className="h-11 sm:h-10" />
+            <Input id="notes" placeholder="Optional notes" {...register('notes')} className="h-11" />
           </div>
 
           {buys && buys.length > 0 && onUpdateBuy && (
@@ -662,15 +719,17 @@ export function HoldingForm({
         </>
       )}
 
+      {/* One primary per surface: the submit is the only filled button here, and
+          it shows the Button's own loading state while it validates and saves. */}
       <div className="flex flex-wrap justify-end gap-2 pt-2">
-        <Button type="button" variant="outline" className="h-11 sm:h-10" onClick={onCancel}>Cancel</Button>
+        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
         {buyOpen ? (
           <>
-            <Button type="button" variant="ghost" className="h-11 sm:h-10" onClick={() => setMode('edit')}>
+            <Button type="button" variant="ghost" onClick={() => setMode('edit')}>
               Back
             </Button>
-            <Button type="submit" className="h-11 sm:h-10" disabled={buyForm.formState.isSubmitting}>
-              Confirm Buy
+            <Button type="submit" loading={buyForm.formState.isSubmitting}>
+              Confirm buy
             </Button>
           </>
         ) : (
@@ -682,14 +741,13 @@ export function HoldingForm({
               <Button
                 type="button"
                 variant="secondary"
-                className="h-11 sm:h-10"
                 onClick={() => setMode('buy')}
               >
                 Buy more
               </Button>
             )}
-            <Button type="submit" className="h-11 sm:h-10" disabled={isSubmitting}>
-              {isEditing ? 'Save Changes' : 'Add Holding'}
+            <Button type="submit" loading={isSubmitting}>
+              {isEditing ? 'Save changes' : 'Add holding'}
             </Button>
           </>
         )}
