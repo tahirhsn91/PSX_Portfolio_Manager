@@ -15,6 +15,7 @@ import type {
 } from '@/types';
 import { STORAGE_KEYS, PORTFOLIO_COLORS } from '@/constants';
 import { positionFromBuys, roundMoney } from '@/utils/calculations';
+import { mergeImportedPortfolios, type PortfolioImportCounts } from '@/utils/portfolioImport';
 
 interface PortfolioState {
   portfolios: Portfolio[];
@@ -67,7 +68,8 @@ interface PortfolioState {
   getAllSymbols: () => string[];
 
   // Import / Export
-  importPortfolios: (portfolios: Portfolio[]) => void;
+  /** Restores a backup: rows the file names by id refresh in place, new ids are appended. */
+  importPortfolios: (portfolios: Portfolio[]) => PortfolioImportCounts;
   clearAll: () => void;
 }
 
@@ -405,10 +407,17 @@ export const usePortfolioStore = create<PortfolioState>()(
       },
 
       // ─── Import / Export ─────────────────────────────────────────────────
+      // A restore, not an accumulation: the file's portfolios refresh rows with
+      // the same id and are appended only when the id is new. Importing the same
+      // backup twice used to append a full second copy of everything. The counts
+      // go back to the caller so Settings can say what actually happened.
       importPortfolios: (portfolios) => {
-        set((state) => ({
-          portfolios: [...state.portfolios, ...portfolios],
-        }));
+        const { portfolios: merged, added, updated } = mergeImportedPortfolios(
+          get().portfolios,
+          portfolios,
+        );
+        set({ portfolios: merged });
+        return { added, updated };
       },
 
       clearAll: () => set({ portfolios: [], activePortfolioId: null }),

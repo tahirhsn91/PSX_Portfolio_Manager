@@ -33,8 +33,14 @@ export function Settings() {
         const text = await file.text();
         const data = storageService.importFromJSON(text);
         if (data.portfolios?.length) {
-          importPortfolios(data.portfolios);
-          addNotification({ type: 'success', title: `${data.portfolios.length} portfolio(s) imported` });
+          // Importing a backup again changes nothing, so report both numbers —
+          // otherwise a restore that updated everything looks like it did nothing.
+          const { added, updated } = importPortfolios(data.portfolios);
+          addNotification({
+            type: 'success',
+            title: 'Import complete',
+            message: `${added} portfolio(s) added${updated ? `, ${updated} updated` : ''}.`,
+          });
         }
       } catch (err) {
         addNotification({ type: 'error', title: 'Import failed', message: (err as Error).message });
