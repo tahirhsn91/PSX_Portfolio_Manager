@@ -47,20 +47,29 @@ export function Dashboard() {
 
   if (portfolios.length === 0) {
     return (
-      <div className="mx-auto flex max-w-xl flex-col gap-4 py-10">
-        <EmptyState
-          icon={<Activity className="h-7 w-7" />}
-          title="No portfolios yet"
-          description="A portfolio is where you record what you bought and at what price — every figure in this app is built from them."
-          action={
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              <Button onClick={() => navigate(ROUTES.PORTFOLIOS)}>Create a portfolio</Button>
-              <Button variant="ghost" onClick={() => navigate(ROUTES.SETTINGS)}>
-                Restore a backup
-              </Button>
-            </div>
-          }
+      <div className="space-y-6">
+        {/* The empty screen keeps the page heading. Without it a fresh install had
+            no <h1> at all — no page name in the document outline, nothing for a
+            screen reader to land on — because this branch returned early. */}
+        <PageHeader
+          title="Dashboard"
+          description="Your holdings, what they are worth, and what the market did today."
         />
+        <div className="mx-auto flex max-w-xl flex-col gap-4 py-10">
+          <EmptyState
+            icon={<Activity className="h-7 w-7" />}
+            title="No portfolios yet"
+            description="A portfolio is where you record what you bought and at what price — every figure in this app is built from them."
+            action={
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Button onClick={() => navigate(ROUTES.PORTFOLIOS)}>Create a portfolio</Button>
+                <Button variant="ghost" onClick={() => navigate(ROUTES.SETTINGS)}>
+                  Restore a backup
+                </Button>
+              </div>
+            }
+          />
+        </div>
       </div>
     );
   }
