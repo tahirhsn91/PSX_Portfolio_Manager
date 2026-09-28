@@ -5,6 +5,7 @@
 | Layer | Tool |
 |---|---|
 | Unit / Integration | Vitest + React Testing Library |
+| Backend (proxy) | `node --test` (`npm test` in `backend/`) |
 | E2E | Playwright |
 | Component | Storybook (optional) |
 

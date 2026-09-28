@@ -23,7 +23,7 @@ function createRateLimiter({ windowMs = 15 * 60_000, max = 20, code = 'RATE_LIMI
   }, windowMs);
   if (typeof sweep.unref === 'function') sweep.unref();
 
-  return function rateLimit(req, res, next) {
+  function rateLimit(req, res, next) {
     const key = req.ip || req.socket?.remoteAddress || 'unknown';
     const now = Date.now();
     const cutoff = now - windowMs;
@@ -43,7 +43,16 @@ function createRateLimiter({ windowMs = 15 * 60_000, max = 20, code = 'RATE_LIMI
     times.push(now);
     hits.set(key, times);
     return next();
-  };
+  }
+
+  /**
+   * Forget every recorded attempt. Nothing in production calls this; the test
+   * suite does, because its clients all arrive from one address and 20 attempts
+   * per 15 minutes is exactly the budget a suite exhausts.
+   */
+  rateLimit.reset = () => hits.clear();
+
+  return rateLimit;
 }
 
 module.exports = { createRateLimiter };
