@@ -2,27 +2,69 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design tokens.
+ *
+ * Two rules govern this file:
+ *   1. A colour is a signal. Blue means "you can act on this", green means
+ *      "this made money", red means "this lost money", amber means "read the
+ *      caveat", sky means "neutral information". Nothing else is coloured, so
+ *      a coloured thing is always worth looking at.
+ *   2. Every pair below was measured on the running app before it shipped.
+ *      Text clears WCAG AA (4.5:1); chart fills and borders clear 3:1 against
+ *      the card. The ratios in the comments are those measurements.
+ *
+ * The names Tailwind already exposes (`card`, `muted`, `accent`, `primary`, …)
+ * are kept and aliased onto the new values, so existing call sites keep
+ * working while new code uses the semantic names.
+ */
+
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 142 72% 29%;
-    --primary-foreground: 355.7 100% 97.3%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 142 72% 29%;
+    color-scheme: light;
+
+    /* Surfaces — a four-step ladder, so a card reads as raised even before
+       its border lands. surface/background 1.07, surface-2/surface 1.12. */
+    --background: 214.3 46.7% 97.1%; /* #F4F7FB app canvas */
+    --surface: 0 0% 100%; /* #FFFFFF cards, panels */
+    --surface-2: 216 41.7% 95.3%; /* #EEF2F8 inset rows, hover, zebra */
+    --overlay: 0 0% 100%; /* #FFFFFF menus, dialogs, sheets */
+    --border: 215.3 36.2% 90.8%; /* #DFE6F0 hairline (1.26 on surface) */
+    --input: 215.3 36.2% 90.8%;
+    --ring: 224.3 76.3% 48%; /* focus ring = primary */
+
+    /* Text — 18.72 on surface, 17.42 on canvas */
+    --text: 220 48.8% 8.4%; /* #0B1220 */
+    --muted: 216 41.7% 95.3%; /* #EEF2F8 subtle background */
+    --muted-foreground: 216 17.1% 40.2%; /* #556378 6.10 on surface */
+
+    /* Action — trust blue. Green is reserved for money made. */
+    --primary: 224.3 76.3% 48%; /* #1D4ED8 6.70 on surface, 6.24 on canvas */
+    --primary-hover: 226.2 70.6% 40%; /* #1E3FAE */
+    --primary-foreground: 0 0% 100%; /* #FFFFFF 6.70 on primary */
+    --secondary: 216 41.7% 95.3%;
+    --secondary-foreground: 220 48.8% 8.4%;
+    --accent: 216 41.7% 95.3%;
+    --accent-foreground: 220 48.8% 8.4%;
+    --destructive: 4.2 76.5% 40%; /* #B42318 6.57 on surface */
+    --destructive-foreground: 0 0% 100%;
+
+    /* Money. `profit` is the figure itself (5.69 on surface); `profit-light`
+       is the tinted surface it sits on and `profit-dark` the ink that stays
+       legible on that tint (9.18). Same shape for loss, warning, info. */
+    --profit: 154.8 90.3% 24.3%; /* #067647 */
+    --profit-light: 144.7 81% 95.9%; /* #ECFDF3 */
+    --profit-dark: 155.7 88.1% 16.5%; /* #054F31 */
+    --loss: 4.2 76.5% 40%; /* #B42318 6.57 on surface */
+    --loss-light: 5 85.7% 97.3%; /* #FEF3F2 */
+    --loss-dark: 4 71.6% 33.1%; /* #912018 */
+    --warning: 21.8 91.5% 37.1%; /* #B54708 5.43 on surface */
+    --warning-light: 45 100% 96.1%; /* #FFFAEB */
+    --warning-dark: 18.8 83.7% 31.4%; /* #93370D */
+    --info: 210 89.7% 42%; /* #0B6BCB 5.28 on surface */
+    --info-light: 206.2 100% 96.9%; /* #EFF8FF */
+    --info-dark: 209.6 88.1% 32.9%; /* #0A559E */
+
     /* Profit/loss tone ladders for the allocation charts.
        The family carries the meaning — green made money, red lost it — and the tone
        keeps neighbouring slices apart: one green for every profitable holding made
@@ -55,32 +97,64 @@
     /* Neither a profit nor a loss: a priced holding at exactly break-even. */
     --chart-flat: #64748b;
     --chart-flat-ink: #ffffff;
-    --radius: 0.5rem;
+    /* Named series, so a chart stops carrying a hex of its own. Measured
+       against the card: benchmark 6.70, volume 4.76, buy 5.02, support 5.69,
+       resistance 6.57, neutral 7.58. */
+    --chart-benchmark: #1d4ed8;
+    --chart-volume: #64748b;
+    --chart-buy: #b45309;
+    --chart-support: #067647;
+    --chart-resistance: #b42318;
+    --chart-neutral: #475569;
+
+    /* Shape. One radius scale: sm 8 / md 10 / lg 12 / xl 16. */
+    --radius: 0.75rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 142 70% 45%;
-    --primary-foreground: 144.9 80.4% 10%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 142 70% 45%;
+    color-scheme: dark;
+
+    /* surface/background 1.21, border/surface 1.58, surface-2/surface 1.13 —
+       measured, so the cards are distinguishable from the canvas in the dark
+       too instead of both being the same near-black. */
+    --background: 218.6 50% 5.5%; /* #070C15 app canvas */
+    --surface: 223.3 45% 15.7%; /* #16203A cards, panels */
+    --surface-2: 221.5 39.4% 19.4%; /* #1E2A45 inset rows, hover */
+    --overlay: 222.5 42% 18%; /* #1B2740 menus, dialogs, sheets */
+    --border: 220.9 30.1% 28.6%; /* #33415F hairline */
+    --input: 220.9 30.1% 28.6%;
+    --ring: 219.7 82.2% 64.7%;
+
+    --text: 220 48.4% 93.9%; /* #E8EDF7 13.74 on surface */
+    --muted: 221.5 39.4% 19.4%; /* #1E2A45 */
+    --muted-foreground: 218 23.4% 65.7%; /* #93A2BC 6.25 on surface */
+
+    --primary: 219.7 82.2% 64.7%; /* #5B8DEF 4.99 on surface */
+    --primary-hover: 218.9 85.9% 72.2%; /* #7BA6F5 */
+    --primary-foreground: 218.3 72% 9.8%; /* #07142B 5.68 on primary */
+    --secondary: 221.5 39.4% 19.4%;
+    --secondary-foreground: 220 48.4% 93.9%;
+    --accent: 221.5 39.4% 19.4%;
+    --accent-foreground: 220 48.4% 93.9%;
+    --destructive: 4.2 76.5% 40%; /* #B42318 */
+    --destructive-foreground: 5 85.7% 97.3%;
+
+    --profit: 158.1 64.4% 51.6%; /* #34D399 8.39 on surface */
+    --profit-light: 158 80.4% 10%; /* #052E1F */
+    --profit-dark: 156.2 71.6% 66.9%; /* #6EE7B7 9.72 on profit-light */
+    --loss: 0 90.6% 70.8%; /* #F87171 5.83 on surface */
+    --loss-light: 0 68.1% 13.5%; /* #3A0B0B */
+    --loss-dark: 0 93.5% 81.8%; /* #FCA5A5 8.98 on loss-light */
+    --warning: 43.3 96.4% 56.3%; /* #FBBF24 9.66 on surface */
+    --warning-light: 41.9 84.1% 12.4%; /* #3A2A05 */
+    --warning-dark: 45.9 96.7% 64.5%; /* #FCD34D 9.62 on warning-light */
+    --info: 198.4 93.2% 59.6%; /* #38BDF8 7.53 on surface */
+    --info-light: 202.8 78.4% 14.5%; /* #082C42 */
+    --info-dark: 199.4 95.5% 73.9%; /* #7DD3FC 8.69 on info-light */
+
     /* Same ladders, lifted for the dark card: the light-theme greens sat too close
-       to the background to read as shapes. Measured the same way against #020817 —
-       ink/fill first, fill/card second:
+       to the background to read as shapes. Measured the same way against the dark
+       card — ink/fill first, fill/card second:
          profit 5.02 5.93 8.58 10.17 11.22   loss 6.47 4.83 4.95 6.74 9.82   flat 6.96 */
     --chart-profit-1: #15803d;
     --chart-profit-2: #16a34a;
@@ -104,6 +178,28 @@
     --chart-loss-5-ink: #2a0606;
     --chart-flat: #94a3b8;
     --chart-flat-ink: #0f172a;
+    /* Measured against the dark card: benchmark 4.99, volume 6.29, buy 9.66,
+       support 8.39, resistance 5.83, neutral 10.87. */
+    --chart-benchmark: #5b8def;
+    --chart-volume: #94a3b8;
+    --chart-buy: #fbbf24;
+    --chart-support: #34d399;
+    --chart-resistance: #f87171;
+    --chart-neutral: #cbd5e1;
+  }
+
+  /*
+   * Tailwind's own names, aliased onto the tokens above so existing call sites
+   * (`bg-card`, `text-muted-foreground`, `bg-accent`, …) inherit the new palette
+   * instead of needing a rename first.
+   */
+  :root,
+  .dark {
+    --card: var(--surface);
+    --card-foreground: var(--text);
+    --popover: var(--overlay);
+    --popover-foreground: var(--text);
+    --foreground: var(--text);
   }
 }
 
@@ -114,6 +210,38 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/*
+ * Motion tokens. Three durations and two curves, so a "snappier" pass later is
+ * one edit instead of twenty class strings. Enter slower than exit, as the eye
+ * forgives an arrival more than a departure.
+ */
+@layer base {
+  :root {
+    --motion-fast: 120ms;
+    --motion-base: 180ms;
+    --motion-slow: 260ms;
+    --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+    --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  }
+}
+
+/*
+ * Respect the OS setting. Charts additionally read a reduced-motion hook in JS,
+ * because a 1500ms series animation is not a CSS transition and cannot be
+ * switched off from here — but every transition and keyframe in the app can.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

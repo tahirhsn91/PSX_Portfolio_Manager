@@ -5,8 +5,63 @@
     <link rel="icon" type="image/svg+xml" href="/psx-logo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Pakistan Stock Exchange Portfolio Manager - Track, analyze and optimize your PSX investments" />
-    <meta name="theme-color" content="#00a651" />
+    <meta name="theme-color" content="#F4F7FB" />
     <title>PSX Portfolio Manager</title>
+    <!--
+      Theme bootstrap. This has to run before the first paint: the app applies
+      the theme in a React effect, which is one frame too late, so a dark-mode
+      user used to get a white flash on every load. It reads the same persisted
+      store the app does (zustand `persist` under `psx_settings`) and does not
+      touch React's state — `useTheme` still owns the setting afterwards.
+      Anything unexpected (corrupt JSON, storage blocked in a private window)
+      falls through to the light default rather than throwing in <head>.
+    -->
+    <script>
+      (function () {
+        var THEME_COLOR = { dark: '#070C15', light: '#F4F7FB' };
+        function readTheme() {
+          try {
+            var raw = localStorage.getItem('psx_settings');
+            var stored = raw ? JSON.parse(raw) : null;
+            return stored && stored.state && stored.state.settings
+              ? stored.state.settings.theme
+              : undefined;
+          } catch (e) {
+            return undefined;
+          }
+        }
+        function apply(theme) {
+          var root = document.documentElement;
+          var dark =
+            theme === 'dark' ||
+            (theme !== 'light' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          root.classList.toggle('dark', dark);
+          root.style.colorScheme = dark ? 'dark' : 'light';
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute('content', dark ? THEME_COLOR.dark : THEME_COLOR.light);
+        }
+        try {
+          var theme = readTheme();
+          apply(theme);
+          // While the user is on "system", follow the OS live from the very first
+          // paint rather than waiting for React to mount. The handler re-reads the
+          // setting first: if the user has since chosen light or dark explicitly,
+          // an OS change must not override that choice.
+          if (!theme || theme === 'system') {
+            window
+              .matchMedia('(prefers-color-scheme: dark)')
+              .addEventListener('change', function (e) {
+                var current = readTheme();
+                if (current && current !== 'system') return apply(current);
+                apply(e.matches ? 'dark' : 'light');
+              });
+          }
+        } catch (e) {
+          apply('light');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
