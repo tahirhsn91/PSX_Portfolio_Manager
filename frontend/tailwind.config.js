@@ -11,14 +11,49 @@ export default {
       },
     },
     extend: {
+      /*
+       * Type. Fira Sans for the interface and Fira Code for figures: this is a
+       * data app, and Fira's tabular figures are what make a column of rupees
+       * line up. Both are self-hosted (see src/main.tsx), so loading the app
+       * makes no third-party request.
+       */
+      fontFamily: {
+        sans: [
+          '"Fira Sans"',
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'Segoe UI',
+          'Roboto',
+          'Helvetica Neue',
+          'Arial',
+          'sans-serif',
+        ],
+        mono: [
+          '"Fira Code"',
+          'ui-monospace',
+          'SFMono-Regular',
+          'Menlo',
+          'Consolas',
+          '"Liberation Mono"',
+          'monospace',
+        ],
+      },
       colors: {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
+        /* Surfaces: canvas -> card -> inset -> overlay. */
+        surface: {
+          DEFAULT: 'hsl(var(--surface))',
+          '2': 'hsl(var(--surface-2))',
+        },
+        overlay: 'hsl(var(--overlay))',
         primary: {
           DEFAULT: 'hsl(var(--primary))',
+          hover: 'hsl(var(--primary-hover))',
           foreground: 'hsl(var(--primary-foreground))',
         },
         secondary: {
@@ -45,17 +80,37 @@ export default {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
-        // PSX-specific colors
+        /*
+         * Money and status. Each family is `DEFAULT` = the figure or icon
+         * itself, `light` = the tinted surface it sits on, `dark` = the ink that
+         * stays legible on that tint. All six values are CSS variables, so one
+         * class is right in both themes — measured, not eyeballed: on the card,
+         * light profit 5.69 / loss 6.57 / warning 5.43 / info 5.28, dark 8.39 /
+         * 5.83 / 9.66 / 7.53.
+         */
         profit: {
-          DEFAULT: '#22c55e',
-          light: '#dcfce7',
-          dark: '#15803d',
+          DEFAULT: 'hsl(var(--profit))',
+          light: 'hsl(var(--profit-light))',
+          dark: 'hsl(var(--profit-dark))',
         },
         loss: {
-          DEFAULT: '#ef4444',
-          light: '#fee2e2',
-          dark: '#b91c1c',
+          DEFAULT: 'hsl(var(--loss))',
+          light: 'hsl(var(--loss-light))',
+          dark: 'hsl(var(--loss-dark))',
         },
+        warning: {
+          DEFAULT: 'hsl(var(--warning))',
+          light: 'hsl(var(--warning-light))',
+          dark: 'hsl(var(--warning-dark))',
+        },
+        info: {
+          DEFAULT: 'hsl(var(--info))',
+          light: 'hsl(var(--info-light))',
+          dark: 'hsl(var(--info-dark))',
+        },
+        // PSX brand mark. Not a UI signal — the exchange's own green, kept for
+        // the logo so the brand stays recognisable while green in the interface
+        // means "made money" and nothing else.
         psx: {
           green: '#00a651',
           emerald: '#009444',
@@ -81,21 +136,51 @@ export default {
           5: { DEFAULT: 'var(--chart-loss-5)', ink: 'var(--chart-loss-5-ink)' },
         },
         'chart-flat': { DEFAULT: 'var(--chart-flat)', ink: 'var(--chart-flat-ink)' },
+        // Named series, so a chart never carries a hex of its own. Measured
+        // against the card in both themes at >= 3:1, the WCAG bar for a graphic.
+        'chart-benchmark': 'var(--chart-benchmark)',
+        'chart-volume': 'var(--chart-volume)',
+        'chart-buy': 'var(--chart-buy)',
+        'chart-support': 'var(--chart-support)',
+        'chart-resistance': 'var(--chart-resistance)',
+        'chart-neutral': 'var(--chart-neutral)',
       },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        sm: 'calc(var(--radius) - 4px)', // 8px
+        md: 'calc(var(--radius) - 2px)', // 10px
+        lg: 'var(--radius)', // 12px
+        xl: 'calc(var(--radius) + 4px)', // 16px — sheets, dialogs
       },
+      /*
+       * Elevation. In the light theme a card's height comes from its shadow; in
+       * the dark theme shadows all but vanish, so the surface ladder and the
+       * border carry it there instead. Same classes in both.
+       */
+      boxShadow: {
+        card: '0 1px 2px 0 rgb(11 18 32 / 0.04), 0 1px 3px 0 rgb(11 18 32 / 0.06)',
+        raised: '0 4px 12px -2px rgb(11 18 32 / 0.10), 0 2px 6px -2px rgb(11 18 32 / 0.06)',
+        overlay: '0 12px 32px -8px rgb(11 18 32 / 0.24), 0 4px 12px -4px rgb(11 18 32 / 0.12)',
+      },
+      /*
+       * Motion. Three durations and two curves (--motion-* / --ease-* in
+       * index.css), so `duration-base` and `ease-standard` read the same
+       * everywhere instead of every component inventing its own 200ms.
+       */
+      transitionDuration: {
+        fast: 'var(--motion-fast)',
+        base: 'var(--motion-base)',
+        slow: 'var(--motion-slow)',
+      },
+      transitionTimingFunction: {
+        standard: 'var(--ease-standard)',
+        exit: 'var(--ease-exit)',
+      },
+      /*
+       * Only the keyframes that something actually animates: the accordion pair
+       * and `shimmer` had no call site, so they are gone (the skeleton that
+       * wants a shimmer gets one when it is built).
+       */
       keyframes: {
-        'accordion-down': {
-          from: { height: '0' },
-          to: { height: 'var(--radix-accordion-content-height)' },
-        },
-        'accordion-up': {
-          from: { height: 'var(--radix-accordion-content-height)' },
-          to: { height: '0' },
-        },
         'fade-in': {
           from: { opacity: '0', transform: 'translateY(10px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
@@ -104,17 +189,10 @@ export default {
           from: { transform: 'translateX(-100%)' },
           to: { transform: 'translateX(0)' },
         },
-        shimmer: {
-          '0%': { backgroundPosition: '-200% 0' },
-          '100%': { backgroundPosition: '200% 0' },
-        },
       },
       animation: {
-        'accordion-down': 'accordion-down 0.2s ease-out',
-        'accordion-up': 'accordion-up 0.2s ease-out',
         'fade-in': 'fade-in 0.3s ease-out',
         'slide-in': 'slide-in 0.3s ease-out',
-        shimmer: 'shimmer 2s infinite linear',
       },
     },
   },
