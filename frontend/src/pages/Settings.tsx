@@ -401,13 +401,17 @@ export function Settings() {
 
                 <Separator />
 
-                {/* Two equal actions, same size and weight — they are a pair. */}
+                {/* Two equal actions, same size and weight — they are a pair.
+                    `w-full sm:flex-1`, not `flex-1`: in the mobile column layout
+                    `flex-1` sets flex-basis:0% on the main axis, which is the
+                    *height* there, and overrides the button's 44px (measured 22px
+                    tall before this). Side by side, flex-basis is the width again. */}
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Button
                     variant="outline"
                     onClick={handleExport}
                     loading={isExporting}
-                    className="flex-1"
+                    className="w-full sm:flex-1"
                   >
                     <Download aria-hidden="true" /> Export backup
                   </Button>
@@ -415,7 +419,7 @@ export function Settings() {
                     variant="outline"
                     onClick={handleImport}
                     loading={isImporting}
-                    className="flex-1"
+                    className="w-full sm:flex-1"
                   >
                     <Upload aria-hidden="true" /> Import backup
                   </Button>
