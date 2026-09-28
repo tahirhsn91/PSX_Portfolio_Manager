@@ -1,4 +1,4 @@
-import { LayoutDashboard, Briefcase, BarChart2, Settings, type LucideIcon } from 'lucide-react';
+import { LayoutDashboard, Briefcase, BarChart2, Settings, UserRound, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ROUTES } from '@/constants';
 
@@ -12,9 +12,9 @@ export interface NavItem {
 }
 
 /**
- * The four top-level destinations. Shared by the desktop sidebar, the mobile
- * drawer and the mobile bottom bar so a route change is a one-line edit and the
- * three surfaces can never drift apart.
+ * The top-level destinations. Shared by the desktop sidebar, the mobile drawer and
+ * the mobile bottom bar so a route change is a one-line edit and the three surfaces
+ * can never drift apart.
  */
 export const NAV_ITEMS: readonly NavItem[] = [
   {
@@ -43,6 +43,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: Settings,
     to: ROUTES.SETTINGS,
     description: 'Appearance, refresh and backup',
+    group: 'Configuration',
+  },
+  {
+    label: 'Profile',
+    icon: UserRound,
+    to: ROUTES.PROFILE,
+    description: 'Your account and password',
     group: 'Configuration',
   },
 ];

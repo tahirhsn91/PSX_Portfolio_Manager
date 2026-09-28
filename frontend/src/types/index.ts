@@ -1,4 +1,5 @@
 // Re-export all types for convenient single-import
+export * from './auth.types';
 export * from './portfolio.types';
 export * from './market.types';
 export * from './prediction.types';
