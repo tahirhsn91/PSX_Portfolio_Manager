@@ -4,8 +4,11 @@ import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatPercent } from '@/utils';
+import { useReducedMotion } from '@/hooks';
 import { cn } from '@/lib/utils';
 import type { HistoricalDataPoint } from '@/types';
+import { ChartSummary, type ChartSummaryItem } from './ChartSummary';
+import { useChartTokens } from './useChartTokens';
 
 /** Selectable comparison periods. `days` sizes the history fetch, `sessions` the plot. */
 export const COMPARISON_RANGES = [
@@ -195,6 +198,13 @@ export function BenchmarkComparisonChart({
   benchmarkSelector,
   portfolioLoading, benchmarkLoading,
 }: BenchmarkComparisonChartProps) {
+  const reduced = useReducedMotion();
+  // Series colours resolve from the tokens at runtime: recharts puts them in SVG
+  // attributes, where a `var()` never resolves, and the same chart has to read
+  // correctly in both themes. The tooltip also colours each figure from the
+  // series, so the value has to be a real colour rather than a class.
+  const tokens = useChartTokens();
+
   const { points, portfolioReturnPercent, benchmarkReturnPercent, sessions, requestedSessions } = alignReturnsByDate(
     portfolioData, benchmark.series, rangeConfig(range).sessions,
   );
@@ -205,6 +215,28 @@ export function BenchmarkComparisonChart({
   const isLoading = (portfolioLoading || benchmarkLoading) && !hasData;
   const limitedByHistory = hasData && sessions < requestedSessions;
   const outperformance = portfolioReturnPercent - benchmarkReturnPercent;
+
+  const summaryItems: ChartSummaryItem[] = hasData
+    ? [
+        {
+          label: `${portfolioLabel} return`,
+          value: formatPercent(portfolioReturnPercent),
+          tone: portfolioReturnPercent > 0 ? 'profit' : portfolioReturnPercent < 0 ? 'loss' : 'flat',
+        },
+        {
+          label: `${benchmark.label} return`,
+          value: formatPercent(benchmarkReturnPercent),
+          tone: benchmarkReturnPercent > 0 ? 'profit' : benchmarkReturnPercent < 0 ? 'loss' : 'flat',
+        },
+        {
+          label: 'Difference',
+          value: formatPercent(outperformance),
+          tone: outperformance > 0 ? 'profit' : outperformance < 0 ? 'loss' : 'flat',
+        },
+        { label: `${range} window`, value: `${points[0]?.date} → ${points[points.length - 1]?.date}` },
+        { label: 'Sessions plotted', value: `${sessions}${limitedByHistory ? ` of ${requestedSessions} (all the feed holds)` : ''}` },
+      ]
+    : [];
 
   // Why nothing can be plotted — the fix differs per cause, so say which it is.
   const emptyReason = portfolioData.length === 0
@@ -250,7 +282,9 @@ export function BenchmarkComparisonChart({
                   onClick={() => onRangeChange(option.key)}
                   aria-pressed={option.key === range}
                   className={cn(
-                    'rounded px-2 py-1 text-xs font-medium transition-colors',
+                    // min-h-11 min-w-11: a range chip is a control, and these measured
+                    // 30x24 before — the smallest targets on the dashboard.
+                    'inline-flex min-h-11 min-w-11 items-center justify-center rounded px-2 py-1 text-xs font-medium transition-colors duration-base ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                     option.key === range
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:bg-muted',
@@ -288,17 +322,25 @@ export function BenchmarkComparisonChart({
         {isLoading ? (
           <p className="py-8 text-center text-sm text-muted-foreground">Loading comparison…</p>
         ) : hasData ? (
-          <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={points} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} interval="preserveStartEnd" className="fill-muted-foreground" />
-              <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} className="fill-muted-foreground" />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend />
-              <Line type="monotone" dataKey="portfolio" name={portfolioLabel} stroke="#00a651" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="benchmark" name={benchmark.label} stroke="#3b82f6" strokeWidth={2} dot={false} strokeDasharray="5 3" />
-            </LineChart>
-          </ResponsiveContainer>
+          <>
+            <div
+              role="group"
+              aria-label={`${title}: ${portfolioLabel} returned ${formatPercent(portfolioReturnPercent)} against ${benchmark.label} at ${formatPercent(benchmarkReturnPercent)} over ${sessions} sessions`}
+            >
+              <ResponsiveContainer width="100%" height={240}>
+                <LineChart accessibilityLayer data={points} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="date" tick={{ fontSize: 12, fill: tokens.axis }} tickLine={false} interval="preserveStartEnd" className="fill-muted-foreground" />
+                  <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12, fill: tokens.axis }} tickLine={false} axisLine={false} className="fill-muted-foreground" />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                  <Line type="monotone" dataKey="portfolio" name={portfolioLabel} stroke={tokens.neutral} strokeWidth={2} dot={false} isAnimationActive={!reduced} />
+                  <Line type="monotone" dataKey="benchmark" name={benchmark.label} stroke={tokens.benchmark} strokeWidth={2} dot={false} strokeDasharray="5 3" isAnimationActive={!reduced} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <ChartSummary caption={`${portfolioLabel} vs ${benchmark.label} — ${range} window`} items={summaryItems} />
+          </>
         ) : (
           <p className="py-8 text-center text-sm text-muted-foreground">
             {emptyReason}

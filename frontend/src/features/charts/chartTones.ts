@@ -97,3 +97,31 @@ export function assignTones<T extends { gain?: number | null }>(
     return { ...entry, family, tone: FLAT_TONE };
   });
 }
+
+/**
+ * Ladder for a breakdown that carries **no** profit/loss signal at all: the
+ * dashboard's sector allocation counts holdings, so no slice is up or down and a
+ * colour there is a category marker and nothing else.
+ *
+ * It is the brand-hue category ladder, *not* an alternation of the profit and loss
+ * ladders. Green and red mean money in this app, and a composition chart has no
+ * direction to report — painting half its slices green and half red would state a
+ * gain or a loss that does not exist. Six distinguishable steps in the app's own
+ * blue, and — the point of the ladder being a tokens object — every step hands over
+ * the ink that stays legible *on it*. That is what the old white labels on
+ * `CHART_COLORS` (measured 3.19:1 and 3.68:1 in the light theme) had no way to do:
+ * a light fill in the dark theme needs dark ink, and only the tone knows.
+ */
+export const CATEGORY_TONES: readonly ChartTone[] = [
+  { fill: 'fill-chart-cat-1', ink: 'fill-chart-cat-1-ink', swatch: 'bg-chart-cat-1' },
+  { fill: 'fill-chart-cat-2', ink: 'fill-chart-cat-2-ink', swatch: 'bg-chart-cat-2' },
+  { fill: 'fill-chart-cat-3', ink: 'fill-chart-cat-3-ink', swatch: 'bg-chart-cat-3' },
+  { fill: 'fill-chart-cat-4', ink: 'fill-chart-cat-4-ink', swatch: 'bg-chart-cat-4' },
+  { fill: 'fill-chart-cat-5', ink: 'fill-chart-cat-5-ink', swatch: 'bg-chart-cat-5' },
+  { fill: 'fill-chart-cat-6', ink: 'fill-chart-cat-6-ink', swatch: 'bg-chart-cat-6' },
+] as const;
+
+/** The category tone for slice `index`, wrapping when a breakdown is longer than the ladder. */
+export function categoryTone(index: number): ChartTone {
+  return CATEGORY_TONES[index % CATEGORY_TONES.length] ?? FLAT_TONE;
+}

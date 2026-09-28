@@ -2,13 +2,19 @@ import type { ReactNode } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency, formatPercent } from '@/utils';
-import { CHART_COLORS } from '@/constants';
-import { assignTones, FAMILY_TEXT, FLAT_TONE, type ChartTone, type ToneFamily } from './chartTones';
+import { useReducedMotion } from '@/hooks';
+import { assignTones, categoryTone, FAMILY_TEXT, FLAT_TONE, type ChartTone, type ToneFamily } from './chartTones';
+import { ChartSummary, type ChartSummaryItem } from './ChartSummary';
 
 interface AllocationData {
   name: string;
   value: number;
   percent: number;
+  /**
+   * Ignored: a slice is painted from the token ladder, so no call site can put a
+   * hardcoded hex back into the chart. Kept on the type because the pages build
+   * these rows with the field.
+   */
   color?: string;
   /**
    * Unrealised P&L of what this slice is made of, in PKR — the sign decides the
@@ -17,7 +23,7 @@ interface AllocationData {
    * it takes the slate too.
    *
    * Call sites that have no P&L to offer (the dashboard's allocation card) omit the
-   * field entirely and keep the plain palette, rather than claiming a family.
+   * field entirely, and the slice is coloured from the category ladder instead.
    */
   gain?: number | null;
   /** The same figure as a percentage of cost, for the legend and the tooltip. */
@@ -34,12 +40,11 @@ interface AllocationPieChartProps {
    * nothing and keeps the plain header.
    */
   headerExtra?: ReactNode;
+  /** True while the first breakdown fetch is in flight — says so instead of drawing an empty pie. */
+  isLoading?: boolean;
 }
 
 type Slice = AllocationData & { tone: ChartTone; family: ToneFamily };
-
-/** Ink for a slice with no tone of its own (the plain-palette path). */
-const DEFAULT_INK = 'fill-white';
 
 /** `+PKR 12,345.67` / `-PKR 900.00`, and an em dash when the feed couldn't price it. */
 function gainLabel(gain: number | null): string {
@@ -92,34 +97,61 @@ const SliceLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index
   const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
-  // The tone's own ink: these labels sit on the slice, and a light tone needs dark
-  // text on it to clear 4.5:1 at 11px. Falls back to white for the plain palette.
-  const tone = typeof index === 'number' ? slices[index]?.tone : undefined;
+  // The tone's own ink — the label sits *on* the slice, and only the tone knows
+  // whether that needs light or dark text (a light fill in the dark theme needs
+  // dark ink, which is why a fixed white could never clear 4.5:1 in both).
+  const ink = (typeof index === 'number' ? slices[index]?.tone : undefined)?.ink ?? FLAT_TONE.ink;
   return (
-    <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight="bold" className={tone?.ink ?? DEFAULT_INK}>
+    <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight="bold" className={ink}>
       {`${percentValue.toFixed(0)}%`}
     </text>
   );
 };
 
-export function AllocationPieChart({ data, title = 'Portfolio Allocation', headerExtra }: AllocationPieChartProps) {
+export function AllocationPieChart({ data, title = 'Portfolio Allocation', headerExtra, isLoading = false }: AllocationPieChartProps) {
+  const reduced = useReducedMotion();
+
   /**
    * Two palettes, chosen by whether the data can answer "did this make money":
    *
    *  - With P&L, the slice is green or red by sign and the tone tells one slice from
    *    the next. This is what the portfolio's Holdings and Sector breakdowns use —
    *    one green for every profitable holding made them impossible to tell apart.
-   *  - Without it, the original cycling palette, untouched.
+   *  - Without it (the dashboard's allocation card, which counts holdings per
+   *    sector), the **category ladder** — still tokens, still each step's own ink,
+   *    and no `CHART_COLORS` cycling palette painting white 11px labels onto fills
+   *    that measured 3.19:1 and 3.68:1 in the light theme.
    */
   const hasGain = data.some((d) => d.gain !== undefined);
   const chartData: Slice[] = hasGain
     ? assignTones(data)
-    : data.map((entry, i) => ({
+    : data.map((entry, index) => ({
         ...entry,
         family: 'flat' as ToneFamily,
-        tone: FLAT_TONE,
-        color: entry.color ?? CHART_COLORS[i % CHART_COLORS.length],
+        tone: categoryTone(index),
       }));
+
+  const total = chartData.reduce((sum, entry) => sum + (Number.isFinite(entry.value) ? entry.value : 0), 0);
+  const hasData = chartData.length > 0 && total > 0;
+
+  const topSlices = [...chartData].sort((a, b) => b.value - a.value);
+  const summaryItems: ChartSummaryItem[] = hasData
+    ? [
+        ...topSlices.slice(0, 6).map((slice) => ({
+          label: slice.name,
+          value: `${formatPercent(slice.percent, false)} · ${formatCurrency(slice.value, true)}${
+            hasGain && slice.gain !== undefined && slice.gainPercent != null ? ` · ${formatPercent(slice.gainPercent)}` : ''
+          }`,
+          tone: slice.family,
+        })),
+        ...(topSlices.length > 6 ? [{ label: 'Other slices', value: `${topSlices.length - 6} more` }] : []),
+      ]
+    : [];
+
+  // Why there is no pie differs by cause, so name the cause.
+  const emptyReason = data.length === 0
+    ? 'No allocation to show yet — this breakdown is built from a portfolio’s holdings, so it fills in once one has a holding.'
+    : 'Every slice came back worth nothing at the feed’s last prices, so there is no split to draw.';
 
   return (
     <Card>
@@ -129,66 +161,78 @@ export function AllocationPieChart({ data, title = 'Portfolio Allocation', heade
         {headerExtra}
       </CardHeader>
       <CardContent>
-        {/* Height is 320 not 280: the legend for a 7-sector portfolio wraps to ~3 rows
-            (~96px), and that space is taken off the plot area *before* the pie is laid
-            out, so the circle had 184px of height to live in. */}
-        <ResponsiveContainer width="100%" height={320}>
-          <PieChart>
-            <Pie
-              data={chartData}
-              cx="50%"
-              cy="50%"
-              labelLine={false}
-              label={((props: LabelProps) => <SliceLabel {...props} slices={chartData} />) as unknown as boolean}
-              /* Percentage, not a fixed radius. A number is used verbatim, while
-                 recharts resolves a string against maxPieRadius =
-                 getMaxRadius(plotWidth, plotHeight) = min(w, h) / 2 of the
-                 legend-adjusted plot area, so the circle shrinks to fit instead of
-                 spilling out of the SVG. With outerRadius={110} a 7-sector legend
-                 left 184px for a 220px circle: the top 18px (42px at a 1024 viewport)
-                 was cut off by the SVG edge. 88% keeps a visible margin. */
-              outerRadius="88%"
-              dataKey="value"
-              nameKey="name"
+        {isLoading && !hasData ? (
+          <p className="flex h-[320px] items-center justify-center text-sm text-muted-foreground">
+            Loading allocation…
+          </p>
+        ) : !hasData ? (
+          <p className="flex h-[320px] items-center justify-center px-4 text-center text-sm text-muted-foreground">
+            {emptyReason}
+          </p>
+        ) : (
+          <>
+            {/* Height is 320 not 280: the legend for a 7-sector portfolio wraps to ~3 rows
+                (~96px), and that space is taken off the plot area *before* the pie is laid
+                out, so the circle had 184px of height to live in. */}
+            <div
+              role="group"
+              aria-label={`${title}: ${chartData.length} slices, largest is ${topSlices[0]?.name} at ${formatPercent(topSlices[0]?.percent ?? 0, false)}`}
             >
-              {chartData.map((entry, index) =>
-                hasGain ? (
-                  // A class, not a `fill` attribute: the tone is a CSS variable, so the
-                  // same slice is correct in the light and the dark theme.
-                  <Cell key={`cell-${index}`} className={entry.tone.fill} />
-                ) : (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                )
-              )}
-            </Pie>
-            <Tooltip content={<CustomTooltip />} />
-            {/* A custom legend rather than the built-in one: its swatch is drawn from
-                the slice's `fill` *prop*, and the tones are set as classes (they have
-                to be, or the light/dark variables never resolve), so the default
-                swatches came out the SVG default grey. This also gives each entry the
-                signed return, so the legend still says green/red to a reader who
-                can't see green or red. */}
-            <Legend
-              content={() => (
-                <ul className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 px-2">
-                  {chartData.map((entry, index) => (
-                    <li key={`legend-${index}`} className="flex items-center gap-1.5 text-xs text-foreground">
-                      <span
-                        aria-hidden="true"
-                        className={`h-2.5 w-2.5 shrink-0 rounded-full ${hasGain ? entry.tone.swatch : ''}`}
-                        style={hasGain ? undefined : { backgroundColor: entry.color }}
-                      />
-                      <span>{entry.name}</span>
-                      {hasGain && entry.gain !== undefined && entry.gainPercent != null && (
-                        <span className={`font-medium ${FAMILY_TEXT[entry.family]}`}>{formatPercent(entry.gainPercent)}</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            />
-          </PieChart>
-        </ResponsiveContainer>
+              <ResponsiveContainer width="100%" height={320}>
+                <PieChart accessibilityLayer>
+                  <Pie
+                    data={chartData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={((props: LabelProps) => <SliceLabel {...props} slices={chartData} />) as unknown as boolean}
+                    /* Percentage, not a fixed radius. A number is used verbatim, while
+                       recharts resolves a string against maxPieRadius =
+                       getMaxRadius(plotWidth, plotHeight) = min(w, h) / 2 of the
+                       legend-adjusted plot area, so the circle shrinks to fit instead of
+                       spilling out of the SVG. With outerRadius={110} a 7-sector legend
+                       left 184px for a 220px circle: the top 18px (42px at a 1024 viewport)
+                       was cut off by the SVG edge. 88% keeps a visible margin. */
+                    outerRadius="88%"
+                    dataKey="value"
+                    nameKey="name"
+                    isAnimationActive={!reduced}
+                  >
+                    {chartData.map((entry, index) => (
+                      // A class, not a `fill` attribute: the tone is a CSS variable, so the
+                      // same slice is correct in the light and the dark theme — and the
+                      // in-slice label reads its ink off the same tone.
+                      <Cell key={`cell-${index}`} className={entry.tone.fill} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CustomTooltip />} />
+                  {/* A custom legend rather than the built-in one: its swatch is drawn from
+                      the slice's `fill` *prop*, and the tones are set as classes (they have
+                      to be, or the light/dark variables never resolve), so the default
+                      swatches came out the SVG default grey. This also gives each entry the
+                      signed return, so the legend still says green/red to a reader who
+                      can't see green or red. */}
+                  <Legend
+                    content={() => (
+                      <ul className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 px-2">
+                        {chartData.map((entry, index) => (
+                          <li key={`legend-${index}`} className="flex items-center gap-1.5 text-xs text-foreground">
+                            <span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full ${entry.tone.swatch}`} />
+                            <span>{entry.name}</span>
+                            {hasGain && entry.gain !== undefined && entry.gainPercent != null && (
+                              <span className={`font-medium ${FAMILY_TEXT[entry.family]}`}>{formatPercent(entry.gainPercent)}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <ChartSummary caption="Largest slices" items={summaryItems} />
+          </>
+        )}
       </CardContent>
     </Card>
   );
