@@ -252,7 +252,7 @@ export function HoldingsTable({
                       <Link
                         to={ROUTES.STOCK_DETAIL_PATH(portfolioId, holding.symbol)}
                         onClick={(e) => e.stopPropagation()}
-                        className="font-mono font-bold text-primary rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        className="inline-flex min-h-11 min-w-11 items-center font-mono font-bold text-primary rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       >
                         {holding.symbol}
                       </Link>
@@ -373,7 +373,7 @@ export function HoldingsTable({
                           <Link
                             to={ROUTES.STOCK_DETAIL_PATH(portfolioId, holding.symbol)}
                             onClick={(e) => e.stopPropagation()}
-                            className="w-fit rounded-sm font-mono font-bold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            className="inline-flex min-h-11 min-w-11 w-fit items-center rounded-sm font-mono font-bold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                           >
                             {holding.symbol}
                           </Link>
