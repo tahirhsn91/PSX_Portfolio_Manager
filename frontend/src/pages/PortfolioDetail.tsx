@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, ArrowLeft, TrendingUp, DollarSign, Activity, Award, AlertTriangle, LineChart } from 'lucide-react';
+import { Plus, TrendingUp, DollarSign, Award, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
-import { MetricCard, EmptyState, CompanySearch } from '@/components/shared';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { EmptyState, MetricBand, PLValue, PageHeader, CompanySearch } from '@/components/shared';
+import type { BandStat } from '@/components/shared';
 import { HoldingsTable } from '@/features/portfolio/HoldingsTable';
 import { HoldingForm } from '@/features/portfolio/HoldingForm';
 import { AllocationPieChart, PortfolioValueChart, BenchmarkComparisonChart, rangeConfig } from '@/features/charts';
@@ -17,7 +19,7 @@ import { buildSectorAllocation, buildHoldingAllocation } from '@/utils';
 import { ROUTES, PSX_INDICES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
 import { format, parseISO, subDays, addDays } from 'date-fns';
 import type { Holding, PSXCompany } from '@/types';
-import { formatCurrency, type HoldingFormValues, type BuyFormValues } from '@/utils';
+import { formatCurrency, formatPercent, type HoldingFormValues, type BuyFormValues } from '@/utils';
 
 /**
  * Every PSX index, offered in the picker as a pseudo-company so indices and stocks
@@ -67,8 +69,6 @@ export function PortfolioDetail() {
   const [allocationView, setAllocationView] = useState<AllocationView>('holdings');
   // What to compare against: a PSX index code, or any listed stock's symbol.
   const [benchmark, setBenchmark] = useState<Benchmark>(DEFAULT_BENCHMARK);
-  // The Value tab charts the portfolio's own priced series — the same one the
-  // comparison rebases — so the two tabs cannot disagree about what it is worth.
 
   const rangeDays = rangeConfig(range).days;
   const { series: portfolioSeries, isLoading: portfolioHistoryLoading } = usePortfolioHistory(
@@ -95,12 +95,17 @@ export function PortfolioDetail() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [editingHolding, setEditingHolding] = useState<Holding | null>(null);
+  // Removal is confirmed in a dialog rather than `window.confirm`, so the warning
+  // names the holding, states what else goes with it, and can be styled.
+  const [holdingToDelete, setHoldingToDelete] = useState<Holding | null>(null);
 
   if (!portfolio || !id) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <EmptyState title="Portfolio not found" description="This portfolio may have been deleted." />
-      </div>
+      <EmptyState
+        title="Portfolio not found"
+        description="It may have been deleted, or the link may belong to another device's data."
+        action={<Button onClick={() => navigate(ROUTES.PORTFOLIOS)}>Back to portfolios</Button>}
+      />
     );
   }
 
@@ -195,12 +200,12 @@ export function PortfolioDetail() {
     setEditingHolding(null);
   };
 
-  const handleDelete = (holdingId: string) => {
-    const h = portfolio.holdings.find((h) => h.id === holdingId);
-    if (!h) return;
-    if (!window.confirm(`Remove ${h.symbol} from this portfolio?`)) return;
-    deleteHolding(id, holdingId);
-    addNotification({ type: 'info', title: `${h.symbol} removed` });
+  const confirmDeleteHolding = () => {
+    const holding = holdingToDelete;
+    if (!holding) return;
+    deleteHolding(id, holding.id);
+    addNotification({ type: 'info', title: `${holding.symbol} removed` });
+    setHoldingToDelete(null);
   };
 
   const sectorAlloc = buildSectorAllocation(portfolio, metrics?.holdingMetrics ?? []);
@@ -216,70 +221,122 @@ export function PortfolioDetail() {
     : sectorAlloc.map((s) => ({ name: s.sector, value: s.value, percent: s.percent, color: s.color, gain: s.gain, gainPercent: s.gainPercent }));
   const allocationTitle = allocationView === 'holdings' ? 'Holdings Allocation' : 'Sector Allocation';
 
+  const totalPL = metrics?.totalPL ?? 0;
+  const tone = totalPL > 0 ? 'profit' : totalPL < 0 ? 'loss' : 'neutral';
+  const todayPL = metrics?.todayPL ?? 0;
+  const todayTone = todayPL > 0 ? 'profit' : todayPL < 0 ? 'loss' : 'neutral';
+
+  const stats: BandStat[] = [
+    { label: 'Invested', value: formatCurrency(metrics?.totalInvestment ?? 0) },
+    {
+      label: "Today's P&L",
+      value: formatCurrency(todayPL),
+      hint: metrics?.todayPLPercent !== undefined ? formatPercent(metrics.todayPLPercent) : undefined,
+      tone: todayTone,
+    },
+    { label: 'Dividends', value: formatCurrency(metrics?.totalDividendIncome ?? 0), hint: 'Total received' },
+    { label: 'Holdings', value: String(portfolio.holdings.length), hint: `${holdingAlloc.length} priced` },
+  ];
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-3">
-          {/* shrink-0: the name beside it used to squeeze this to 26px wide. */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-11 w-11 shrink-0 sm:h-10 sm:w-10"
-            aria-label="Back to portfolios"
-            onClick={() => navigate(ROUTES.PORTFOLIOS)}
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="flex min-w-0 items-center gap-2">
-            <div className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: portfolio.color }} />
-            <h2 className="truncate text-xl font-bold sm:text-2xl">{portfolio.name}</h2>
-          </div>
-        </div>
-        <Button className="h-11 shrink-0 sm:h-10" onClick={() => setAddOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Add Holding
-        </Button>
-      </div>
-
-      {/* A holding the feed can't price is left out of every figure below — say so,
-          rather than letting a total quietly mean "the holdings we could price". */}
-      {metrics && metrics.unpricedHoldings > 0 && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-          <p>
-            <span className="font-medium">
-              {metrics.unpricedHoldings} of {portfolio.holdings.length} holdings have no price
-            </span>{' '}
-            ({metrics.unpricedSymbols.join(', ')}) — the figures below cover the other{' '}
-            {portfolio.holdings.length - metrics.unpricedHoldings}.
+    <div className="space-y-6">
+      <PageHeader
+        breadcrumbs={[{ label: 'Portfolios', to: ROUTES.PORTFOLIOS }, { label: portfolio.name }]}
+        title={portfolio.name}
+        description={`${portfolio.holdings.length} holding${portfolio.holdings.length === 1 ? '' : 's'} · valued from live PSX prices`}
+        meta={
+          <p className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span
+              aria-hidden="true"
+              className="h-2.5 w-2.5 rounded-full border"
+              style={{ backgroundColor: portfolio.color }}
+            />
+            Portfolio colour
           </p>
-        </div>
-      )}
+        }
+        actions={
+          <Button onClick={() => setAddOpen(true)}>
+            <Plus aria-hidden="true" />
+            Add holding
+          </Button>
+        }
+      />
 
-      {/* KPI Cards — five tiles, so the same two/three/five ramp as the Dashboard:
-          a row of five only from 2xl, where each tile still fits its value on one line. */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-4">
-        <MetricCard title="Invested" value={metrics?.totalInvestment ?? 0} isCurrency icon={<DollarSign className="h-4 w-4" />} isLoading={isLoading} />
-        <MetricCard title="Current Value" value={metrics?.currentValue ?? 0} isCurrency change={metrics?.totalPL} changePercent={metrics?.totalPLPercent} icon={<TrendingUp className="h-4 w-4" />} isLoading={isLoading} />
-        <MetricCard title="Total P&L" value={metrics?.totalPL ?? 0} isCurrency changePercent={metrics?.totalPLPercent} icon={<LineChart className="h-4 w-4" />} isLoading={isLoading} toneBySign />
-        <MetricCard title="Today's P&L" value={metrics?.todayPL ?? 0} isCurrency changePercent={metrics?.todayPLPercent} icon={<Activity className="h-4 w-4" />} isLoading={isLoading} toneBySign />
-        <MetricCard title="Dividends" value={metrics?.totalDividendIncome ?? 0} isCurrency subtitle="Total received" icon={<DollarSign className="h-4 w-4" />} isLoading={isLoading} />
-      </div>
+      {/* Answer first, then the supporting figures — the same band as the Dashboard. */}
+      <MetricBand
+        label="Current value"
+        value={formatCurrency(metrics?.currentValue ?? 0)}
+        change={{
+          amount: formatCurrency(totalPL),
+          percent: metrics?.totalPLPercent !== undefined ? formatPercent(metrics.totalPLPercent) : undefined,
+          tone,
+        }}
+        stats={stats}
+        isLoading={isLoading}
+        notice={
+          metrics && metrics.unpricedHoldings > 0 ? (
+            <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning-light p-3 text-xs text-warning-dark">
+              <TriangleAlert aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>
+                <span className="font-medium">
+                  {metrics.unpricedHoldings} of {portfolio.holdings.length} holdings have no price
+                </span>{' '}
+                ({metrics.unpricedSymbols.join(', ')}) — the figures above cover the other{' '}
+                {portfolio.holdings.length - metrics.unpricedHoldings}. A holding with no price is
+                left out rather than counted as zero.
+              </p>
+            </div>
+          ) : undefined
+        }
+      />
 
-      {/* Best/Worst */}
+      {/* Leaders: the question "which of my holdings is doing the work?" — one row
+          each, and a way through to the full story for that stock. */}
       {metrics?.bestPerformer && (
-        <div className="grid grid-cols-2 gap-4">
-          <MetricCard title="Best Performer" value={metrics.bestPerformer.symbol} subtitle={`${metrics.bestPerformer.returnPercent >= 0 ? '+' : ''}${metrics.bestPerformer.returnPercent.toFixed(2)}%`} icon={<Award className="h-4 w-4 text-profit" />} />
-          {metrics.worstPerformer && (
-            <MetricCard title="Worst Performer" value={metrics.worstPerformer.symbol} subtitle={`${metrics.worstPerformer.returnPercent.toFixed(2)}%`} icon={<AlertTriangle className="h-4 w-4 text-loss" />} />
-          )}
-        </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle>Performance leaders</CardTitle>
+          </CardHeader>
+          <CardContent className="pb-3">
+            <ul className="divide-y">
+              {[
+                { label: 'Best', holding: metrics.bestPerformer },
+                { label: 'Worst', holding: metrics.worstPerformer },
+              ]
+                .filter((row): row is { label: string; holding: NonNullable<typeof row.holding> } => Boolean(row.holding))
+                .map(({ label, holding }) => (
+                  <li key={label}>
+                    <button
+                      type="button"
+                      onClick={() => navigate(ROUTES.STOCK_DETAIL_PATH(id, holding.symbol))}
+                      className="flex min-h-11 w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors duration-base ease-standard hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <span className="w-12 shrink-0 text-xs uppercase tracking-wide text-muted-foreground">
+                        {label}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="font-mono text-sm font-semibold">{holding.symbol}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">unrealised return</span>
+                      </span>
+                      <PLValue value={holding.returnPercent} />
+                      {label === 'Best' ? (
+                        <Award aria-hidden="true" className="h-4 w-4 shrink-0 text-profit" />
+                      ) : (
+                        <TrendingUp aria-hidden="true" className="h-4 w-4 shrink-0 text-loss" />
+                      )}
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          </CardContent>
+        </Card>
       )}
 
+      {/* Underline tabs: these are views of one portfolio, not modes of the app. */}
       <Tabs defaultValue="holdings">
-        <TabsList>
+        <TabsList variant="underline">
           <TabsTrigger value="holdings">Holdings</TabsTrigger>
-          <TabsTrigger value="charts">Charts</TabsTrigger>
+          <TabsTrigger value="charts">Value & allocation</TabsTrigger>
           <TabsTrigger
             value="comparison"
             className="max-w-[20rem]"
@@ -296,9 +353,15 @@ export function PortfolioDetail() {
         <TabsContent value="holdings" className="mt-4">
           {portfolio.holdings.length === 0 ? (
             <EmptyState
+              icon={<DollarSign className="h-6 w-6" />}
               title="No holdings yet"
-              description="Add your first stock to start tracking."
-              action={<Button onClick={() => setAddOpen(true)}><Plus className="mr-2 h-4 w-4" /> Add Holding</Button>}
+              description="Record what you bought and what you paid — the value, profit and allocation figures all come from here."
+              action={
+                <Button onClick={() => setAddOpen(true)}>
+                  <Plus aria-hidden="true" />
+                  Add holding
+                </Button>
+              }
             />
           ) : (
             <HoldingsTable
@@ -307,13 +370,15 @@ export function PortfolioDetail() {
               portfolioId={id}
               isLoading={isLoading}
               onEdit={setEditingHolding}
-              onDelete={handleDelete}
+              onDelete={(holdingId) =>
+                setHoldingToDelete(portfolio.holdings.find((h) => h.id === holdingId) ?? null)
+              }
             />
           )}
         </TabsContent>
 
         <TabsContent value="charts" className="mt-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid gap-4 lg:grid-cols-2">
             {/* A single allocation slot: the switch in the card header decides whether
                 the pie breaks the portfolio down by holding or by sector, so the row
                 never spends two cards on the same question. */}
@@ -326,9 +391,6 @@ export function PortfolioDetail() {
                     value={allocationView}
                     onValueChange={(value) => setAllocationView(value as AllocationView)}
                   >
-                    {/* Segmented (see TabsList): a bordered track whose selected half is a
-                        solid fill, so the switch reads the same way as the comparison-period
-                        control beside it. */}
                     <TabsList variant="segmented">
                       <TabsTrigger value="holdings">Holdings</TabsTrigger>
                       <TabsTrigger value="sector">Sector</TabsTrigger>
@@ -355,7 +417,7 @@ export function PortfolioDetail() {
             benchmarkLoading={benchmark.kind === 'index' ? indexQuery.isLoading : benchmarkStockLoading}
             benchmarkSelector={
               <CompanySearch
-                className="w-60"
+                className="w-full sm:w-60"
                 placeholder="Compare with an index or stock…"
                 extraOptions={INDEX_OPTIONS}
                 onSelect={(company) => setBenchmark(toBenchmark(company))}
@@ -395,6 +457,36 @@ export function PortfolioDetail() {
               onDeleteBuy={handleDeleteBuy}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Removing a holding is destructive and irreversible in this app (there is
+          no undo), so it asks first and says what will be lost. */}
+      <Dialog open={!!holdingToDelete} onOpenChange={(o) => !o && setHoldingToDelete(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Remove {holdingToDelete?.symbol}?</DialogTitle>
+            <DialogDescription>
+              {holdingToDelete && (
+                <>
+                  {holdingToDelete.shares.toLocaleString()} shares at{' '}
+                  {formatCurrency(holdingToDelete.averagePurchasePrice)} average
+                  {holdingToDelete.buys?.length
+                    ? `, with ${holdingToDelete.buys.length} logged purchase${holdingToDelete.buys.length === 1 ? '' : 's'}`
+                    : ''}
+                  . This cannot be undone.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setHoldingToDelete(null)}>
+              Keep holding
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteHolding}>
+              Remove holding
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
