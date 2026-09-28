@@ -24,6 +24,10 @@ COPY providers/ ./providers/
 COPY db/ ./db/
 COPY middleware/ ./middleware/
 COPY routes/ ./routes/
+COPY services/ ./services/
+# The suite ships with the image on purpose: `npm test` then works wherever the
+# proxy runs, with no second image and no extra tooling to keep in step.
+COPY tests/ ./tests/
 
 EXPOSE 4000
 
