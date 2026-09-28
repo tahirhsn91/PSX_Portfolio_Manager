@@ -1,3 +1,4 @@
+export * from './useAuth';
 export * from './useMarketData';
 export * from './usePortfolio';
 export * from './usePortfolioHistory';
