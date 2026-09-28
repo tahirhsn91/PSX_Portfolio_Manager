@@ -1,7 +1,12 @@
 export { ErrorBoundary } from './ErrorBoundary';
 export { EmptyState } from './EmptyState';
+export { ErrorState } from './ErrorState';
 export { EnvBanner } from './EnvBanner';
 export { MetricCard } from './MetricCard';
 export { RangeBar } from './RangeBar';
 export { PLValue } from './PLValue';
 export { CompanySearch } from './CompanySearch';
+export { MetricBand } from './MetricBand';
+export type { BandStat } from './MetricBand';
+export { NotificationBell } from './NotificationBell';
+export { PageHeader } from './PageHeader';

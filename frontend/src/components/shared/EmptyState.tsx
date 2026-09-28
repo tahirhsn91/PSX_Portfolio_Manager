@@ -9,24 +9,32 @@ interface EmptyStateProps {
   className?: string;
 }
 
+/**
+ * The empty state is where the user decides what to do next, so it carries a
+ * real action and explains the situation rather than just reporting it. The
+ * icon is decorative and hidden from assistive tech.
+ */
 export function EmptyState({ icon, title, description, action, className }: EmptyStateProps) {
   return (
     <div
       className={cn(
-        'flex flex-col items-center justify-center gap-4 rounded-lg border border-dashed p-10 text-center',
+        'flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed bg-surface/50 p-10 text-center',
         className
       )}
     >
       {icon && (
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+        <div
+          aria-hidden="true"
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-muted text-muted-foreground"
+        >
           {icon}
         </div>
       )}
-      <div>
-        <h3 className="text-lg font-semibold">{title}</h3>
-        {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+      <div className="max-w-sm space-y-1">
+        <h3 className="text-base font-semibold">{title}</h3>
+        {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </div>
-      {action && <div>{action}</div>}
+      {action && <div className="mt-1">{action}</div>}
     </div>
   );
 }
