@@ -1,6 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { AlertTriangle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ErrorState } from './ErrorState';
 
 interface Props {
   children: ReactNode;
@@ -12,6 +11,13 @@ interface State {
   error: Error | null;
 }
 
+/**
+ * A crash inside a page must not take the shell with it: the boundary sits
+ * around the routed content only, so the sidebar, header and navigation stay
+ * usable and the user can walk somewhere else. The fallback is the app's shared
+ * error state, so a thrown chart and a failed fetch look like the same class of
+ * problem rather than two different tools' idea of an error.
+ */
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
@@ -32,18 +38,12 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback;
       return (
-        <div className="flex min-h-[200px] flex-col items-center justify-center gap-4 rounded-lg border border-destructive/20 bg-destructive/5 p-8">
-          <AlertTriangle className="h-10 w-10 text-destructive" />
-          <div className="text-center">
-            <h3 className="text-lg font-semibold">Something went wrong</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {this.state.error?.message ?? 'An unexpected error occurred'}
-            </p>
-          </div>
-          <Button variant="outline" size="sm" onClick={this.reset}>
-            Try again
-          </Button>
-        </div>
+        <ErrorState
+          title="This page could not be displayed"
+          description="Something failed while rendering. The rest of the app is still usable from the navigation."
+          detail={this.state.error?.message}
+          onRetry={this.reset}
+        />
       );
     }
     return this.props.children;
