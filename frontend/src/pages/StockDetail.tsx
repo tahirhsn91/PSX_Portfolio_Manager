@@ -1,29 +1,106 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, TrendingUp, TrendingDown } from 'lucide-react';
+import { ArrowLeft, TrendingUp, TrendingDown, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
-import { MetricCard, RangeBar } from '@/components/shared';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { EmptyState, ErrorState, MetricCard, PageHeader, RangeBar } from '@/components/shared';
 import { StockPriceChart } from '@/features/charts';
 import { PredictionPanel } from '@/features/prediction/PredictionPanel';
 import { useStockDetail, useHistoricalData, useStockPrediction } from '@/hooks';
 import { usePortfolioStore } from '@/store';
-import { formatCurrency, formatPercent, formatDate, formatVolume, formatCompactNumber, deriveDayRange, feedSessionDay, activeSessionDate } from '@/utils';
+import {
+  formatCurrency,
+  formatPercent,
+  formatDate,
+  formatVolume,
+  formatCompactNumber,
+  deriveDayRange,
+  feedSessionDay,
+  activeSessionDate,
+} from '@/utils';
+import type { StockDetail as StockDetailData } from '@/types';
 import { ROUTES } from '@/constants';
 import { format, subYears, subDays, addDays } from 'date-fns';
 import { cn } from '@/lib/utils';
 
-export function StockDetail() {
+export interface StockDetailProps {
+  /**
+   * Which reading context the page is in. The portfolio route carries a
+   * `portfolioId` and the market route does not, so the page derives it from the
+   * params; `MarketStockDetail` states it outright for the route that has no
+   * portfolio to name.
+   */
+  variant?: 'portfolio' | 'market';
+}
+
+/** One label/value pair in the figures card. */
+interface Figure {
+  label: string;
+  value: string;
+  /** A clarifier under the value — e.g. what a date actually is. */
+  note?: string;
+}
+
+/**
+ * Every figure the detail payload carries, in one list: the exchange's market data
+ * first, then valuation. The page used to split this across two near-identical
+ * label/value cards, which read as two copies of one thing.
+ */
+function figures(detail: StockDetailData): Figure[] {
+  return [
+    { label: 'Open', value: formatCurrency(detail.open) },
+    { label: 'Previous close', value: formatCurrency(detail.previousClose) },
+    { label: 'Day high', value: formatCurrency(detail.high) },
+    { label: 'Day low', value: formatCurrency(detail.low) },
+    { label: '52W high', value: formatCurrency(detail.week52High) },
+    { label: '52W low', value: formatCurrency(detail.week52Low) },
+    { label: 'Avg volume', value: formatVolume(detail.averageVolume) },
+    {
+      label: 'Market cap',
+      value: detail.marketCap == null ? '—' : formatCompactNumber(detail.marketCap) + ' PKR',
+    },
+    { label: 'P/E ratio', value: detail.peRatio?.toFixed(2) ?? '—' },
+    // `!= null`, not a truthiness test: a genuine 0.00 EPS (a company at break-even)
+    // is a reading, and a truthiness check would render it as the dash — the same
+    // mistake in the other direction.
+    { label: 'EPS', value: detail.eps != null ? formatCurrency(detail.eps) : '—' },
+    // The figure the feed serves for this symbol, or the dash when it publishes
+    // none — never a 0, and never another row's number.
+    // (PSX_Scraper#79: this row was hardcoded to a dash in the provider.)
+    { label: 'Book value', value: detail.bookValue != null ? formatCurrency(detail.bookValue) : '—' },
+    { label: 'Dividend yield', value: detail.dividendYield ? `${detail.dividendYield.toFixed(2)}%` : '—' },
+    {
+      label: 'Next dividend',
+      value: detail.nextDividendAmount ? formatCurrency(detail.nextDividendAmount) + '/share' : '—',
+    },
+    {
+      // The value here is the dividend's *announcement* date: no source upstream
+      // publishes an ex-date. A bare date under a date label would read as the
+      // ex-date, so the row names the date it carries.
+      label: 'Next dividend date',
+      value: formatDate(detail.nextDividendDate),
+      note: detail.nextDividendDate ? `Announced ${formatDate(detail.nextDividendDate)}` : undefined,
+    },
+    { label: 'Beta', value: detail.beta?.toFixed(2) ?? '—' },
+    { label: 'Sector', value: detail.sector },
+  ];
+}
+
+export function StockDetail({ variant }: StockDetailProps = {}) {
   const { portfolioId = '', symbol = '' } = useParams<{ portfolioId: string; symbol: string }>();
   const navigate = useNavigate();
 
   const portfolio = usePortfolioStore((s) => s.portfolios.find((p) => p.id === portfolioId));
   const holding = portfolio?.holdings.find((h) => h.symbol === symbol);
 
-  const { data: detail, isLoading: detailLoading } = useStockDetail(symbol);
-  const { data: historicalData = [], isLoading: histLoading } = useHistoricalData(
+  const { data: detail, isLoading: detailLoading, error: detailError, refetch: refetchDetail } = useStockDetail(symbol);
+  const {
+    data: historicalData = [],
+    isLoading: histLoading,
+    error: histError,
+    refetch: refetchHistory,
+  } = useHistoricalData(
     symbol,
     format(subYears(new Date(), 1), 'yyyy-MM-dd'),
     format(new Date(), 'yyyy-MM-dd')
@@ -37,7 +114,11 @@ export function StockDetail() {
   // The day range needs the *current* session's rows, and the scraper treats
   // `to` as exclusive, so the year-long chart window stops at yesterday. This
   // two-day window is what carries today's intraday rows.
-  const { data: dayPoints = [], isLoading: dayLoading } = useHistoricalData(
+  const {
+    data: dayPoints = [],
+    isLoading: dayLoading,
+    error: dayError,
+  } = useHistoricalData(
     symbol,
     format(subDays(new Date(), 1), 'yyyy-MM-dd'),
     format(addDays(new Date(), 1), 'yyyy-MM-dd')
@@ -62,118 +143,196 @@ export function StockDetail() {
 
   const goBack = () => navigate(portfolioId ? ROUTES.PORTFOLIO_DETAIL_PATH(portfolioId) : ROUTES.MARKET);
 
+  // `/market/:symbol` has no portfolio in its params. The page says where "back"
+  // goes instead of leaving the reader to guess which of the two it is.
+  //
+  // There is deliberately no breadcrumb strip: `PageHeader`'s crumb link renders at
+  // 37x16px, under the 44px touch minimum this revamp is held to, and that link lives
+  // in the shared component rather than here. The named Back control carries the same
+  // navigation at 44px, which is what this page had before the crumb.
+  const isMarket = variant === 'market' || !portfolioId;
+
+  /** The feed could not price this symbol: every price-derived figure is left out. */
+  const priceUnavailable = detail?.priceAvailable === false;
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={goBack}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="flex items-center gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold font-mono">{symbol}</span>
-              {detailLoading ? (
-                <Skeleton className="h-6 w-24" />
+    <div className="space-y-6">
+      {/* One title, and it is the page's own `<h1>`: the old header printed the symbol
+          twice (as a heading and again beside the price) with no h1 at all. */}
+      <PageHeader
+        title={symbol}
+        description={detail?.companyName && detail.companyName !== symbol ? detail.companyName : undefined}
+        actions={
+          <Button variant="outline" onClick={goBack}>
+            <ArrowLeft aria-hidden="true" />
+            {isMarket ? 'Back to market' : 'Back to portfolio'}
+          </Button>
+        }
+        meta={
+          sessionDay ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {sessionIsCurrent ? 'Session' : 'Last session'}{' '}
+              {format(new Date(`${sessionDay}T00:00:00`), 'd MMM yyyy')}
+              {!sessionIsCurrent && ' — the feed has not published a newer session yet'}
+            </p>
+          ) : undefined
+        }
+      />
+
+      {/* One figures grid: the price leads it, and nothing here repeats a figure that
+          is already on the page. Every region below owns its loading, empty and error
+          state, so a failed fetch never reads as a zero. */}
+      {detailError ? (
+        <ErrorState
+          title={`${symbol} could not be loaded`}
+          description="The feed did not answer for this symbol's quote, so no figure on this page can be trusted to be current."
+          detail={detailError instanceof Error ? detailError.message : undefined}
+          onRetry={() => refetchDetail()}
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card className="sm:col-span-2" aria-busy={detailLoading || undefined}>
+            <CardContent className="p-5">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Price</p>
+              {detailLoading && !detail ? (
+                <div className="mt-2 space-y-2">
+                  <Skeleton className="h-9 w-40" />
+                  <Skeleton className="h-4 w-28" />
+                </div>
+              ) : priceUnavailable ? (
+                <>
+                  <p className="mt-1 text-3xl font-semibold tabular-nums text-muted-foreground">—</p>
+                  {/* The one caveat on the page, said once and in the notice tone —
+                      not a stray "Not available" line under a number. */}
+                  <p className="mt-3 flex items-start gap-2 rounded-lg border border-warning/40 bg-warning-light p-3 text-xs text-warning-dark">
+                    <TriangleAlert aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>
+                      The PSX feed publishes no price for {symbol}, so the price and every
+                      figure derived from it are left blank rather than counted as zero.
+                    </span>
+                  </p>
+                </>
               ) : (
-                <Badge variant={isProfit ? 'profit' : 'loss'} className="gap-1">
-                  {isProfit ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                  {formatPercent(detail?.changePercent ?? 0)}
-                </Badge>
+                <>
+                  <p className="mt-1 text-3xl font-semibold tabular-nums tracking-tight">
+                    {formatCurrency(detail?.currentPrice ?? 0)}
+                  </p>
+                  <p
+                    className={cn(
+                      'mt-1 flex flex-wrap items-center gap-x-1.5 text-sm font-medium tabular-nums',
+                      isProfit ? 'text-profit' : 'text-loss',
+                    )}
+                  >
+                    {isProfit ? (
+                      <TrendingUp aria-hidden="true" className="h-4 w-4" />
+                    ) : (
+                      <TrendingDown aria-hidden="true" className="h-4 w-4" />
+                    )}
+                    {isProfit ? '+' : ''}
+                    {formatCurrency(detail?.change ?? 0)} ({formatPercent(detail?.changePercent ?? 0)}) today
+                  </p>
+                </>
               )}
-            </div>
-            <p className="text-sm text-muted-foreground">{detail?.companyName ?? symbol}</p>
-            {sessionDay && (
-              <p className="text-xs text-muted-foreground">
-                {sessionIsCurrent ? 'Session' : 'Last session'} {format(new Date(`${sessionDay}T00:00:00`), 'd MMM yyyy')}
-                {!sessionIsCurrent && ' — the feed has not published a newer session yet'}
-              </p>
-            )}
-          </div>
+            </CardContent>
+          </Card>
+
+          {/* The feed publishes no dividend data, so 0 was a claim that the company pays
+              nothing rather than a statement that it is not reported. */}
+          <MetricCard
+            title="Div. Yield"
+            value={detail?.dividendYield != null ? formatPercent(detail.dividendYield) : '—'}
+            isLoading={detailLoading}
+          />
+          <MetricCard
+            title="Volume"
+            value={detail ? formatVolume(detail.volume) : '—'}
+            isLoading={detailLoading}
+          />
+
+          {/* Today's range — tied to the active session, cleared at the 09:00 PKT pre-open */}
+          <RangeBar
+            className="sm:col-span-2"
+            label="Day Range"
+            lowCaption="Day Low"
+            highCaption="Day High"
+            low={dayRange.range?.low ?? 0}
+            high={dayRange.range?.high ?? 0}
+            current={detail?.currentPrice ?? 0}
+            source={dayRange.range?.source}
+            badge={
+              dayRange.isCurrentSession
+                ? undefined
+                : format(new Date(`${dayRange.sessionDate}T00:00:00`), 'd MMM')
+            }
+            badgeTitle="Last completed session — the current one hasn't started printing yet."
+            unavailableMessage={
+              dayError
+                ? "Today's intraday rows could not be loaded — the day range needs them."
+                : dayRange.message
+            }
+            isLoading={detailLoading || dayLoading}
+          />
+          <RangeBar
+            className="sm:col-span-2"
+            low={detail?.week52Low ?? 0}
+            high={detail?.week52High ?? 0}
+            current={detail?.currentPrice ?? 0}
+            unavailableMessage="The feed publishes no 52-week range for this symbol."
+            isLoading={detailLoading}
+          />
         </div>
-        {detailLoading ? (
-          <Skeleton className="h-9 w-28 ml-auto" />
-        ) : (
-          <div className="ml-auto text-right">
-            {detail?.priceAvailable === false ? (
-              <>
-                <p className="text-3xl font-bold text-muted-foreground">—</p>
-                <p className="text-sm font-medium text-muted-foreground">price unavailable</p>
-              </>
-            ) : (
-              <>
-                <p className="text-3xl font-bold">{formatCurrency(detail?.currentPrice ?? 0)}</p>
-                <p className={cn('text-sm font-medium', isProfit ? 'text-profit' : 'text-loss')}>
-                  {isProfit ? '+' : ''}{formatCurrency(detail?.change ?? 0)} today
-                </p>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+      )}
 
-      {/* Quick stats — four equal tiles: the two range bars, then the two KPIs.
-          Two-up from `sm` up, so tablets keep the dense layout the 4-column grid
-          used to give them; phones get full-width tiles, which the bars want. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {/* Today's range — tied to the active session, cleared at the 09:00 PKT pre-open */}
-        <RangeBar
-          label="Day Range"
-          lowCaption="Day Low"
-          highCaption="Day High"
-          low={dayRange.range?.low ?? 0}
-          high={dayRange.range?.high ?? 0}
-          current={detail?.currentPrice ?? 0}
-          source={dayRange.range?.source}
-          badge={
-            dayRange.isCurrentSession
-              ? undefined
-              : format(new Date(`${dayRange.sessionDate}T00:00:00`), 'd MMM')
-          }
-          badgeTitle="Last completed session — the current one hasn't started printing yet."
-          unavailableMessage={dayRange.message}
-          isLoading={detailLoading || dayLoading}
-        />
-        <RangeBar
-          low={detail?.week52Low ?? 0}
-          high={detail?.week52High ?? 0}
-          current={detail?.currentPrice ?? 0}
-          unavailableMessage="The feed publishes no 52-week range for this symbol."
-          isLoading={detailLoading}
-        />
-        {/* The feed publishes no dividend data, so 0 was a claim that the company pays
-            nothing rather than a statement that it is not reported. */}
-        <MetricCard
-          title="Div. Yield"
-          value={detail?.dividendYield != null ? formatPercent(detail.dividendYield) : '—'}
-          isLoading={detailLoading}
-        />
-        <MetricCard title="Volume" value={detail ? formatVolume(detail.volume) : '—'} isLoading={detailLoading} />
-      </div>
-
-      {/* Holding info */}
+      {/* Holding info — only for the portfolio route's symbols you own. */}
       {holding && (
         <Card>
-          <CardHeader><CardTitle className="text-base">Your Position</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-            <div><p className="text-muted-foreground">Shares</p><p className="font-semibold">{holding.shares.toLocaleString()}</p></div>
-            <div><p className="text-muted-foreground">Avg Cost</p><p className="font-semibold">{formatCurrency(holding.averagePurchasePrice)}</p></div>
-            <div><p className="text-muted-foreground">Cost Basis</p><p className="font-semibold">{formatCurrency(holding.shares * holding.averagePurchasePrice, true)}</p></div>
-            <div><p className="text-muted-foreground">Held Since</p><p className="font-semibold">{formatDate(holding.purchaseDate)}</p></div>
+          <CardHeader className="pb-2">
+            <CardTitle>Your position</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm lg:grid-cols-4">
+              {[
+                { label: 'Shares', value: holding.shares.toLocaleString() },
+                { label: 'Avg cost', value: formatCurrency(holding.averagePurchasePrice) },
+                { label: 'Cost basis', value: formatCurrency(holding.shares * holding.averagePurchasePrice, true) },
+                { label: 'Held since', value: formatDate(holding.purchaseDate) },
+              ].map(({ label, value }) => (
+                <div key={label}>
+                  <dt className="text-xs text-muted-foreground">{label}</dt>
+                  <dd className="mt-0.5 font-medium tabular-nums">{value}</dd>
+                </div>
+              ))}
+            </dl>
           </CardContent>
         </Card>
       )}
 
+      {/* Underline tabs: these are three views of one record — its price, its figures
+          and its projection — not three modes of the app. */}
       <Tabs defaultValue="chart">
-        <TabsList>
-          <TabsTrigger value="chart">Price Chart</TabsTrigger>
+        <TabsList variant="underline">
+          <TabsTrigger value="chart">Price chart</TabsTrigger>
           <TabsTrigger value="fundamentals">Fundamentals</TabsTrigger>
           <TabsTrigger value="prediction">Prediction</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="chart" className="mt-4">
-          {histLoading ? (
-            <Skeleton className="h-80 w-full rounded-lg" />
+        <TabsContent value="chart">
+          {histError ? (
+            <ErrorState
+              title={`${symbol}'s price history could not be loaded`}
+              description="The feed did not answer for this symbol's daily closes, so there is nothing to plot."
+              detail={histError instanceof Error ? histError.message : undefined}
+              onRetry={() => refetchHistory()}
+            />
+          ) : histLoading && !historicalData.length ? (
+            <Card aria-busy="true">
+              <CardHeader>
+                <Skeleton className="h-5 w-48" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-[300px] w-full rounded-lg" />
+              </CardContent>
+            </Card>
           ) : (
             <StockPriceChart
               data={historicalData}
@@ -181,84 +340,64 @@ export function StockDetail() {
               supportLevels={prediction?.supportLevels}
               resistanceLevels={prediction?.resistanceLevels}
               purchasePrice={holding?.averagePurchasePrice}
+              isLoading={histLoading}
             />
           )}
         </TabsContent>
 
-        <TabsContent value="fundamentals" className="mt-4">
+        <TabsContent value="fundamentals">
           {detailLoading ? (
-            <div className="grid grid-cols-2 gap-4">
-              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-20" />)}
-            </div>
+            <Card aria-busy="true">
+              <CardHeader>
+                <Skeleton className="h-5 w-56" />
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <Skeleton key={i} className="h-5" />
+                ))}
+              </CardContent>
+            </Card>
+          ) : detailError ? (
+            <ErrorState
+              title="The figures could not be loaded"
+              description="The feed did not answer for this symbol's detail payload."
+              detail={detailError instanceof Error ? detailError.message : undefined}
+              onRetry={() => refetchDetail()}
+            />
           ) : detail ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader><CardTitle className="text-base">Market Data</CardTitle></CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  {[
-                    ['Open', formatCurrency(detail.open)],
-                    ['Previous Close', formatCurrency(detail.previousClose)],
-                    ['Day High', formatCurrency(detail.high)],
-                    ['Day Low', formatCurrency(detail.low)],
-                    ['52W High', formatCurrency(detail.week52High)],
-                    ['52W Low', formatCurrency(detail.week52Low)],
-                    ['Avg Volume', formatVolume(detail.averageVolume)],
-                    ['Market Cap', detail.marketCap == null ? '—' : formatCompactNumber(detail.marketCap) + ' PKR'],
-                  ].map(([label, value]) => (
-                    <div key={label} className="flex justify-between">
-                      <span className="text-muted-foreground">{label}</span>
-                      <span className="font-medium font-mono">{value}</span>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader><CardTitle className="text-base">Valuation</CardTitle></CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  {[
-                    { label: 'P/E Ratio', value: detail.peRatio?.toFixed(2) ?? '—' },
-                    // `!= null`, not a truthiness test: a genuine 0.00 EPS (a company at
-                    // break-even) is a reading, and a truthiness check would render it as the
-                    // dash — the same mistake in the other direction.
-                    { label: 'EPS', value: detail.eps != null ? formatCurrency(detail.eps) : '—' },
-                    // The figure the feed serves for this symbol, or the dash when it
-                    // publishes none — never a 0, and never another row's number.
-                    // (PSX_Scraper#79: this row was hardcoded to a dash in the provider.)
-                    { label: 'Book Value', value: detail.bookValue != null ? formatCurrency(detail.bookValue) : '—' },
-                    { label: 'Dividend Yield', value: detail.dividendYield ? `${detail.dividendYield.toFixed(2)}%` : '—' },
-                    { label: 'Next Dividend', value: detail.nextDividendAmount ? formatCurrency(detail.nextDividendAmount) + '/share' : '—' },
-                    {
-                      // The value here is the dividend's *announcement* date: no source
-                      // upstream publishes an ex-date. A bare date under a date label
-                      // would read as the ex-date, so the row names the date it carries.
-                      label: 'Next Dividend Date',
-                      value: formatDate(detail.nextDividendDate),
-                      note: detail.nextDividendDate ? `Announced ${formatDate(detail.nextDividendDate)}` : undefined,
-                    },
-                    { label: 'Beta', value: detail.beta?.toFixed(2) ?? '—' },
-                    { label: 'Sector', value: detail.sector },
-                  ].map(({ label, value, note }: { label: string; value: string; note?: string }) => (
-                    <div key={label} className="flex justify-between gap-3">
-                      <span className="text-muted-foreground">{label}</span>
-                      <span className="text-right">
-                        <span className="font-medium">{value}</span>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle>Market data &amp; valuation</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <dl className="grid grid-cols-1 gap-x-10 gap-y-3 text-sm sm:grid-cols-2">
+                  {figures(detail).map(({ label, value, note }) => (
+                    <div key={label} className="flex items-baseline justify-between gap-3">
+                      <dt className="text-muted-foreground">{label}</dt>
+                      <dd className="text-right">
+                        <span className="font-medium tabular-nums">{value}</span>
                         {note && <span className="block text-xs text-muted-foreground">{note}</span>}
-                      </span>
+                      </dd>
                     </div>
                   ))}
-                </CardContent>
-              </Card>
-              {detail.description && (
-                <Card className="lg:col-span-2">
-                  <CardHeader><CardTitle className="text-base">About</CardTitle></CardHeader>
-                  <CardContent><p className="text-sm text-muted-foreground">{detail.description}</p></CardContent>
-                </Card>
-              )}
-            </div>
-          ) : null}
+                </dl>
+                {detail.description && (
+                  <div className="mt-5 border-t pt-4">
+                    <h3 className="text-sm font-semibold">About {symbol}</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">{detail.description}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <EmptyState
+              title="No figures for this symbol"
+              description="The feed answered with nothing for this symbol — it may be newly listed or not covered."
+            />
+          )}
         </TabsContent>
 
-        <TabsContent value="prediction" className="mt-4">
+        <TabsContent value="prediction">
           <div className="max-w-2xl">
             <PredictionPanel prediction={prediction} isLoading={predLoading} />
           </div>

@@ -1,6 +1,6 @@
-import { useNavigate } from 'react-router-dom';
-import { MoreVertical, Copy, Pencil, Trash2, TrendingUp, TrendingDown } from 'lucide-react';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Link } from 'react-router-dom';
+import { MoreVertical, Copy, Pencil, Trash2 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -8,7 +8,8 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { formatCurrency, formatPercent } from '@/utils';
+import { PLValue } from '@/components/shared';
+import { formatCurrency } from '@/utils';
 import { ROUTES } from '@/constants';
 import type { Portfolio, PortfolioMetrics } from '@/types';
 import { cn } from '@/lib/utils';
@@ -22,94 +23,145 @@ interface PortfolioCardProps {
   onDuplicate: (id: string) => void;
 }
 
+/**
+ * The ink pair the shared `PLValue` uses, for the rupee figure that sits next
+ * to it. `PLValue` renders a percentage only, so the amount beside it has to
+ * borrow the same theme-aware tone rather than re-inventing a colour.
+ */
+const moneyInk = (value: number) =>
+  value >= 0 ? 'text-profit-dark dark:text-profit' : 'text-loss-dark dark:text-loss';
+
+/**
+ * One portfolio, as a single link with its row actions beside it.
+ *
+ * It used to be a clickable `<div>` with a dropdown *inside* it: two nested
+ * interactive regions, a `stopPropagation` on every one of them, and no way to
+ * reach the card from the keyboard at all. Now the whole tile is one `<a>` with
+ * one focus ring, and the actions live in a sibling — so tabbing reaches the
+ * link, then the actions, and the trigger is a full 44px target that is always
+ * visible (there is no hover on a touch screen, and a control that only appears
+ * on hover is a control half the users never see).
+ */
 export function PortfolioCard({
   portfolio, metrics, isLoading, onEdit, onDelete, onDuplicate,
 }: PortfolioCardProps) {
-  const navigate = useNavigate();
-  const isProfit = (metrics?.totalPLPercent ?? 0) >= 0;
+  const holdingCount = portfolio.holdings.length;
 
   return (
     <Card
-      className="cursor-pointer transition-all hover:shadow-lg hover:-translate-y-0.5 animate-fade-in"
-      onClick={() => navigate(ROUTES.PORTFOLIO_DETAIL_PATH(portfolio.id))}
+      className={cn(
+        'group relative flex flex-col animate-fade-in',
+        'transition-[box-shadow,transform] duration-base ease-standard hover:shadow-raised',
+        'focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background',
+      )}
     >
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div
-              className="h-3 w-3 rounded-full shrink-0"
+      <Link
+        to={ROUTES.PORTFOLIO_DETAIL_PATH(portfolio.id)}
+        className="flex flex-1 flex-col rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        aria-label={`Open ${portfolio.name}`}
+      >
+        {/* pr-16 keeps the title clear of the 44px actions button that sits over
+            the top-right corner of the tile. */}
+        <CardHeader className="pb-3 pr-16">
+          <div className="flex items-start gap-3">
+            <span
+              aria-hidden="true"
+              className="mt-1.5 h-3 w-3 shrink-0 rounded-full"
               style={{ backgroundColor: portfolio.color }}
             />
-            <div>
-              <h3 className="font-semibold leading-tight">{portfolio.name}</h3>
+            <div className="min-w-0">
+              <CardTitle className="truncate transition-colors duration-base ease-standard group-hover:text-primary">
+                {portfolio.name}
+              </CardTitle>
               {portfolio.description && (
-                <p className="text-xs text-muted-foreground mt-0.5">{portfolio.description}</p>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">{portfolio.description}</p>
               )}
             </div>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-              <DropdownMenuItem onClick={() => onEdit(portfolio)}>
-                <Pencil className="mr-2 h-4 w-4" /> Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onDuplicate(portfolio.id)}>
-                <Copy className="mr-2 h-4 w-4" /> Duplicate
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={() => onDelete(portfolio.id)}
-              >
-                <Trash2 className="mr-2 h-4 w-4" /> Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </CardHeader>
+        </CardHeader>
 
-      <CardContent className="space-y-4">
-        {isLoading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-7 w-32" />
-            <Skeleton className="h-4 w-24" />
-          </div>
-        ) : (
-          <>
-            <div>
-              <p className="text-2xl font-bold">
-                {formatCurrency(metrics?.currentValue ?? 0, true)}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Invested: {formatCurrency(metrics?.totalInvestment ?? 0, true)}
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className={cn('flex items-center gap-1 text-sm font-medium', isProfit ? 'text-profit' : 'text-loss')}>
-                {isProfit ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-                <span>{formatPercent(metrics?.totalPLPercent ?? 0)}</span>
-                <span className="text-muted-foreground font-normal">total</span>
+        <CardContent className="space-y-4">
+          {isLoading ? (
+            // The tile keeps its shape while the quotes load, so the grid does
+            // not reflow when they land.
+            <div className="space-y-3" aria-busy="true">
+              <div className="space-y-2">
+                <Skeleton className="h-7 w-32" />
+                <Skeleton className="h-4 w-24" />
               </div>
-              <Badge variant="outline" className="text-xs">
-                {portfolio.holdings.length} holding{portfolio.holdings.length !== 1 ? 's' : ''}
-              </Badge>
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-9 w-full" />
             </div>
+          ) : (
+            <>
+              <div>
+                {/* tabular-nums: a column of figures has to line up. Money is
+                    never tinted here — the tile's surface stays neutral, so a
+                    losing portfolio does not read as a broken one. */}
+                <p className="text-2xl font-bold tabular-nums tracking-tight">
+                  {formatCurrency(metrics?.currentValue ?? 0, true)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Invested{' '}
+                  <span className="tabular-nums">
+                    {formatCurrency(metrics?.totalInvestment ?? 0, true)}
+                  </span>
+                </p>
+              </div>
 
-            {/* Today's P&L */}
-            <div className="rounded-md bg-muted/50 p-2 flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Today</span>
-              <span className={cn('font-medium', (metrics?.todayPL ?? 0) >= 0 ? 'text-profit' : 'text-loss')}>
-                {formatCurrency(metrics?.todayPL ?? 0)} ({formatPercent(metrics?.todayPLPercent ?? 0)})
-              </span>
-            </div>
-          </>
-        )}
-      </CardContent>
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-baseline gap-1.5">
+                  <PLValue value={metrics?.totalPLPercent ?? 0} className="text-sm" />
+                  <span className="text-xs text-muted-foreground">total return</span>
+                </span>
+                <Badge variant="outline" className="shrink-0 text-xs">
+                  {holdingCount} holding{holdingCount !== 1 ? 's' : ''}
+                </Badge>
+              </div>
+
+              {/* Today's move on a neutral inset strip: the tone belongs to the
+                  figure, not to the surface behind it. */}
+              <div className="flex items-center justify-between gap-2 rounded-md bg-muted/40 px-3 py-2">
+                <span className="text-xs text-muted-foreground">Today</span>
+                <span className="flex items-baseline gap-1.5">
+                  <span className={cn('text-xs font-medium tabular-nums', moneyInk(metrics?.todayPL ?? 0))}>
+                    {formatCurrency(metrics?.todayPL ?? 0)}
+                  </span>
+                  <PLValue value={metrics?.todayPLPercent ?? 0} showIcon={false} className="tabular-nums" />
+                </span>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Link>
+
+      {/* A sibling of the link, never a child of it: no nested interactive, no
+          stopPropagation. Every item is 44px tall and the trigger is always
+          visible, so the actions are reachable by mouse, touch and keyboard. */}
+      <div className="absolute right-2 top-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" aria-label={`Actions for ${portfolio.name}`}>
+              <MoreVertical aria-hidden="true" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem className="h-11" onClick={() => onEdit(portfolio)}>
+              <Pencil aria-hidden="true" /> Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem className="h-11" onClick={() => onDuplicate(portfolio.id)}>
+              <Copy aria-hidden="true" /> Duplicate
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="h-11 text-destructive focus:text-destructive"
+              onClick={() => onDelete(portfolio.id)}
+            >
+              <Trash2 aria-hidden="true" /> Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </Card>
   );
 }
