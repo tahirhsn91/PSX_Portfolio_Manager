@@ -139,6 +139,20 @@ export default {
           5: { DEFAULT: 'var(--chart-loss-5)', ink: 'var(--chart-loss-5-ink)' },
         },
         'chart-flat': { DEFAULT: 'var(--chart-flat)', ink: 'var(--chart-flat-ink)' },
+        /*
+         * The category ladder: for a breakdown with no profit/loss signal, where a
+         * colour marks a category and nothing else. Deliberately not the profit/loss
+         * ladders — alternating green and red on a composition chart would claim a
+         * direction the data does not have, and green/red belong to money.
+         */
+        'chart-cat': {
+          1: { DEFAULT: 'var(--chart-cat-1)', ink: 'var(--chart-cat-1-ink)' },
+          2: { DEFAULT: 'var(--chart-cat-2)', ink: 'var(--chart-cat-2-ink)' },
+          3: { DEFAULT: 'var(--chart-cat-3)', ink: 'var(--chart-cat-3-ink)' },
+          4: { DEFAULT: 'var(--chart-cat-4)', ink: 'var(--chart-cat-4-ink)' },
+          5: { DEFAULT: 'var(--chart-cat-5)', ink: 'var(--chart-cat-5-ink)' },
+          6: { DEFAULT: 'var(--chart-cat-6)', ink: 'var(--chart-cat-6-ink)' },
+        },
         // Named series, so a chart never carries a hex of its own. Measured
         // against the card in both themes at >= 3:1, the WCAG bar for a graphic.
         'chart-benchmark': 'var(--chart-benchmark)',
