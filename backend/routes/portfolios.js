@@ -14,11 +14,14 @@
 
 const express = require('express');
 const { getPool, query } = require('../db/pool');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, blockUntilPasswordChanged } = require('../middleware/auth');
 
 const router = express.Router();
 
-router.use(requireAuth);
+// Authentication, then the forced-password-change gate: an account created with a
+// password someone else chose (a seed, or an admin's invite) can do nothing with
+// this router until it has set its own.
+router.use(requireAuth, blockUntilPasswordChanged);
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;

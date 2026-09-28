@@ -51,6 +51,8 @@ const { runMigrations }   = require('./db/migrate');
 const { ping: pingDb }    = require('./db/pool');
 const authRoutes          = require('./routes/auth');
 const portfolioRoutes     = require('./routes/portfolios');
+const userRoutes          = require('./routes/users');
+const { seedAdmin, reportOutcome } = require('./services/seedAdmin');
 
 // Flips true once migrations + a connectivity check succeed (see boot() below).
 let dbReady = false;
@@ -301,7 +303,7 @@ app.get('/api/cs/*', async (req, res) => {
 
 // Mounted after the market-data routes, so quotes keep working if the database
 // is down; these two prefixes answer 503 until the DB is reachable.
-app.use(['/api/auth', '/api/portfolios'], (_req, res, next) => {
+app.use(['/api/auth', '/api/portfolios', '/api/users'], (_req, res, next) => {
   if (!dbReady) {
     return res.status(503).json({
       error: { code: 'DB_UNAVAILABLE', message: 'Database is not reachable yet' },
@@ -312,6 +314,7 @@ app.use(['/api/auth', '/api/portfolios'], (_req, res, next) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/portfolios', portfolioRoutes);
+app.use('/api/users', userRoutes);
 
 // ── Error handler ─────────────────────────────────────────────────────────────
 
@@ -406,6 +409,15 @@ async function boot() {
   await connectDatabase();
   watchDatabase();
 
+  // The initial administrator (decision 5). Idempotent: it creates an admin only
+  // when the instance has none, so a restart can never resurrect a changed
+  // password. Absent env is not an error — the first-account exception in
+  // routes/auth.js covers a deployment that does not set it.
+  reportOutcome(await seedAdmin());
+  console.log(
+    `[proxy] Sign-up: ${process.env.ALLOW_PUBLIC_SIGNUP === 'true' ? 'open to the public' : 'closed (accounts are created by an admin)'}`,
+  );
+
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[proxy] PSX Market Data Proxy on port ${PORT}`);
     console.log(`[proxy] PSX Scraper proxy: ${PSX_SCRAPER_URL} (set PSX_SCRAPER_URL to override)`);
@@ -416,4 +428,9 @@ async function boot() {
   });
 }
 
-boot();
+// Exported for the test suite, which imports the app, brings the database up the
+// same way boot() does, and serves it on an ephemeral port. boot() additionally
+// starts the listener and the seed — a running process, not a test.
+module.exports = { app, connectDatabase };
+
+if (require.main === module) boot();
