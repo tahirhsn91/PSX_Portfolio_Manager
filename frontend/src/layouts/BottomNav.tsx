@@ -1,6 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { cn } from '@/lib/utils';
-import { NAV_ITEMS, isNavItemActive } from './nav';
+import { NAV_ITEMS, bottomNavItemClass, isNavItemActive } from './nav';
 
 /**
  * Thumb-reachable primary navigation for phones and small tablets.
@@ -26,15 +25,9 @@ export function BottomNav() {
           return (
             <li key={to}>
               {/* h-14 (56px) clears the 44x44 touch-target floor with room for a label. */}
-              <NavLink
-                to={to}
-                aria-current={isActive ? 'page' : undefined}
-                className={cn(
-                  'flex h-14 flex-col items-center justify-center gap-1 text-[11px] font-medium leading-none transition-colors',
-                  isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <Icon className="h-5 w-5" aria-hidden="true" />
+              <NavLink to={to} aria-current={isActive ? 'page' : undefined} className={bottomNavItemClass(isActive)}>
+                <Icon aria-hidden="true" className="h-5 w-5" />
+                {/* text-xs, not text-[11px]: it is the only label on the control. */}
                 <span>{label}</span>
               </NavLink>
             </li>

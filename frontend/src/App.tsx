@@ -30,7 +30,8 @@ function AppRoutes() {
       {/* Redirect root to dashboard */}
       <Route path={ROUTES.HOME} element={<Navigate to={ROUTES.DASHBOARD} replace />} />
 
-      {/* Main layout wraps all app routes */}
+      {/* Main layout wraps all app routes — including the 404, so a mistyped URL
+          still lands somewhere with navigation instead of a dead end. */}
       <Route element={<MainLayout />}>
         <Route path={ROUTES.DASHBOARD} element={<Dashboard />} />
         <Route path={ROUTES.PORTFOLIOS} element={<Portfolios />} />
@@ -39,9 +40,8 @@ function AppRoutes() {
         <Route path={ROUTES.MARKET} element={<Market />} />
         <Route path={ROUTES.MARKET_STOCK} element={<StockDetail />} />
         <Route path={ROUTES.SETTINGS} element={<Settings />} />
+        <Route path={ROUTES.NOT_FOUND} element={<NotFound />} />
       </Route>
-
-      <Route path={ROUTES.NOT_FOUND} element={<NotFound />} />
     </Routes>
   );
 }
