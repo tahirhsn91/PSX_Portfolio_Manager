@@ -79,13 +79,13 @@ export function RangeBar({
   const outOfRange = hasRange && hasCurrent && (current < low || current > high);
 
   return (
-    <div className={cn('rounded-lg border bg-card p-6 text-card-foreground shadow-sm', className)}>
+    <div className={cn('rounded-lg border bg-card p-6 text-card-foreground shadow-card', className)}>
       <div className="flex items-baseline justify-between gap-4">
         <p className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           {label}
           {hasRange && hasCurrent && source === 'observed' && (
             <span
-              className="rounded-full border bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide"
+              className="rounded-full border bg-muted px-2 py-1 text-xs font-medium uppercase tracking-wide"
               title="Derived from the prices recorded so far this session — the feed has no exact day high/low yet."
             >
               recorded
@@ -93,7 +93,7 @@ export function RangeBar({
           )}
           {hasRange && hasCurrent && badge && (
             <span
-              className="rounded-full border bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide"
+              className="rounded-full border bg-muted px-2 py-1 text-xs font-medium uppercase tracking-wide"
               title={badgeTitle}
             >
               {badge}
@@ -121,7 +121,7 @@ export function RangeBar({
             />
             {/* the marker: sits on the track, centred on its position */}
             <div
-              className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-primary shadow-sm transition-[left] duration-500 ease-out"
+              className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-primary shadow-card transition-[left] duration-slow ease-standard motion-reduce:transition-none"
               style={{ left: `${position}%` }}
               title={`${formatCurrency(current)} — ${position.toFixed(0)}% of range`}
             />

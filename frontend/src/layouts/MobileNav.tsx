@@ -65,7 +65,7 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
           <nav className="flex-1 space-y-4 overflow-y-auto p-2" aria-label="Main navigation">
             {NAV_GROUPS.map((group) => (
               <div key={group.label}>
-                <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {group.label}
                 </p>
                 <ul className="space-y-1">

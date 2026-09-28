@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 const ToastProvider = ToastPrimitive.Provider;
 
 const toastVariants = cva(
-  'group pointer-events-auto relative flex w-full items-start gap-3 overflow-hidden rounded-xl border p-4 pr-10 shadow-overlay transition-all duration-base ease-standard data-[state=open]:animate-fade-in data-[state=closed]:opacity-0 data-[state=swipeend]:translate-x-full data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=cancel]:translate-x-0',
+  'group pointer-events-auto relative flex w-full items-start gap-3 overflow-hidden rounded-xl border p-4 pr-10 shadow-overlay transition-[transform,opacity] duration-base ease-standard data-[state=open]:animate-fade-in motion-reduce:animate-none data-[state=closed]:opacity-0 data-[state=swipeend]:translate-x-full data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=cancel]:translate-x-0',
   {
     variants: {
       variant: {
