@@ -176,6 +176,14 @@ services:
   proxy-prod:
     profiles: [prod]
     container_name: psx-proxy-prod
+    # The proxy composes DATABASE_URL from DB_HOST + POSTGRES_* and refuses to boot without
+    # JWT_SECRET. Those arrive from .env.local (env_file), and compose does not validate the
+    # contents of an env_file — only that the file exists — so name them here and let
+    # scripts/deploy.sh refuse a deploy that is missing one. This is the exact failure that
+    # took :6101 down on 2026-09-28 07:34: the deploy came up without them and the proxy
+    # crash-looped until the host's .env.local was fixed by hand.
+    labels:
+      deploy.require: "JWT_SECRET,POSTGRES_USER,POSTGRES_PASSWORD,POSTGRES_DB"
     build:
       context: ./backend         # build context is the backend/ subfolder
       dockerfile: Dockerfile
