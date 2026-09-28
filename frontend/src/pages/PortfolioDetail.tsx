@@ -101,11 +101,22 @@ export function PortfolioDetail() {
 
   if (!portfolio || !id) {
     return (
-      <EmptyState
-        title="Portfolio not found"
-        description="It may have been deleted, or the link may belong to another device's data."
-        action={<Button onClick={() => navigate(ROUTES.PORTFOLIOS)}>Back to portfolios</Button>}
-      />
+      // The heading stays: a page whose early return skipped it had no <h1> at
+      // all, so nothing named the screen for a screen reader or in the outline.
+      <div className="space-y-6">
+        <PageHeader
+          breadcrumbs={[{ label: 'Portfolios', to: ROUTES.PORTFOLIOS }, { label: 'Not found' }]}
+          title="Portfolio not found"
+          description="It may have been deleted, or the link may belong to another device's data."
+        />
+        <div className="mx-auto max-w-xl py-10">
+          <EmptyState
+            title="Portfolio not found"
+            description="It may have been deleted, or the link may belong to another device's data."
+            action={<Button onClick={() => navigate(ROUTES.PORTFOLIOS)}>Back to portfolios</Button>}
+          />
+        </div>
+      </div>
     );
   }
 
