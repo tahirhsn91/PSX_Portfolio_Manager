@@ -1,11 +1,17 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Activity } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LineChart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
-import { NAV_ITEMS, isNavItemActive } from './nav';
+import { NAV_GROUPS, isNavItemActive, navItemClass } from './nav';
 
+/**
+ * Desktop navigation. The items are grouped (workspace vs configuration) instead
+ * of being one flat list, and each group is labelled — with four destinations the
+ * flat list was fine, but the labels cost nothing and the structure is what makes
+ * a fifth one obvious to place.
+ */
 export function Sidebar() {
   const { isSidebarCollapsed, toggleSidebar } = useUIStore();
   const { pathname } = useLocation();
@@ -14,58 +20,67 @@ export function Sidebar() {
     <aside
       className={cn(
         // Hidden below `md` — the drawer and bottom bar own phone navigation.
-        'hidden md:flex flex-col border-r bg-card transition-all duration-300 ease-in-out',
-        isSidebarCollapsed ? 'w-16' : 'w-64'
+        'hidden shrink-0 flex-col border-r bg-card md:flex',
+        // Width only: `transition-all` also animated borders and padding on every
+        // hover in the subtree.
+        'transition-[width] duration-base ease-standard motion-reduce:transition-none',
+        isSidebarCollapsed ? 'w-16' : 'w-60'
       )}
     >
-      {/* Logo */}
-      <div className="flex h-16 items-center border-b px-4 gap-3">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary">
-          <Activity className="h-5 w-5 text-primary-foreground" />
+      {/* Brand */}
+      <div className="flex h-16 items-center gap-3 border-b px-3">
+        <div
+          aria-hidden="true"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground"
+        >
+          <LineChart className="h-5 w-5" />
         </div>
         {!isSidebarCollapsed && (
-          <div className="flex flex-col leading-tight">
-            <span className="font-bold text-sm">PSX Portfolio</span>
-            <span className="text-xs text-muted-foreground">Manager</span>
+          <div className="flex min-w-0 flex-col leading-tight">
+            <span className="truncate text-sm font-semibold">PSX Portfolio</span>
+            <span className="truncate text-xs text-muted-foreground">Manager</span>
           </div>
         )}
       </div>
 
-      {/* Navigation */}
+      {/* Destinations */}
       <TooltipProvider delayDuration={0}>
-        <nav className="flex-1 p-2 space-y-1">
-          {NAV_ITEMS.map(({ label, icon: Icon, to }) => {
-            const isActive = isNavItemActive(pathname, to);
-
-            return (
-              <Tooltip key={to} disableHoverableContent={!isSidebarCollapsed}>
-                <TooltipTrigger asChild>
-                  {/* className must stay a plain string: `asChild` renders through
-                      Radix `Slot`, which merges props by string-joining
-                      `className` — the function form gets String()-ified into
-                      the class attribute and every utility is dropped. */}
-                  <NavLink
-                    to={to}
-                    className={cn(
-                      // h-11 = 44px: the touch-target floor, measured in the mobile audit
-                      // (rows were 239x36 and sat under the 44pt recommendation).
-                      'flex h-11 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors',
-                      isActive
-                        ? 'bg-primary text-primary-foreground'
-                        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-                      isSidebarCollapsed && 'justify-center px-2'
-                    )}
-                  >
-                    <Icon className="h-5 w-5 shrink-0" />
-                    {!isSidebarCollapsed && <span>{label}</span>}
-                  </NavLink>
-                </TooltipTrigger>
-                {isSidebarCollapsed && (
-                  <TooltipContent side="right">{label}</TooltipContent>
-                )}
-              </Tooltip>
-            );
-          })}
+        <nav aria-label="Main navigation" className="flex-1 space-y-4 overflow-y-auto p-2">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label}>
+              {!isSidebarCollapsed && (
+                <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {group.label}
+                </p>
+              )}
+              <ul className="space-y-1">
+                {group.items.map(({ label, icon: Icon, to }) => {
+                  const isActive = isNavItemActive(pathname, to);
+                  return (
+                    <li key={to}>
+                      <Tooltip disableHoverableContent={!isSidebarCollapsed}>
+                        <TooltipTrigger asChild>
+                          {/* className must stay a plain string: `asChild` renders through
+                              Radix `Slot`, which merges props by string-joining
+                              `className` — the function form gets String()-ified into
+                              the class attribute and every utility is dropped. */}
+                          <NavLink
+                            to={to}
+                            aria-current={isActive ? 'page' : undefined}
+                            className={navItemClass(isActive, isSidebarCollapsed ? 'justify-center px-2' : '')}
+                          >
+                            <Icon aria-hidden="true" className="h-5 w-5 shrink-0" />
+                            {!isSidebarCollapsed && <span className="truncate">{label}</span>}
+                          </NavLink>
+                        </TooltipTrigger>
+                        {isSidebarCollapsed && <TooltipContent side="right">{label}</TooltipContent>}
+                      </Tooltip>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
         </nav>
       </TooltipProvider>
 
@@ -74,14 +89,15 @@ export function Sidebar() {
         <Button
           variant="ghost"
           size="icon"
-          className="h-11 w-full"
+          className="w-full"
           onClick={toggleSidebar}
           aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!isSidebarCollapsed}
         >
           {isSidebarCollapsed ? (
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight aria-hidden="true" className="h-4 w-4" />
           ) : (
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft aria-hidden="true" className="h-4 w-4" />
           )}
         </Button>
       </div>
