@@ -180,10 +180,23 @@ for name, s in sorted(services.items()):
 PY
 }
 
-# The port mapping the resolved project would publish, as "[deploy]   <service>  <host> -> <container>".
-# Used by --check: nothing is running yet, so `compose port` has nothing to report — and the
-# *configured* mapping is what a host gets wrong (a missing override publishes 3000/4000 and
-# collides with the scraper's API).
+# The port the resolved project will publish for a service's container port. Read from the config
+# rather than from `compose port`, which reports nothing until the containers exist — a cold host
+# (first deploy, or after a reboot) would otherwise fail here and refuse to deploy at all.
+configured_port_of() { # configured_port_of <service> <container-port>
+  python3 - "$CFG_JSON" "$1" "$2" <<'PY'
+import json, sys
+cfg = json.load(open(sys.argv[1]))
+svc, target = sys.argv[2], sys.argv[3]
+for p in ((cfg.get('services') or {}).get(svc) or {}).get('ports') or []:
+    if str(p.get('target')) == target:
+        print(p.get('published') or '')
+        break
+PY
+}
+
+# Every published mapping the resolved project would create, for --check to print.
+# A missing override publishes 3000/4000 and collides with the scraper's production API.
 configured_ports_from_cfg() {
   python3 - "$CFG_JSON" <<'PY'
 import json, sys
@@ -238,8 +251,14 @@ fi
 port_of() { # port_of <service> <container-port>
   "${COMPOSE[@]}" port "$1" "$2" 2>/dev/null | head -1 | awk -F: '{print $NF}' | tr -d '[:space:]'
 }
-PROXY_PORT="$(port_of proxy-prod 4000 || true)"
-FRONTEND_PORT="$(port_of app-prod 80 || true)"
+# From the resolved config first: it is the source of truth for what will be published, and unlike
+# `compose port` it answers on a cold host. Fall back to the live mapping if the config has none.
+PROXY_PORT="$(configured_port_of proxy-prod 4000)"
+FRONTEND_PORT="$(configured_port_of app-prod 80)"
+if [ -z "$PROXY_PORT" ] || [ -z "$FRONTEND_PORT" ]; then
+  PROXY_PORT="$(port_of proxy-prod 4000 || true)"
+  FRONTEND_PORT="$(port_of app-prod 80 || true)"
+fi
 if [ -z "$PROXY_PORT" ] || [ -z "$FRONTEND_PORT" ]; then
   echo "[deploy] ERROR: could not read the published ports from compose (proxy='$PROXY_PORT' frontend='$FRONTEND_PORT')" >&2
   "${COMPOSE[@]}" ps >&2
