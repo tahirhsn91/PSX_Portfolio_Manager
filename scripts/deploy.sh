@@ -8,18 +8,29 @@
 #   * by hand:  git fetch origin && git checkout -B main origin/main && git reset --hard origin/main
 #               bash scripts/deploy.sh
 #
-# Services: `--profile prod` deploys every production service the compose file defines —
-# app-prod (nginx :6100) and proxy-prod (express :6101) today; db-prod joins automatically once
-# the compose file on main carries it. Nothing here names a service, so a new prod service needs
-# no change to this script.
+# Services: `--profile prod` deploys every production service the compose file defines — nothing
+# here names a service, so a new prod service needs no change to this script.
 #
 # Idempotent: safe to re-run. It gates on the published ports it reads back from compose, on the
 # proxy's /health, on the frontend answering 200, and on container state, and exits non-zero on
 # any problem — so a failed deploy fails the workflow instead of leaving something broken live.
 #
-# Partial failure is safe by construction: `compose up -d --build` builds every image BEFORE it
-# recreates anything, so a commit that does not compile aborts the deploy while the previously
-# running containers keep serving.
+# Two properties keep a broken deploy from taking production down with it:
+#
+#   1. PREFLIGHT, before anything is touched. The resolved project (`docker compose config
+#      --format json`, which inlines every env_file value) is inspected: a variable a service
+#      needs at container *start* must be present and non-empty — the ones an image refuses to
+#      initialise without (POSTGRES_PASSWORD for a postgres service) and the ones a healthcheck
+#      expands inside the container (`$$VAR`). Missing names abort the deploy with the exact list,
+#      instead of surfacing minutes later as
+#      "dependency failed to start: container … is unhealthy".
+#   2. DEPENDENCIES FIRST. Services are started in dependency order, computed from the same config,
+#      and each level must be healthy before the next level is created. A datastore that cannot
+#      start therefore fails the deploy while the previously running app containers keep serving —
+#      they are never recreated into a half-started state. Only the last level is built.
+#
+# Deliberately NOT done: rollback, blue/green, or restarting app containers to "recover". A failed
+# deploy stops at the failing level and says so.
 # =============================================================================
 set -euo pipefail
 
@@ -30,9 +41,12 @@ PROFILE="prod"
 COMPOSE=(docker compose --profile "$PROFILE")
 HEALTH_TIMEOUT=150
 SETTLE_TIMEOUT=150
+DEP_TIMEOUT=120     # per dependency level (a datastore initialising a fresh volume)
 FRONTEND_GRACE=30   # nginx has no /health endpoint; give it a moment before the first probe
 
 COMMIT="$(git rev-parse --short HEAD)"
+
+if command -v python3 >/dev/null 2>&1; then HAVE_PY=true; else HAVE_PY=false; fi
 
 echo "==============================================================="
 echo "[deploy] repo    : $REPO_DIR"
@@ -68,9 +82,81 @@ if ! flock -n 9; then
 fi
 echo "[deploy] lock acquired ($LOCK_FILE)"
 
-# ── Build + start ─────────────────────────────────────────────────────────────
-echo "[deploy] build + start (recreates changed services; the proxy blips for ~20s)"
-"${COMPOSE[@]}" up -d --build
+# ── Preflight: the project's own shape, read from compose ─────────────────────
+CFG_JSON="$(mktemp -t psx-pm-prod-cfg.XXXXXX.json)"
+trap 'rm -f "$CFG_JSON"' EXIT
+
+if ! "${COMPOSE[@]}" config --format json >"$CFG_JSON" 2>/dev/null; then
+  echo "[deploy] ERROR: 'docker compose … config' failed — the compose files do not resolve:" >&2
+  "${COMPOSE[@]}" config >&2 || true
+  echo "[deploy] NOTHING WAS TOUCHED." >&2
+  exit 2
+fi
+
+# Services grouped by dependency depth, printed as "LEVEL<TAB>service", shallowest first.
+levels_from_cfg() {
+  python3 - "$CFG_JSON" <<'PY'
+import json, sys
+cfg = json.load(open(sys.argv[1]))
+services = cfg.get('services') or {}
+deps = {n: list((s.get('depends_on') or {}).keys()) for n, s in services.items()}
+level = {}
+def depth(n, seen=()):
+    if n in level:
+        return level[n]
+    d = 0
+    for p in deps.get(n, []):
+        if p in services and p not in seen:
+            d = max(d, depth(p, seen + (n,)) + 1)
+    level[n] = d
+    return d
+for n in services:
+    depth(n)
+for n in sorted(services, key=lambda s: (level[s], s)):
+    print("%d\t%s" % (level[n], n))
+PY
+}
+
+# Variables a service needs at container start that the resolved environment does not provide.
+# Prints "MISSING<TAB>service<TAB>VAR<TAB>why"; never prints a value.
+missing_from_cfg() {
+  python3 - "$CFG_JSON" <<'PY'
+import json, re, sys
+cfg = json.load(open(sys.argv[1]))
+services = cfg.get('services') or {}
+for name, s in sorted(services.items()):
+    env = {k: ('' if v is None else str(v)) for k, v in (s.get('environment') or {}).items()}
+    image = str(s.get('image') or '')
+    # postgres runs initdb on first start and refuses to do so without a superuser password: the
+    # container exits 1, its healthcheck never passes, and compose aborts the whole run — that is
+    # how a deploy used to leave the app containers created-but-never-started, i.e. an outage.
+    if image.split(':')[0].rsplit('/', 1)[-1] == 'postgres' and not env.get('POSTGRES_PASSWORD'):
+        print("MISSING\t%s\tPOSTGRES_PASSWORD\t%s refuses to initialise without it" % (name, image))
+    # `$$VAR` in a healthcheck is expanded INSIDE the container, so the variable must reach it.
+    test = (s.get('healthcheck') or {}).get('test') or []
+    text = ' '.join(test) if isinstance(test, list) else str(test)
+    for var in sorted(set(re.findall(r'\$\$([A-Za-z_][A-Za-z0-9_]*)', text))):
+        if not env.get(var):
+            print("MISSING\t%s\t%s\tread by that service's healthcheck but never set" % (name, var))
+PY
+}
+
+if [ "$HAVE_PY" = true ]; then
+  MISSING="$(missing_from_cfg || true)"
+  if [ -n "$MISSING" ]; then
+    echo "[deploy] ERROR: the '$PROFILE' profile needs variables this host does not provide:" >&2
+    while IFS=$'\t' read -r _ svc var why; do
+      [ -z "${svc:-}" ] && continue
+      echo "[deploy]   - $svc: $var — $why" >&2
+    done <<<"$MISSING"
+    echo "[deploy] Add them to this checkout's gitignored env file (.env.local) and re-run." >&2
+    echo "[deploy] NOTHING WAS TOUCHED — no container was built, recreated or restarted." >&2
+    exit 2
+  fi
+  echo "[deploy] preflight: every variable the prod services need at start is present and non-empty"
+else
+  echo "[deploy] WARNING: python3 not found — skipping the env preflight and the dependency-ordered start" >&2
+fi
 
 # ── Read the published ports back from compose ────────────────────────────────
 # Never hardcode 6100/6101: they are configured in the gitignored override, and a probe against a
@@ -89,6 +175,96 @@ PROXY_URL="http://127.0.0.1:${PROXY_PORT}/health"
 FRONTEND_URL="http://127.0.0.1:${FRONTEND_PORT}/"
 echo "[deploy] targets : proxy $PROXY_URL | frontend $FRONTEND_URL"
 
+# ── Container-state helper ────────────────────────────────────────────────────
+# A freshly recreated container reports health "starting" for its start_period, so a check that
+# demands "healthy" immediately would fail every good deploy. Wait for the set to settle instead,
+# and fail fast on anything genuinely wrong.
+#
+# `{{else}}none{{end}}` matters: a service without a healthcheck would otherwise emit an empty
+# field, shifting OOMKilled/RestartCount into the wrong variables.
+#
+# wait_well <timeout-seconds> <service>...  →  0 well, 1 problems (reported in $PROBLEMS), 2 timeout
+PROBLEMS=""
+wait_well() {
+  local timeout="$1"; shift
+  local deadline=$((SECONDS + timeout)) ids
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    PROBLEMS=""
+    local pending=0 notrunning=0
+    ids="$("${COMPOSE[@]}" ps -q "$@" 2>/dev/null || true)"
+    if [ -n "$ids" ]; then
+      # shellcheck disable=SC2086  # $ids is deliberately word-split: one arg per container id
+      while read -r name state health oom restarts; do
+        [ -z "$name" ] && continue
+        name="${name#/}"
+        notrunning=1
+        case "$state" in running) ;; *) PROBLEMS="$PROBLEMS $name(state=$state)";; esac
+        case "$health" in
+          healthy|none) ;;
+          starting) pending=$((pending + 1)) ;;
+          *) PROBLEMS="$PROBLEMS $name(health=$health)" ;;
+        esac
+        [ "$oom" = "true" ] && PROBLEMS="$PROBLEMS $name(OOMKilled)"
+        [ "${restarts:-0}" -gt 0 ] 2>/dev/null && PROBLEMS="$PROBLEMS $name(restarts=$restarts)"
+      done < <(docker inspect $ids --format '{{.Name}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} {{.State.OOMKilled}} {{.RestartCount}}' 2>/dev/null)
+    else
+      pending=1
+    fi
+    [ -n "$PROBLEMS" ] && return 1
+    [ "$pending" -eq 0 ] && [ "$notrunning" = 1 ] && return 0
+    sleep 1
+  done
+  return 2
+}
+
+dump_logs() {
+  local svc
+  for svc in "$@"; do
+    echo "[deploy] --- last 30 log lines of $svc ---" >&2
+    "${COMPOSE[@]}" logs --tail=30 "$svc" >&2 || true
+  done
+}
+
+# ── Build + start, dependencies first ─────────────────────────────────────────
+if [ "$HAVE_PY" = true ]; then
+  PLAN="$(levels_from_cfg)"
+  MAX_LEVEL="$(printf '%s\n' "$PLAN" | cut -f1 | sort -n | tail -1)"
+  echo "[deploy] start plan (dependency depth):"
+  while IFS=$'\t' read -r lvl svc; do
+    [ -n "${svc:-}" ] && echo "[deploy]   level $lvl: $svc"
+  done <<<"$PLAN"
+
+  lvl=0
+  while [ "$lvl" -le "$MAX_LEVEL" ]; do
+    LVL_SVCS="$(printf '%s\n' "$PLAN" | awk -F'\t' -v l="$lvl" '$1 == l {print $2}' | tr '\n' ' ')"
+    if [ -n "${LVL_SVCS// /}" ]; then
+      if [ "$lvl" -lt "$MAX_LEVEL" ]; then
+        echo "[deploy] dependency level $lvl: build + start $LVL_SVCS — the app services are not touched until these are healthy"
+        # shellcheck disable=SC2086  # deliberate word-split: one arg per service
+        "${COMPOSE[@]}" up -d --build $LVL_SVCS
+        # shellcheck disable=SC2086
+        if wait_well "$DEP_TIMEOUT" $LVL_SVCS; then
+          echo "[deploy] dependency level $lvl healthy"
+        else
+          echo "[deploy] ERROR: dependency level $lvl did not come up well:$PROBLEMS" >&2
+          # shellcheck disable=SC2086
+          dump_logs $LVL_SVCS
+          echo "[deploy] The deploy stopped here. The app containers were NOT recreated, so whatever was serving keeps serving." >&2
+          exit 1
+        fi
+      else
+        echo "[deploy] app level $lvl: build + start $LVL_SVCS (recreates changed services; the proxy blips for ~20s)"
+        # shellcheck disable=SC2086
+        "${COMPOSE[@]}" up -d --build $LVL_SVCS
+      fi
+    fi
+    lvl=$((lvl + 1))
+  done
+else
+  echo "[deploy] build + start (this recreates changed services; the proxy blips for ~20s)"
+  "${COMPOSE[@]}" up -d --build
+fi
+
 # ── Gate 1: the proxy answers ─────────────────────────────────────────────────
 echo "[deploy] waiting up to ${HEALTH_TIMEOUT}s for $PROXY_URL"
 healthy=false
@@ -101,8 +277,8 @@ for i in $(seq 1 "$HEALTH_TIMEOUT"); do
   sleep 1
 done
 if [ "$healthy" != true ]; then
-  echo "[deploy] ERROR: proxy did not become healthy within ${HEALTH_TIMEOUT}s — last 40 proxy log lines:" >&2
-  "${COMPOSE[@]}" logs --tail=40 proxy-prod >&2 || true
+  echo "[deploy] ERROR: proxy did not become healthy within ${HEALTH_TIMEOUT}s" >&2
+  dump_logs proxy-prod
   exit 1
 fi
 
@@ -116,8 +292,8 @@ for i in $(seq 1 "$FRONTEND_GRACE"); do
 done
 echo "[deploy] frontend: HTTP ${frontend_code} ($FRONTEND_URL)"
 if [ "$frontend_code" != "200" ]; then
-  echo "[deploy] ERROR: frontend did not return 200 — last 40 app log lines:" >&2
-  "${COMPOSE[@]}" logs --tail=40 app-prod >&2 || true
+  echo "[deploy] ERROR: frontend did not return 200" >&2
+  dump_logs app-prod
   exit 1
 fi
 
@@ -128,46 +304,18 @@ if [ -z "$ids" ]; then
   exit 1
 fi
 
-# A freshly recreated container reports health "starting" for its start_period, so a check that
-# demands "healthy" immediately would fail every good deploy. Wait for the set to settle instead,
-# and fail fast on anything genuinely wrong.
-#
-# `{{else}}none{{end}}` matters: a service without a healthcheck would otherwise emit an empty
-# field, shifting OOMKilled/RestartCount into the wrong variables.
+ALL_SVCS="$("${COMPOSE[@]}" config --services | tr '\n' ' ')"
 echo "[deploy] waiting up to ${SETTLE_TIMEOUT}s for containers to settle"
-settled=false
-for i in $(seq 1 "$SETTLE_TIMEOUT"); do
-  pending=0
-  problems=""
-  # shellcheck disable=SC2086  # $ids is deliberately word-split: one arg per container id
-  while read -r name state health oom restarts; do
-    [ -z "$name" ] && continue
-    name="${name#/}"
-    case "$state" in running) ;; *) problems="$problems $name(state=$state)";; esac
-    case "$health" in
-      healthy|none) ;;
-      starting) pending=$((pending + 1)) ;;
-      *) problems="$problems $name(health=$health)" ;;
-    esac
-    [ "$oom" = "true" ] && problems="$problems $name(OOMKilled)"
-    [ "${restarts:-0}" -gt 0 ] 2>/dev/null && problems="$problems $name(restarts=$restarts)"
-  done < <(docker inspect $ids --format '{{.Name}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} {{.State.OOMKilled}} {{.RestartCount}}' 2>/dev/null)
-
-  if [ -n "$problems" ]; then
-    echo "[deploy] ERROR: containers are not well after deploy:$problems" >&2
-    "${COMPOSE[@]}" ps >&2
-    exit 1
+# shellcheck disable=SC2086
+if wait_well "$SETTLE_TIMEOUT" $ALL_SVCS; then
+  echo "[deploy] all containers settled"
+else
+  rc=$?
+  if [ "$rc" = 1 ]; then
+    echo "[deploy] ERROR: containers are not well after deploy:$PROBLEMS" >&2
+  else
+    echo "[deploy] ERROR: containers still not settled after ${SETTLE_TIMEOUT}s" >&2
   fi
-  if [ "$pending" -eq 0 ]; then
-    settled=true
-    echo "[deploy] all containers settled after ${i}s"
-    break
-  fi
-  sleep 1
-done
-
-if [ "$settled" != true ]; then
-  echo "[deploy] ERROR: containers still reporting 'starting' after ${SETTLE_TIMEOUT}s" >&2
   "${COMPOSE[@]}" ps >&2
   exit 1
 fi
