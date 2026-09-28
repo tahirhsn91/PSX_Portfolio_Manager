@@ -45,7 +45,7 @@ export function NotificationBell() {
             <Badge
               variant="loss"
               aria-hidden="true"
-              className="absolute -right-0.5 -top-0.5 h-5 min-w-5 justify-center px-1 text-[10px] tabular-nums"
+              className="absolute -right-0.5 -top-0.5 h-5 min-w-5 justify-center px-1 text-xs tabular-nums"
             >
               {unreadCount > 9 ? '9+' : unreadCount}
             </Badge>
@@ -107,7 +107,7 @@ export function NotificationBell() {
                     {n.message && (
                       <span className="mt-0.5 block text-xs text-muted-foreground">{n.message}</span>
                     )}
-                    <span className="mt-1 block text-[11px] text-muted-foreground">
+                    <span className="mt-1 block text-xs text-muted-foreground">
                       {formatDate(n.createdAt, 'relative')}
                     </span>
                   </span>

@@ -21,9 +21,9 @@ export function EnvBanner() {
     <div
       role="status"
       aria-label={label}
-      // Hard-coded, theme-independent colours: this must stay red-on-white in
-      // both light and dark mode, so it never blends into the app chrome.
-      className="shrink-0 bg-[#c62828] px-2 py-[3px] text-center text-[11px] font-bold uppercase leading-[1.6] tracking-[0.08em] text-white"
+      // Fixed colour, theme-independent — see `--dev-banner-bg` in index.css: this
+      // must stay the same red in light and dark so it never blends into the chrome.
+      className="shrink-0 bg-dev-banner px-2 py-1 text-center text-xs font-bold uppercase leading-[1.6] tracking-[0.08em] text-dev-banner-fg"
     >
       {label}
     </div>
