@@ -11,6 +11,7 @@ import { useKSE100, usePortfolioHistory, useSectorPerformance } from '@/hooks';
 import { usePortfolioStore } from '@/store';
 import { ROUTES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
 import { formatCurrency, formatPercent } from '@/utils';
+import { cn } from '@/lib/utils';
 import { useState } from 'react';
 
 /** One row of the movers list. */
@@ -102,7 +103,7 @@ export function Dashboard() {
       }];
     });
 
-  const gainers = [...movers].sort((a, b) => b.returnPercent - a.returnPercent).slice(0, 3);
+  const gainers = [...movers].sort((a, b) => b.returnPercent - a.returnPercent).filter((m) => m.returnPercent > 0).slice(0, 3);
   // A loser list that shows a flat holding would be noise; "down" means down.
   const losers = [...movers].sort((a, b) => a.returnPercent - b.returnPercent).filter((m) => m.returnPercent < 0).slice(0, 3);
 
@@ -203,9 +204,11 @@ export function Dashboard() {
       </div>
 
       {/* Holdings composition and the market's own sector performance, side by side:
-          one is "where my money is", the other is "what the market did". */}
+          one is "where my money is", the other is "what the market did" — but only
+          when both exist. With one, it takes the full width instead of leaving a
+          dead column beside it. */}
       {(pieData.length > 0 || sectorData.length > 0) && (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className={cn('grid gap-4', pieData.length > 0 && sectorData.length > 0 && 'lg:grid-cols-2')}>
           {pieData.length > 0 && (
             <AllocationPieChart data={pieData} title="Where your money is" />
           )}
