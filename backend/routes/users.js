@@ -20,7 +20,9 @@
 
 'use strict';
 
+const crypto = require('crypto');
 const express = require('express');
+const bcrypt = require('bcryptjs');
 const { query } = require('../db/pool');
 const { requireAuth, requireRole, blockUntilPasswordChanged } = require('../middleware/auth');
 const { serializeUser, countAdmins, recordEvent, clientIp } = require('../services/users');
@@ -28,6 +30,21 @@ const { serializeUser, countAdmins, recordEvent, clientIp } = require('../servic
 const router = express.Router();
 
 const ROLES = ['admin', 'user'];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * A first password, generated rather than chosen.
+ *
+ * The alphabet omits the characters that get misread when somebody reads it aloud or
+ * copies it by hand — 0/O, 1/l/I — because this password is meant to be handed over
+ * once and then never used again. It exists only to get the account to its forced
+ * password change.
+ */
+const PASSWORD_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+function generateFirstPassword(length = 16) {
+  const bytes = crypto.randomBytes(length);
+  return Array.from(bytes, (b) => PASSWORD_ALPHABET[b % PASSWORD_ALPHABET.length]).join('');
+}
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 
 const invalid = (res, message) =>
@@ -67,6 +84,63 @@ async function loadGuardedTarget(req, res, verb) {
   }
   return target;
 }
+
+// ── POST /api/users ───────────────────────────────────────────────────────────
+// Creating an account. Decision 10 asks how an admin-created account gets its first
+// password; this is that decision implemented the safe way round — the server
+// generates one, returns it exactly once so the admin can hand it over, and flags the
+// account `must_change_password`. Nothing is chosen by the admin, and nothing is
+// stored in readable form: the row holds a bcrypt hash like every other account.
+//
+// The event kind is `signup` because that is what happened — an account came into
+// existence. What distinguishes it from the self-service path is `actor_id`, which
+// names the admin, and the meta that records the role that was granted.
+router.post(
+  '/',
+  wrap(async (req, res) => {
+    const body = req.body ?? {};
+    const errors = [];
+
+    const email = String(body.email ?? '').trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) errors.push('A valid email address is required');
+
+    const displayName = String(body.displayName ?? '').trim().slice(0, 100) || email;
+
+    const role = body.role === undefined ? 'user' : body.role;
+    if (!ROLES.includes(role)) errors.push(`Role must be one of: ${ROLES.join(', ')}`);
+
+    if (errors.length) return invalid(res, errors.join('; '));
+
+    const existing = await query('SELECT 1 FROM users WHERE email = $1', [email]);
+    if (existing.rows.length) {
+      return res.status(409).json({
+        error: { code: 'EMAIL_TAKEN', message: 'An account already uses that email address' },
+      });
+    }
+
+    const firstPassword = generateFirstPassword();
+    const passwordHash = await bcrypt.hash(firstPassword, 10);
+
+    const { rows } = await query(
+      `INSERT INTO users (email, password_hash, display_name, role, must_change_password)
+       VALUES ($1, $2, $3, $4, TRUE)
+       RETURNING id, email, display_name, role, is_active, must_change_password,
+                 phone, timezone, preferences, created_at, last_login_at`,
+      [email, passwordHash, displayName, role],
+    );
+
+    await recordEvent('signup', {
+      userId: rows[0].id,
+      actorId: req.user.id,
+      ip: clientIp(req),
+      meta: { email, role, createdByAdmin: true },
+    });
+
+    // The only time this password exists outside the admin's eyes: it is never
+    // stored, never logged, and cannot be read back.
+    return res.status(201).json({ user: serializeUser(rows[0]), firstPassword });
+  }),
+);
 
 // ── GET /api/users ────────────────────────────────────────────────────────────
 // Listing and search. `portfolioCount` is an aggregate: the matrix gives admins
