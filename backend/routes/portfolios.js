@@ -15,6 +15,7 @@
 const express = require('express');
 const { getPool, query } = require('../db/pool');
 const { requireAuth, blockUntilPasswordChanged } = require('../middleware/auth');
+const ledger = require('../services/ledger');
 
 const router = express.Router();
 
@@ -49,7 +50,24 @@ function serializeDividend(row) {
   };
 }
 
-function serializeHolding(row, dividends) {
+/**
+ * One entry in a holding's buy log. `totalCost` is derived here rather than stored —
+ * it is `shares x pricePerShare` to the paisa, which is what the frontend's
+ * `BuyRecord` carries and what its reconciliation check expects.
+ */
+function serializeBuy(row) {
+  return {
+    id: row.id,
+    holdingId: row.holding_id,
+    date: isoDate(row.date),
+    shares: num(row.shares),
+    pricePerShare: num(row.price_per_share),
+    totalCost: ledger.roundMoney(num(row.shares) * num(row.price_per_share)),
+    kind: row.kind,
+  };
+}
+
+function serializeHolding(row, dividends, buys = []) {
   return {
     id: row.id,
     portfolioId: row.portfolio_id,
@@ -61,6 +79,9 @@ function serializeHolding(row, dividends) {
     purchaseDate: isoDate(row.purchase_date),
     ...(row.notes ? { notes: row.notes } : {}),
     dividendsReceived: dividends,
+    // Required by the frontend's `Holding`, so it is always an array — a holding
+    // with no log is an empty one, never `undefined`.
+    buys,
   };
 }
 
@@ -109,10 +130,26 @@ async function listPortfolios(userId) {
     dividendsByHolding.set(d.holding_id, list);
   }
 
+  const buyRows = holdingIds.length
+    ? (
+        await query(
+          'SELECT * FROM holding_buys WHERE holding_id = ANY($1::uuid[]) ORDER BY date, created_at',
+          [holdingIds],
+        )
+      ).rows
+    : [];
+
+  const buysByHolding = new Map();
+  for (const b of buyRows) {
+    const list = buysByHolding.get(b.holding_id) ?? [];
+    list.push(serializeBuy(b));
+    buysByHolding.set(b.holding_id, list);
+  }
+
   const holdingsByPortfolio = new Map();
   for (const h of holdingRows) {
     const list = holdingsByPortfolio.get(h.portfolio_id) ?? [];
-    list.push(serializeHolding(h, dividendsByHolding.get(h.id) ?? []));
+    list.push(serializeHolding(h, dividendsByHolding.get(h.id) ?? [], buysByHolding.get(h.id) ?? []));
     holdingsByPortfolio.set(h.portfolio_id, list);
   }
 
@@ -131,6 +168,19 @@ async function findOwnedPortfolio(userId, id) {
   return rows[0] ?? null;
 }
 
+/** Ownership gate for a single logged purchase, joined through its portfolio. */
+async function findOwnedBuy(userId, portfolioId, holdingId, buyId) {
+  if (!UUID_RE.test(buyId)) return null;
+  const { rows } = await query(
+    `SELECT b.* FROM holding_buys b
+       JOIN holdings h ON h.id = b.holding_id
+       JOIN portfolios p ON p.id = h.portfolio_id
+      WHERE b.id = $1 AND b.holding_id = $2 AND h.portfolio_id = $3 AND p.user_id = $4`,
+    [buyId, holdingId, portfolioId, userId],
+  );
+  return rows[0] ?? null;
+}
+
 async function findOwnedHolding(userId, portfolioId, holdingId) {
   if (!UUID_RE.test(holdingId)) return null;
   const { rows } = await query(
@@ -146,6 +196,9 @@ const notFound = (res) =>
   res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Not found' } });
 const invalid = (res, message) =>
   res.status(400).json({ error: { code: 'INVALID_INPUT', message } });
+// Decision 14: an edit the log cannot represent is refused, not half-applied.
+const conflict = (res, message) =>
+  res.status(409).json({ error: { code: 'LOG_CONFLICT', message } });
 
 // ── Validation ────────────────────────────────────────────────────────────────
 
@@ -209,6 +262,25 @@ function readHoldingInput(body = {}, { partial = false } = {}) {
   if (body.notes !== undefined) out.notes = body.notes ? String(body.notes).trim().slice(0, 2000) : null;
 
   return { values: out, errors };
+}
+
+/** A logged purchase. `kind` is never accepted from a client: opening entries are
+ *  the server's way of representing a position, not something a caller declares. */
+function readBuyInput(body = {}) {
+  const errors = [];
+
+  const date = String(body.date ?? '').slice(0, 10);
+  if (!DATE_RE.test(date)) errors.push('Date must be YYYY-MM-DD');
+
+  const shares = Number(body.shares);
+  if (!Number.isFinite(shares) || shares <= 0) errors.push('Shares must be greater than 0');
+
+  const pricePerShare = Number(body.pricePerShare);
+  if (!Number.isFinite(pricePerShare) || pricePerShare < 0) {
+    errors.push('Price per share must be 0 or greater');
+  }
+
+  return { values: { date, shares, pricePerShare }, errors };
 }
 
 function readDividendInput(body = {}) {
@@ -301,6 +373,12 @@ router.post(
           const symbol = String(h?.symbol ?? '').trim().toUpperCase().slice(0, 10);
           if (!symbol) continue;
 
+          const shares = Number(h.shares) || 0;
+          const averagePurchasePrice = Number(h.averagePurchasePrice) || 0;
+          const purchaseDate = DATE_RE.test(String(h.purchaseDate ?? ''))
+            ? String(h.purchaseDate).slice(0, 10)
+            : isoDate(new Date());
+
           const holding = await client.query(
             `INSERT INTO holdings
                (portfolio_id, company_name, symbol, sector, shares, avg_purchase_price, purchase_date, notes)
@@ -310,12 +388,46 @@ router.post(
               String(h.companyName ?? symbol).trim().slice(0, 100),
               symbol,
               h.sector ? String(h.sector).trim().slice(0, 100) : null,
-              Number(h.shares) || 0,
-              Number(h.averagePurchasePrice) || 0,
-              DATE_RE.test(String(h.purchaseDate ?? '')) ? String(h.purchaseDate).slice(0, 10) : isoDate(new Date()),
+              shares,
+              averagePurchasePrice,
+              purchaseDate,
               h.notes ? String(h.notes).trim().slice(0, 2000) : null,
             ],
           );
+          const holdingId = holding.rows[0].id;
+
+          // The log travels with the holding it describes, so an import restores it —
+          // `opening` row included. A holding that arrives without one is seeded from
+          // its own totals instead of being left with an empty log, which would derive
+          // to nothing and lose the shares.
+          let logged = 0;
+          for (const b of Array.isArray(h.buys) ? h.buys : []) {
+            const buyShares = Number(b?.shares);
+            const buyPrice = Number(b?.pricePerShare);
+            if (!Number.isFinite(buyShares) || buyShares <= 0) continue;
+            if (!Number.isFinite(buyPrice) || buyPrice < 0) continue;
+
+            await client.query(
+              `INSERT INTO holding_buys (holding_id, date, shares, price_per_share, kind)
+               VALUES ($1, $2, $3, $4, $5)`,
+              [
+                holdingId,
+                DATE_RE.test(String(b?.date ?? '')) ? String(b.date).slice(0, 10) : purchaseDate,
+                buyShares,
+                buyPrice,
+                b?.kind === 'opening' ? 'opening' : 'buy',
+              ],
+            );
+            logged += 1;
+          }
+          if (!logged) {
+            await ledger.ensureOpeningEntry(client, {
+              id: holdingId,
+              shares,
+              avg_purchase_price: averagePurchasePrice,
+              purchase_date: purchaseDate,
+            });
+          }
 
           for (const d of Array.isArray(h.dividendsReceived) ? h.dividendsReceived : []) {
             if (!DATE_RE.test(String(d?.date ?? ''))) continue;
@@ -456,22 +568,35 @@ router.post(
     const { values, errors } = readHoldingInput(req.body);
     if (errors.length) return invalid(res, errors.join('; '));
 
-    await query(
-      `INSERT INTO holdings
-         (portfolio_id, company_name, symbol, sector, shares, avg_purchase_price, purchase_date, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [
-        portfolio.id,
-        values.companyName,
-        values.symbol,
-        values.sector ?? null,
-        values.shares,
-        values.averagePurchasePrice,
-        values.purchaseDate,
-        values.notes ?? null,
-      ],
-    );
-    await query('UPDATE portfolios SET updated_at = NOW() WHERE id = $1', [portfolio.id]);
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query(
+        `INSERT INTO holdings
+           (portfolio_id, company_name, symbol, sector, shares, avg_purchase_price, purchase_date, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        [
+          portfolio.id,
+          values.companyName,
+          values.symbol,
+          values.sector ?? null,
+          values.shares,
+          values.averagePurchasePrice,
+          values.purchaseDate,
+          values.notes ?? null,
+        ],
+      );
+      // The Add form writes the totals directly, so the log is seeded with what it
+      // just created. Without this the holding's first read would derive to nothing.
+      await ledger.ensureOpeningEntry(client, rows[0]);
+      await client.query('UPDATE portfolios SET updated_at = NOW() WHERE id = $1', [portfolio.id]);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
 
     return res.status(201).json({ portfolio: await loadPortfolio(req.user.id, portfolio.id) });
   }),
@@ -505,9 +630,44 @@ router.patch(
     }
     if (!sets.length) return invalid(res, 'Nothing to update');
 
-    params.push(holding.id);
-    await query(`UPDATE holdings SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
-    await query('UPDATE portfolios SET updated_at = NOW() WHERE id = $1', [holding.portfolio_id]);
+    // A change to the position's quantity, average or date is expressed through the
+    // log (decision 14): the Edit form keeps writing them, and the server keeps the
+    // log deriving to the result by rewriting the holding's `opening` entry.
+    const changesPosition =
+      values.shares !== undefined ||
+      values.averagePurchasePrice !== undefined ||
+      values.purchaseDate !== undefined;
+
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+
+      if (sets.length) {
+        params.push(holding.id);
+        await client.query(`UPDATE holdings SET ${sets.join(', ')} WHERE id = $${params.length}`, params);
+      }
+
+      if (changesPosition) {
+        const absorbed = await ledger.absorbEdit(client, holding, {
+          shares: values.shares ?? num(holding.shares),
+          averagePurchasePrice: values.averagePurchasePrice ?? num(holding.avg_purchase_price),
+          purchaseDate: values.purchaseDate ?? isoDate(holding.purchase_date),
+        });
+        if (!absorbed.ok) {
+          await client.query('ROLLBACK');
+          return conflict(res, absorbed.reason);
+        }
+        await ledger.deriveFromLog(client, holding.id);
+      }
+
+      await client.query('UPDATE portfolios SET updated_at = NOW() WHERE id = $1', [holding.portfolio_id]);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
 
     return res.json({ portfolio: await loadPortfolio(req.user.id, holding.portfolio_id) });
   }),
@@ -523,6 +683,88 @@ router.delete(
     await query('UPDATE portfolios SET updated_at = NOW() WHERE id = $1', [holding.portfolio_id]);
 
     return res.json({ portfolio: await loadPortfolio(req.user.id, holding.portfolio_id) });
+  }),
+);
+
+// ── The buy log ────────────────────────────────────────────────────────────────
+// The log is the source of truth, so each of these re-derives the holding inside the
+// same transaction and answers with the whole portfolio — the re-derived holding
+// included — rather than a fragment the client would have to splice in.
+
+/** Runs `fn` in a transaction, so a holding and its log can never disagree. */
+async function withTransaction(fn) {
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+router.post(
+  '/:id/holdings/:holdingId/buys',
+  wrap(async (req, res) => {
+    const holding = await findOwnedHolding(req.user.id, req.params.id, req.params.holdingId);
+    if (!holding) return notFound(res);
+
+    const { values, errors } = readBuyInput(req.body);
+    if (errors.length) return invalid(res, errors.join('; '));
+
+    await withTransaction(async (client) => {
+      await ledger.addBuy(client, holding, values);
+      await client.query('UPDATE portfolios SET updated_at = NOW() WHERE id = $1', [holding.portfolio_id]);
+    });
+
+    return res.status(201).json({ portfolio: await loadPortfolio(req.user.id, holding.portfolio_id) });
+  }),
+);
+
+router.patch(
+  '/:id/holdings/:holdingId/buys/:buyId',
+  wrap(async (req, res) => {
+    const holding = await findOwnedHolding(req.user.id, req.params.id, req.params.holdingId);
+    if (!holding) return notFound(res);
+    const buy = await findOwnedBuy(req.user.id, req.params.id, holding.id, req.params.buyId);
+    if (!buy) return notFound(res);
+
+    const { values, errors } = readBuyInput(req.body);
+    if (errors.length) return invalid(res, errors.join('; '));
+
+    await withTransaction(async (client) => {
+      await ledger.updateBuy(client, holding.id, buy.id, values);
+      await client.query('UPDATE portfolios SET updated_at = NOW() WHERE id = $1', [holding.portfolio_id]);
+    });
+
+    return res.json({ portfolio: await loadPortfolio(req.user.id, holding.portfolio_id) });
+  }),
+);
+
+router.delete(
+  '/:id/holdings/:holdingId/buys/:buyId',
+  wrap(async (req, res) => {
+    const holding = await findOwnedHolding(req.user.id, req.params.id, req.params.holdingId);
+    if (!holding) return notFound(res);
+    const buy = await findOwnedBuy(req.user.id, req.params.id, holding.id, req.params.buyId);
+    if (!buy) return notFound(res);
+
+    // Removing the last entry removes the holding — an empty log describes nothing —
+    // so the response says which of the two happened.
+    const result = await withTransaction(async (client) => {
+      const outcome = await ledger.deleteBuy(client, holding.id, buy.id);
+      await client.query('UPDATE portfolios SET updated_at = NOW() WHERE id = $1', [holding.portfolio_id]);
+      return outcome;
+    });
+
+    return res.json({
+      portfolio: await loadPortfolio(req.user.id, holding.portfolio_id),
+      holdingRemoved: result.kind === 'holding-removed',
+    });
   }),
 );
 
