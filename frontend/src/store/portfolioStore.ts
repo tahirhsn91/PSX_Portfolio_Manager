@@ -26,7 +26,7 @@ import type {
   BuyInput,
   DeleteBuyResult,
 } from '@/types';
-import { PORTFOLIO_COLORS } from '@/constants';
+import { PORTFOLIO_COLORS, STORAGE_KEYS } from '@/constants';
 import { portfoliosApi } from '@/services';
 import { ApiError } from '@/services/http';
 
@@ -106,6 +106,14 @@ interface PortfolioState {
   // Import / Export
   /** Restore a backup through the server, which decides what a re-import means. */
   importPortfolios: (portfolios: Portfolio[]) => Promise<{ added: number; updated: number }>;
+  /**
+   * How many portfolios this browser still holds from before the move to Postgres.
+   * Counted, never sent: uploading somebody's old rows without them asking would be
+   * a surprise, so the count is shown and the import is a deliberate act.
+   */
+  countBrowserPortfolios: () => number;
+  /** Send those portfolios to the account, then clear them out of the browser. */
+  importFromBrowser: () => Promise<{ added: number; updated: number }>;
   /** Everything the account owns, for a file the user keeps. */
   exportPortfolios: () => Promise<Portfolio[]>;
   /** Delete every portfolio the account owns. Irreversible: the caller confirms first. */
@@ -121,6 +129,40 @@ const messageFor = (err: unknown): string => {
 
 const holdingIn = (portfolios: Portfolio[], portfolioId: string, holdingId: string) =>
   portfolios.find((p) => p.id === portfolioId)?.holdings.find((h) => h.id === holdingId);
+
+/**
+ * The rows this browser persisted before portfolios lived on the server.
+ *
+ * Zustand's `persist` wrote `{ state: { portfolios }, version }`, so that is the shape
+ * to read — defensively, because a half-written or hand-edited entry must not break the
+ * page that offers to rescue it. Old rows predate `buys`, so each holding gets an empty
+ * log, which the server seeds from its totals.
+ */
+function readBrowserPortfolios(): Portfolio[] {
+  if (typeof localStorage === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.PORTFOLIOS);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as { state?: { portfolios?: Portfolio[] } };
+    const portfolios = parsed?.state?.portfolios;
+    if (!Array.isArray(portfolios)) return [];
+    return portfolios.map((portfolio) => ({
+      ...portfolio,
+      holdings: (portfolio.holdings ?? []).map((holding) => ({ ...holding, buys: holding.buys ?? [] })),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function clearBrowserPortfolios() {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.removeItem(STORAGE_KEYS.PORTFOLIOS);
+  } catch {
+    /* nothing to do: the rows are on the server now, and the key is inert */
+  }
+}
 
 export const usePortfolioStore = create<PortfolioState>()((set, get) => ({
   portfolios: [],
@@ -317,6 +359,22 @@ export const usePortfolioStore = create<PortfolioState>()((set, get) => ({
       const { portfolios: after, imported } = await portfoliosApi.importAll(portfolios);
       set({ portfolios: after, loaded: true, error: null });
       return { added: imported, updated: 0 };
+    } catch (err) {
+      set({ error: messageFor(err) });
+      throw err;
+    }
+  },
+
+  countBrowserPortfolios: () => readBrowserPortfolios().length,
+
+  importFromBrowser: async () => {
+    const stale = readBrowserPortfolios();
+    if (!stale.length) return { added: 0, updated: 0 };
+    try {
+      const counts = await get().importPortfolios(stale);
+      // Only once the server has them: a failed upload must not lose the only copy.
+      clearBrowserPortfolios();
+      return counts;
     } catch (err) {
       set({ error: messageFor(err) });
       throw err;

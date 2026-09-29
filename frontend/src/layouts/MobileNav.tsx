@@ -2,7 +2,8 @@ import { useEffect } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { NavLink, useLocation } from 'react-router-dom';
 import { LineChart, X } from 'lucide-react';
-import { NAV_GROUPS, isNavItemActive, navItemClass } from './nav';
+import { useMe } from '@/hooks';
+import { navGroupsFor, isNavItemActive, navItemClass } from './nav';
 
 interface MobileNavProps {
   /** Drawer visibility, owned by MainLayout so the Header can toggle it. */
@@ -24,6 +25,9 @@ interface MobileNavProps {
  */
 export function MobileNav({ open, onOpenChange }: MobileNavProps) {
   const { pathname } = useLocation();
+  const { data: user } = useMe();
+  // Only decides whether the admin group is drawn; the server is what refuses it.
+  const isAdmin = user?.role === 'admin';
 
   // Tapping a link must close the drawer: Radix keeps it mounted across a
   // client-side route change, so the new page would appear behind an open
@@ -63,7 +67,7 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
           </div>
 
           <nav className="flex-1 space-y-4 overflow-y-auto p-2" aria-label="Main navigation">
-            {NAV_GROUPS.map((group) => (
+            {navGroupsFor(isAdmin).map((group) => (
               <div key={group.label}>
                 <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {group.label}
