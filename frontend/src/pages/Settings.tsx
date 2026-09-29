@@ -83,7 +83,7 @@ const nextFrame = () =>
 
 export function Settings() {
   const { settings, updateSettings, resetSettings } = useUIStore();
-  const { portfolios, importPortfolios, clearAll } = usePortfolioStore();
+  const { portfolios, importPortfolios, exportPortfolios, clearAll } = usePortfolioStore();
   const addNotification = useUIStore((s) => s.addNotification);
   const { theme, setTheme } = useTheme();
   const reducedMotion = useReducedMotion();
@@ -136,8 +136,30 @@ export function Settings() {
     setDataError(null);
     try {
       await nextFrame();
-      storageService.exportToFile();
-      addNotification({ type: 'success', title: 'Backup exported', message: 'JSON file downloaded.' });
+      // The backup comes from the account, not from this browser: what is written is
+      // what the server holds, which is the only thing a restore can reproduce.
+      const exported = await exportPortfolios();
+      const blob = new Blob(
+        [
+          JSON.stringify(
+            { version: APP_VERSION, exportedAt: new Date().toISOString(), portfolios: exported },
+            null,
+            2
+          ),
+        ],
+        { type: 'application/json' }
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `psx-portfolio-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      addNotification({
+        type: 'success',
+        title: 'Backup exported',
+        message: `${exported.length} portfolio${exported.length === 1 ? '' : 's'} written to the file.`,
+      });
     } catch (err) {
       const message = (err as Error).message || 'The backup could not be written.';
       setDataError(`Export failed — ${message}. Nothing was changed.`);
@@ -169,9 +191,9 @@ export function Settings() {
           });
           return;
         }
-        // Importing a backup again changes nothing, so report both numbers —
-        // otherwise a restore that updated everything looks like it did nothing.
-        const { added, updated } = importPortfolios(data.portfolios);
+        // The server decides what a re-import means, so the numbers reported are the
+        // ones it computed rather than the ones this page guessed.
+        const { added, updated } = await importPortfolios(data.portfolios);
         addNotification({
           type: 'success',
           title: 'Import complete',
@@ -190,10 +212,21 @@ export function Settings() {
 
   // The confirmation lives in a dialog now (see below) — `window.confirm` blocked the
   // thread, could not be styled, and could not say how much was about to be deleted.
-  const handleClearAll = () => {
-    clearAll();
-    setClearOpen(false);
-    addNotification({ type: 'info', title: 'All data cleared' });
+  const handleClearAll = async () => {
+    try {
+      await clearAll();
+      setClearOpen(false);
+      addNotification({ type: 'info', title: 'All data cleared' });
+    } catch (err) {
+      // Deleting many rows can stop half-way; the store has already resynced from the
+      // server, so what the page shows next is what actually remains.
+      setClearOpen(false);
+      addNotification({
+        type: 'error',
+        title: 'Could not clear everything',
+        message: (err as Error).message,
+      });
+    }
   };
 
   const handleResetDone = () => {
