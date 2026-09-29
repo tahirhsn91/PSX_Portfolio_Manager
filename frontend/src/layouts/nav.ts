@@ -1,4 +1,12 @@
-import { LayoutDashboard, Briefcase, BarChart2, Settings, UserRound, type LucideIcon } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Briefcase,
+  BarChart2,
+  Settings,
+  UserRound,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ROUTES } from '@/constants';
 
@@ -8,7 +16,9 @@ export interface NavItem {
   to: string;
   /** The one-line answer to "what is behind this link", used by the drawer. */
   description: string;
-  group: 'Workspace' | 'Configuration';
+  group: 'Workspace' | 'Configuration' | 'Administration';
+  /** Destinations only an admin may see. The server gates them regardless. */
+  adminOnly?: boolean;
 }
 
 /**
@@ -52,9 +62,33 @@ export const NAV_ITEMS: readonly NavItem[] = [
     description: 'Your account and password',
     group: 'Configuration',
   },
+  {
+    label: 'Users',
+    icon: Users,
+    to: ROUTES.ADMIN_USERS,
+    description: 'Accounts: create, suspend, change roles',
+    group: 'Administration',
+    adminOnly: true,
+  },
 ];
 
 /** Sidebar groupings; the order here is the order on screen. */
+const NAV_GROUP_ORDER: readonly NavItem['group'][] = ['Workspace', 'Configuration', 'Administration'];
+
+/**
+ * The groupings an account may see. Hiding a destination is a convenience, not a
+ * permission — the server refuses an admin route to a non-admin whatever the nav
+ * shows — but showing an admin a door that is bolted to them is still wrong.
+ */
+export function navGroupsFor(isAdmin: boolean): { label: NavItem['group']; items: NavItem[] }[] {
+  const visible = NAV_ITEMS.filter((item) => isAdmin || !item.adminOnly);
+  return NAV_GROUP_ORDER.map((label) => ({
+    label,
+    items: visible.filter((item) => item.group === label),
+  })).filter((group) => group.items.length > 0);
+}
+
+/** Kept for the bottom bar, which shows a flat list and never an admin destination. */
 export const NAV_GROUPS: readonly { label: NavItem['group']; items: readonly NavItem[] }[] = [
   { label: 'Workspace', items: NAV_ITEMS.filter((i) => i.group === 'Workspace') },
   { label: 'Configuration', items: NAV_ITEMS.filter((i) => i.group === 'Configuration') },

@@ -5,7 +5,7 @@
 # Usage   : make <target>
 # =============================================================================
 
-.PHONY: help dev prod build-prod stop clean logs shell
+.PHONY: help dev prod build-prod stop clean logs shell test test-frontend test-backend
 
 # ── Default target ─────────────────────────────────────────────────────────
 help:
@@ -85,3 +85,16 @@ shell-proxy:
 
 shell-prod:
 	docker compose --profile prod exec app-prod sh
+
+# ── Tests ──────────────────────────────────────────────────────────────────
+# The backend suite talks to its own database (psx_portfolio_test) and refuses to run
+# against anything else, so it is safe beside a working stack. Both suites need the
+# dev containers up: make dev-detach first.
+test: test-frontend test-backend
+
+test-frontend:
+	docker compose --profile dev exec -T app-dev npx vitest run
+
+test-backend:
+	docker cp backend/. $$(docker compose --profile dev ps -q proxy-dev):/app/
+	docker compose --profile dev exec -T proxy-dev npm test

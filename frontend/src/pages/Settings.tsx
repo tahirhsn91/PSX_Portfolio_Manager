@@ -83,7 +83,11 @@ const nextFrame = () =>
 
 export function Settings() {
   const { settings, updateSettings, resetSettings } = useUIStore();
-  const { portfolios, importPortfolios, exportPortfolios, clearAll } = usePortfolioStore();
+  const { portfolios, importPortfolios, exportPortfolios, clearAll, countBrowserPortfolios, importFromBrowser } =
+    usePortfolioStore();
+  // Rows left in this browser from before portfolios moved to the account. Read once,
+  // then updated only by the import itself.
+  const [staleCount, setStaleCount] = useState(() => countBrowserPortfolios());
   const addNotification = useUIStore((s) => s.addNotification);
   const { theme, setTheme } = useTheme();
   const reducedMotion = useReducedMotion();
@@ -93,6 +97,7 @@ export function Settings() {
   const [clearOpen, setClearOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isImportingStale, setIsImportingStale] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
 
   const storageInfo = storageService.getStorageInfo();
@@ -212,6 +217,26 @@ export function Settings() {
 
   // The confirmation lives in a dialog now (see below) — `window.confirm` blocked the
   // thread, could not be styled, and could not say how much was about to be deleted.
+  const handleImportFromBrowser = async () => {
+    setIsImportingStale(true);
+    setDataError(null);
+    try {
+      const { added } = await importFromBrowser();
+      setStaleCount(countBrowserPortfolios());
+      addNotification({
+        type: 'success',
+        title: 'Imported from this browser',
+        message: `${added} portfolio${added === 1 ? '' : 's'} now on your account.`,
+      });
+    } catch (err) {
+      const message = (err as Error).message || 'The import could not be completed.';
+      setDataError(`Import failed — ${message}. Nothing was changed.`);
+      addNotification({ type: 'error', title: 'Import failed', message });
+    } finally {
+      setIsImportingStale(false);
+    }
+  };
+
   const handleClearAll = async () => {
     try {
       await clearAll();
@@ -417,13 +442,14 @@ export function Settings() {
               <CardHeader>
                 <CardTitle>Storage &amp; backups</CardTitle>
                 <CardDescription>
-                  {portfolioLabel} and every setting live in this browser only — nothing is sent anywhere.
+                  {portfolioLabel} live in your account on the server, so signing in anywhere shows
+                  them. Your settings stay on this device.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
-                    <span className="text-muted-foreground">Storage used</span>
+                    <span className="text-muted-foreground">Browser storage used</span>
                     <span className="font-medium tabular-nums">
                       {(storageInfo.used / 1024).toFixed(1)} KB /{' '}
                       {(storageInfo.total / 1024 / 1024).toFixed(0)} MB ({storageInfo.usedPercent}%)
@@ -457,6 +483,29 @@ export function Settings() {
                     <Upload aria-hidden="true" /> Import backup
                   </Button>
                 </div>
+
+                {/* The one-time path for a browser that tracked portfolios before they
+                    moved to Postgres. It is offered, never automatic: sending somebody's
+                    old rows to the server without them asking would be a surprise. */}
+                {staleCount > 0 && (
+                  <div className="space-y-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-3" role="status">
+                    <p className="text-sm">
+                      This browser still holds{' '}
+                      <span className="font-medium">
+                        {staleCount} portfolio{staleCount === 1 ? '' : 's'}
+                      </span>{' '}
+                      from before they moved to your account.
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => void handleImportFromBrowser()}
+                      loading={isImportingStale}
+                      className="w-full sm:w-auto"
+                    >
+                      <Upload aria-hidden="true" /> Import them into my account
+                    </Button>
+                  </div>
+                )}
 
                 {dataError && (
                   <p
