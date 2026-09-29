@@ -12,62 +12,13 @@
  */
 
 import type { AuthUser } from '@/types';
+import { ApiError, request as httpRequest } from '../http';
 
-const PROXY_BASE = (import.meta.env.VITE_PROXY_BASE_URL ?? 'http://localhost:4000').replace(
-  /\/$/,
-  ''
-);
+export { ApiError };
 
-export class ApiError extends Error {
-  readonly status: number;
-  readonly code: string;
-
-  constructor(status: number, code: string, message: string) {
-    super(message);
-    this.name = 'ApiError';
-    this.status = status;
-    this.code = code;
-  }
-
-  /** The account is fine but cannot act until it changes its password. */
-  get needsPasswordChange(): boolean {
-    return this.code === 'PASSWORD_CHANGE_REQUIRED';
-  }
-}
-
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  let res: Response;
-  try {
-    res = await fetch(`${PROXY_BASE}/api/auth${path}`, {
-      ...init,
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(init.headers ?? {}),
-      },
-    });
-  } catch {
-    throw new ApiError(
-      0,
-      'NETWORK_ERROR',
-      'Cannot reach the server. Check your connection and try again.'
-    );
-  }
-
-  const text = await res.text();
-  const body = text ? (JSON.parse(text) as unknown) : null;
-
-  if (!res.ok) {
-    const envelope = body as { error?: { code?: string; message?: string } } | null;
-    throw new ApiError(
-      res.status,
-      envelope?.error?.code ?? 'UNKNOWN',
-      envelope?.error?.message ?? `Request failed (${res.status})`
-    );
-  }
-
-  return body as T;
-}
+/** Every call here is scoped to the account API; the shared client does the rest. */
+const request = <T,>(path: string, init: RequestInit = {}): Promise<T> =>
+  httpRequest<T>(`/api/auth${path}`, init);
 
 export interface ProfilePatch {
   displayName?: string;
