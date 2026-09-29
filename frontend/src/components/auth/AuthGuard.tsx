@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useMe } from '@/hooks';
+import { usePortfolioStore } from '@/store';
 import { ROUTES } from '@/constants';
 
 /**
@@ -14,6 +16,20 @@ import { ROUTES } from '@/constants';
 export function AuthGuard() {
   const { data: user, isPending } = useMe();
   const location = useLocation();
+  const loadPortfolios = usePortfolioStore((s) => s.load);
+  const resetPortfolios = usePortfolioStore((s) => s.reset);
+
+  /**
+   * Portfolios live on the server now, so they are fetched once the session is known
+   * — and dropped on the way out, so the next account can never see the last one's
+   * rows. Nothing is fetched while the session is still unknown: that would be a
+   * request made as nobody.
+   */
+  useEffect(() => {
+    if (isPending) return;
+    if (user) void loadPortfolios();
+    else resetPortfolios();
+  }, [user, isPending, loadPortfolios, resetPortfolios]);
 
   if (isPending) {
     return (

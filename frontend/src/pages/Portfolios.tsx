@@ -85,7 +85,8 @@ function PortfolioCardWithMetrics({ portfolio, onEdit, onDelete, onDuplicate }: 
 }
 
 export function Portfolios() {
-  const { portfolios, createPortfolio, updatePortfolio, deletePortfolio, duplicatePortfolio } = usePortfolioStore();
+  const { portfolios, createPortfolio, updatePortfolio, deletePortfolio, duplicatePortfolio } =
+    usePortfolioStore();
   const addNotification = useUIStore((s) => s.addNotification);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPortfolio, setEditingPortfolio] = useState<Portfolio | null>(null);
@@ -95,30 +96,67 @@ export function Portfolios() {
   const [view, setView] = useState<ViewKey>('grid');
   const [storageError, setStorageError] = useState<string | null>(() => readStorageError());
 
-  const handleCreate = (values: PortfolioFormValues) => {
-    createPortfolio(values);
-    addNotification({ type: 'success', title: 'Portfolio created', message: `"${values.name}" is ready to use.` });
-    setDialogOpen(false);
+  /*
+   * Every one of these writes to the server now, so they can fail — and a failure
+   * must not look like a success with a dialog that closed. The API's own message is
+   * what the user sees: it already says which field it refused.
+   */
+  const handleCreate = async (values: PortfolioFormValues) => {
+    try {
+      await createPortfolio(values);
+      addNotification({ type: 'success', title: 'Portfolio created', message: `"${values.name}" is ready to use.` });
+      setDialogOpen(false);
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: 'Could not create the portfolio',
+        message: (err as Error).message,
+      });
+    }
   };
 
-  const handleUpdate = (values: PortfolioFormValues) => {
+  const handleUpdate = async (values: PortfolioFormValues) => {
     if (!editingPortfolio) return;
-    updatePortfolio({ id: editingPortfolio.id, ...values });
-    addNotification({ type: 'success', title: 'Portfolio updated' });
-    setEditingPortfolio(null);
+    try {
+      await updatePortfolio({ id: editingPortfolio.id, ...values });
+      addNotification({ type: 'success', title: 'Portfolio updated' });
+      setEditingPortfolio(null);
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: 'Could not update the portfolio',
+        message: (err as Error).message,
+      });
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     const p = portfolios.find((p) => p.id === id);
     if (!p) return;
     if (!window.confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
-    deletePortfolio(id);
-    addNotification({ type: 'info', title: 'Portfolio deleted' });
+    try {
+      await deletePortfolio(id);
+      addNotification({ type: 'info', title: 'Portfolio deleted' });
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: 'Could not delete the portfolio',
+        message: (err as Error).message,
+      });
+    }
   };
 
-  const handleDuplicate = (id: string) => {
-    duplicatePortfolio(id);
-    addNotification({ type: 'success', title: 'Portfolio duplicated' });
+  const handleDuplicate = async (id: string) => {
+    try {
+      await duplicatePortfolio(id);
+      addNotification({ type: 'success', title: 'Portfolio duplicated' });
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: 'Could not duplicate the portfolio',
+        message: (err as Error).message,
+      });
+    }
   };
 
   const clearFilters = () => {
