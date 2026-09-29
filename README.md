@@ -177,6 +177,30 @@ npm run format    # Prettier
 - **LocalStorage** holds only what belongs to this device — the theme, display
   preferences, and which portfolio you last had open
 
+### The Palette is Shared with PSX_Scraper
+
+Both apps paint from one palette. `src/theme/tokens.ts` carries the values PSX_Scraper defines in
+its own `theme/tokens.ts` on `develop` — the green action colour, the four-step surface ladder, the
+trend triples, the amber and blue status families, the focus ring and the two interaction washes —
+and `src/index.css` holds the same colours as the custom properties Tailwind's utilities compile
+against, in both themes. `src/theme/themeTokens.test.ts` reads the stylesheet and refuses a value
+that has drifted from the tokens, so the two apps cannot end up a shade apart.
+
+Two decisions worth knowing about:
+
+- **Where the two stacks mean different things by one word, this app keeps its own name and points
+  it at the palette's step.** shadcn's `accent` is the surface behind a hovered menu row, not the
+  scraper's amber highlight — which is this app's `--warning` (in the scraper's own tokens the two
+  are the same colour). Nothing is a second copy of a value: the older variable names (`surface-2`,
+  `muted`, `overlay`, `input`, `secondary`, `accent`) alias the palette's.
+- **The chart ladders are this app's own**, because the scraper has no chart palette, but each
+  ladder is anchored on a shared token — the second rung of the profit ladder *is* the palette's
+  `up.main` — and every rung is measured against the card it sits on.
+
+Type, radius, motion and shadows are **not** shared: the scraper's `typeScale`, `radius`, `motion`
+and `shadowsFor` are its MUI theme, and this app has its own answer for each. Copying values
+nothing here reads would only create a second place for them to drift from.
+
 ---
 
 ## Accounts and storage

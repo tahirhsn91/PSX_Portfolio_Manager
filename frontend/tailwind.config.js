@@ -45,19 +45,34 @@ export default {
         ring: 'hsl(var(--ring))',
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
-        /* Surfaces: canvas -> card -> inset -> overlay. */
+        /* Surfaces: canvas -> card -> inset -> overlay. The palette's own names
+           (`sunken`, `surface-elevated`) sit beside the ones this app's call sites
+           already use (`surface-2`), and point at the same variables. */
         surface: {
           DEFAULT: 'hsl(var(--surface))',
           '2': 'hsl(var(--surface-2))',
+          elevated: 'hsl(var(--surface-elevated))',
         },
+        sunken: 'hsl(var(--sunken))',
         overlay: 'hsl(var(--overlay))',
+        /* A control boundary wants 3:1 where a hairline only separates (WCAG 1.4.11).
+           `--input` already points here, so this is available for the rest. */
+        'border-strong': 'hsl(var(--border-strong))',
+        'text-muted': 'hsl(var(--text-muted))',
+        /* Translucent washes, so they are read as a whole colour rather than HSL parts:
+           same shape as the dev strip below. */
+        'hover-wash': 'var(--hover-wash)',
+        'selected-wash': 'var(--selected-wash)',
         /* The dev-only strip's fixed red: one colour in both themes, on purpose. */
         'dev-banner': 'var(--dev-banner-bg)',
         'dev-banner-fg': 'var(--dev-banner-fg)',
         primary: {
           DEFAULT: 'hsl(var(--primary))',
           hover: 'hsl(var(--primary-hover))',
+          active: 'hsl(var(--primary-active))',
           foreground: 'hsl(var(--primary-foreground))',
+          soft: 'hsl(var(--primary-soft))',
+          'soft-foreground': 'hsl(var(--on-primary-soft))',
         },
         secondary: {
           DEFAULT: 'hsl(var(--secondary))',
@@ -84,12 +99,13 @@ export default {
           foreground: 'hsl(var(--card-foreground))',
         },
         /*
-         * Money and status. Each family is `DEFAULT` = the figure or icon
-         * itself, `light` = the tinted surface it sits on, `dark` = the ink that
-         * stays legible on that tint. All six values are CSS variables, so one
-         * class is right in both themes — measured, not eyeballed: on the card,
-         * light profit 5.69 / loss 6.57 / warning 5.43 / info 5.28, dark 8.39 /
-         * 5.83 / 9.66 / 7.53.
+         * Money and status. Each family is `DEFAULT` = the figure or icon itself,
+         * `light` = the tinted surface it sits on, `dark` = the ink that stays legible
+         * on that tint. All values are CSS variables, so one class is right in both
+         * themes — measured, not eyeballed, against the shared palette: on the card,
+         * light profit 5.02 / loss 5.74 / warning 5.02 / info 6.57, dark 9.77 / 6.16 /
+         * 10.20 / 6.70, and each tint's ink clears 4.5 (light 5.83 / 6.87, dark
+         * 11.02 / 9.31).
          */
         profit: {
           DEFAULT: 'hsl(var(--profit))',
@@ -111,9 +127,11 @@ export default {
           light: 'hsl(var(--info-light))',
           dark: 'hsl(var(--info-dark))',
         },
-        // PSX brand mark. Not a UI signal — the exchange's own green, kept for
-        // the logo so the brand stays recognisable while green in the interface
-        // means "made money" and nothing else.
+        // PSX brand mark. Not a UI signal — the exchange's own green, kept for the
+        // logo so the brand stays recognisable. (This used to claim green meant
+        // "made money" and nothing else, which stopped being true when the interface
+        // adopted the scraper's palette: green is now also the action colour, which is
+        // why every figure carries a sign and every control its own label.)
         psx: {
           green: '#00a651',
           emerald: '#009444',
