@@ -4,7 +4,15 @@ import { AllocationPieChart } from './AllocationPieChart';
 import { PortfolioValueChart } from './PortfolioValueChart';
 import { SectorBarChart } from './SectorBarChart';
 import { StockPriceChart } from './StockPriceChart';
-import { CATEGORY_TONES, assignTones, categoryTone, type ChartTone } from './chartTones';
+import {
+  CATEGORY_TONES,
+  FLAT_TONE,
+  LOSS_TONES,
+  PROFIT_TONES,
+  assignTones,
+  categoryTone,
+  type ChartTone,
+} from './chartTones';
 
 /*
  * What these cover, and why they are static-markup renders rather than a DOM:
@@ -20,7 +28,14 @@ import { CATEGORY_TONES, assignTones, categoryTone, type ChartTone } from './cha
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
-/** The ink each tone's fill takes, per theme: `--chart-*-ink` in index.css, keyed by the fill class. */
+/**
+ * The ink each tone's fill takes, per theme: `--chart-*-ink` in index.css, keyed by the
+ * fill class. These two tables mirror that stylesheet because jsdom does not resolve
+ * `hsl(var(--x))`, and the SVG needs a laid-out container either way — so the values are
+ * restated here to be *asserted*. `theme/themeTokens.test.ts` is the other half: it
+ * parses index.css itself and checks the stylesheet against the shared palette, so a
+ * variable edited in one place and not the other fails there.
+ */
 const INK_BY_FILL: Record<string, { light: string; dark: string }> = {
   'fill-chart-profit-1': { light: '#ffffff', dark: '#ffffff' },
   'fill-chart-profit-2': { light: '#ffffff', dark: '#020f08' },
@@ -43,18 +58,21 @@ const INK_BY_FILL: Record<string, { light: string; dark: string }> = {
 
 const FILL_BY_TONE: Record<string, { light: string; dark: string }> = {
   'fill-chart-profit-1': { light: '#166534', dark: '#15803d' },
-  'fill-chart-profit-2': { light: '#15803d', dark: '#16a34a' },
+  'fill-chart-profit-2': { light: '#15803D', dark: '#16a34a' },
   'fill-chart-profit-3': { light: '#065f46', dark: '#22c55e' },
   'fill-chart-profit-4': { light: '#047857', dark: '#34d399' },
-  'fill-chart-profit-5': { light: '#059669', dark: '#4ade80' },
-  'fill-chart-loss-1': { light: '#991b1b', dark: '#b91c1c' },
-  'fill-chart-loss-2': { light: '#b91c1c', dark: '#dc2626' },
+  'fill-chart-profit-5': { light: '#059669', dark: '#4ADE80' },
+  // The first dark loss tone was #b91c1c, which measured 2.63 against the dark card —
+  // under the 3:1 a shape needs. Nothing asserted it until this file covered the money
+  // ladders as well as the category one.
+  'fill-chart-loss-1': { light: '#991b1b', dark: '#E11D48' },
+  'fill-chart-loss-2': { light: '#C81E1E', dark: '#dc2626' },
   'fill-chart-loss-3': { light: '#dc2626', dark: '#ef4444' },
-  'fill-chart-loss-4': { light: '#be123c', dark: '#f87171' },
+  'fill-chart-loss-4': { light: '#be123c', dark: '#F87171' },
   'fill-chart-loss-5': { light: '#e11d48', dark: '#fca5a5' },
-  'fill-chart-flat': { light: '#64748b', dark: '#94a3b8' },
+  'fill-chart-flat': { light: '#5A6A7D', dark: '#7C8BA0' },
   'fill-chart-cat-1': { light: '#1E3A8A', dark: '#3B82F6' },
-  'fill-chart-cat-2': { light: '#1D4ED8', dark: '#60A5FA' },
+  'fill-chart-cat-2': { light: '#0B5FA5', dark: '#60A5FA' },
   'fill-chart-cat-3': { light: '#2563EB', dark: '#93C5FD' },
   'fill-chart-cat-4': { light: '#4338CA', dark: '#A5B4FC' },
   'fill-chart-cat-5': { light: '#0369A1', dark: '#7DD3FC' },
@@ -75,7 +93,9 @@ function contrast(a: string, b: string): number {
 
 describe('chart tone ink', () => {
   it('paints every tone with an ink that clears 4.5:1 on that tone, in both themes', () => {
-    const tones: ChartTone[] = [...CATEGORY_TONES, categoryTone(0)];
+    // Every ladder, not just the category one: the money ladders are the ones a reader
+    // actually leans on, and they had no coverage here until the palette change.
+    const tones: ChartTone[] = [...PROFIT_TONES, ...LOSS_TONES, ...CATEGORY_TONES, FLAT_TONE];
     for (const theme of ['light', 'dark'] as const) {
       for (const tone of tones) {
         const fill = FILL_BY_TONE[tone.fill]?.[theme];
