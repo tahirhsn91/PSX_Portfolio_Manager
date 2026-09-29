@@ -49,7 +49,7 @@ async function deriveFromLog(client, holdingId) {
   const buys = await loadBuys(client, holdingId);
   const position = positionFromBuys(buys);
   const { rows } = await client.query(
-    `UPDATE holdings SET shares = $2, avg_purchase_price = $3, updated_at = NOW()
+    `UPDATE holdings SET shares = $2, avg_purchase_price = $3
       WHERE id = $1 RETURNING *`,
     [holdingId, position.shares, position.averagePurchasePrice],
   );
