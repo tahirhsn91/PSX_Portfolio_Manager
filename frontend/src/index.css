@@ -23,51 +23,82 @@
   :root {
     color-scheme: light;
 
-    /* Surfaces — a four-step ladder, so a card reads as raised even before
-       its border lands. surface/background 1.07, surface-2/surface 1.12. */
-    --background: 214.3 46.7% 97.1%; /* #F4F7FB app canvas */
+    /* Surfaces — the shared palette's ladder, so a screen in this app and a screen
+       in PSX_Scraper are built from the same greys (src/theme/tokens.ts carries the
+       same values, and themeTokens.test.ts fails if the two ever disagree). */
+    --background: 216 33.3% 97.1%; /* #F5F7FA app canvas */
     --surface: 0 0% 100%; /* #FFFFFF cards, panels */
-    --surface-2: 216 41.7% 95.3%; /* #EEF2F8 inset rows, hover, zebra */
-    --overlay: 0 0% 100%; /* #FFFFFF menus, dialogs, sheets */
-    --border: 215.3 36.2% 90.8%; /* #DFE6F0 hairline (1.26 on surface) */
-    --input: 215.3 36.2% 90.8%;
-    --ring: 224.3 76.3% 48%; /* focus ring = primary */
+    --sunken: 213.3 33.3% 94.7%; /* #EDF1F6 inset rows, zebra, hover */
+    --surface-2: var(--sunken); /* the name this app's call sites already use */
+    --surface-elevated: 0 0% 100%; /* #FFFFFF menus and dialogs *above* the card */
+    --overlay: var(--surface-elevated); /* menus, dialogs, sheets */
+    --border: 211.8 27.9% 88%; /* #D8E0E9 hairline */
+    /* 3.52 on surface. The palette's own reason for a second border: an input's edge
+       is a control boundary, and WCAG 1.4.11 wants 3:1 there where a hairline only
+       needs to separate. */
+    --border-strong: 212.7 14.3% 54.7%; /* #7B8A9C */
+    --input: var(--border-strong);
+    --ring: 157.3 83.5% 26.1%; /* #0B7A50 focus ring = primary, 5.00 on background */
 
-    /* Text — 18.72 on surface, 17.42 on canvas */
-    --text: 220 48.8% 8.4%; /* #0B1220 */
-    --muted: 216 41.7% 95.3%; /* #EEF2F8 subtle background */
-    --muted-foreground: 216 17.1% 40.2%; /* #556378 6.10 on surface */
+    /* Text — three weights of ink, measured against the card: 17.85 / 7.05 / 5.54,
+       and the two lighter ones still clear 4.5 on a sunken row (6.22 / 4.88). */
+    --text: 222.2 47.4% 11.2%; /* #0F172A 17.85 on surface */
+    --muted: var(--sunken); /* subtle background, same step as an inset row */
+    --muted-foreground: 213.3 19.6% 36.1%; /* #4A5A6E 7.05 on surface */
+    --text-muted: 212.6 16.3% 42.2%; /* #5A6A7D 5.54 on surface */
 
-    /* Action — trust blue. Green is reserved for money made. */
-    --primary: 224.3 76.3% 48%; /* #1D4ED8 6.70 on surface, 6.24 on canvas */
-    --primary-hover: 226.2 70.6% 40%; /* #1E3FAE */
-    --primary-foreground: 0 0% 100%; /* #FFFFFF 6.70 on primary */
-    --secondary: 216 41.7% 95.3%;
-    --secondary-foreground: 220 48.8% 8.4%;
-    --accent: 216 41.7% 95.3%;
-    --accent-foreground: 220 48.8% 8.4%;
-    --destructive: 4.2 76.5% 40%; /* #B42318 6.57 on surface */
+    /* Action — the shared palette's green. It is the same green the trend family uses,
+       which is the point of matching the scraper: a green thing is "act" or "up" in
+       both apps, and direction never rides on the colour alone (every figure carries a
+       sign and every control carries its own label).
+       5.37 on surface, 5.00 on canvas, 5.37 as white ink on itself. */
+    --primary: 157.3 83.5% 26.1%; /* #0B7A50 */
+    --primary-hover: 156.3 83.5% 21.4%; /* #096440 */
+    --primary-active: 155.8 84.6% 17.8%; /* #075435 */
+    --primary-foreground: 0 0% 100%; /* #FFFFFF 5.37 on primary */
+    --primary-soft: 150 40% 92.2%; /* #E3F3EB the tinted primary surface */
+    --on-primary-soft: 141.8 68.8% 25.1%; /* #146C34 5.67 ink on that tint */
+    --secondary: var(--sunken);
+    --secondary-foreground: var(--text);
+    /* shadcn's `accent` is the hover surface behind a menu row, so here it stays a
+       neutral. The scraper's `accent` is amber — and in its own tokens it is the same
+       amber as its `warning`, which this app already has as --warning below. */
+    --accent: var(--sunken);
+    --accent-foreground: var(--text);
+    --destructive: 0 73.9% 45.1%; /* #C81E1E — the palette's down.main, 5.74 on surface */
     --destructive-foreground: 0 0% 100%;
 
-    /* Money. `profit` is the figure itself (5.69 on surface); `profit-light`
-       is the tinted surface it sits on and `profit-dark` the ink that stays
-       legible on that tint (9.18). Same shape for loss, warning, info. */
-    --profit: 154.8 90.3% 24.3%; /* #067647 */
-    --profit-light: 144.7 81% 95.9%; /* #ECFDF3 */
-    --profit-dark: 155.7 88.1% 16.5%; /* #054F31 */
-    --loss: 4.2 76.5% 40%; /* #B42318 6.57 on surface */
-    --loss-light: 5 85.7% 97.3%; /* #FEF3F2 */
-    --loss-dark: 4 71.6% 33.1%; /* #912018 */
-    --warning: 21.8 91.5% 37.1%; /* #B54708 5.43 on surface */
-    --warning-light: 45 100% 96.1%; /* #FFFAEB */
+    /* Money. `profit` is the figure itself, `profit-light` the tinted surface it sits
+       on, `profit-dark` the ink that stays legible on that tint. Same shape for loss,
+       warning and info. These are the palette's `up` / `down` triples verbatim, folded
+       onto the three names this app's call sites use.
+       Measured: up 5.02 on surface, ink 5.83 on the tint; down 5.74, ink 6.87;
+       warning 5.02; info 6.57. The palette defines no ink for warning/info tints, so
+       those two keep this app's values, re-verified on the new tints (6.86 / 6.56). */
+    --profit: 142.4 71.8% 29.2%; /* #15803D */
+    --profit-light: 140 45.5% 93.5%; /* #E7F6EC */
+    --profit-dark: 141.8 68.8% 25.1%; /* #146C34 */
+    --loss: 0 73.9% 45.1%; /* #C81E1E 5.74 on surface */
+    --loss-light: 0 81% 95.9%; /* #FDECEC */
+    --loss-dark: 0 77.2% 36.1%; /* #A31515 */
+    --warning: 26 90.5% 37.1%; /* #B45309 5.02 on surface */
+    --warning-light: 32.7 84.6% 94.9%; /* #FDF3E7 */
     --warning-dark: 18.8 83.7% 31.4%; /* #93370D */
-    --info: 210 89.7% 42%; /* #0B6BCB 5.28 on surface */
-    --info-light: 206.2 100% 96.9%; /* #EFF8FF */
+    --info: 207.3 87.5% 34.5%; /* #0B5FA5 6.57 on surface */
+    --info-light: 210 64.3% 94.5%; /* #E8F1FA */
     --info-dark: 209.6 88.1% 32.9%; /* #0A559E */
+
+    /* The two translucent washes the palette uses for interaction. They are rgba, not
+       HSL components, so they are read with `var(--x)` rather than `hsl(var(--x))` —
+       the same shape as the dev strip below. */
+    --hover-wash: rgba(15, 23, 42, 0.04);
+    --selected-wash: rgba(11, 122, 80, 0.08);
 
     /* The dev-only environment strip. Deliberately has no `.dark` counterpart:
        it must stay the same red in both themes so a dev build can never be
-       mistaken for production. Tokens belong here, not as a hex in a component. */
+       mistaken for production. Tokens belong here, not as a hex in a component.
+       #C62828 is also the scraper's `devBanner` red — the one colour the two apps
+       had already agreed on before this change. */
     --dev-banner-bg: #c62828;
     --dev-banner-fg: #ffffff;
 
@@ -78,10 +109,15 @@
        Each tone carries the ink that is legible *on it* (the in-slice percentage
        labels sit on the slice, not on the card), and each fill clears 3:1 against the
        card so a slice reads as a shape too. Every pair below was measured on the
-       running app — ink/fill first, fill/card second, minimum 4.5 and 3.0:
-         profit 7.13 5.02 7.68 5.48 5.19   loss 8.31 6.47 4.83 6.29 4.70   flat 4.76 */
+       running app — ink/fill first, fill/card second, minimum 4.5 and 3.0. The card is
+       white in this theme, so the two columns coincide for a white ink:
+         profit 7.13 5.02 7.68 5.48 5.19   loss 8.31 5.74 4.83 6.29 4.70   flat 5.54
+
+       The second step of each ladder is the shared palette's own trend colour
+       (up.main / down.main), so a slice in the chart is the same green the scraper
+       paints a rising figure with. */
     --chart-profit-1: #166534;
-    --chart-profit-2: #15803d;
+    --chart-profit-2: #15803D; /* = up.main */
     --chart-profit-3: #065f46;
     --chart-profit-4: #047857;
     --chart-profit-5: #059669;
@@ -91,7 +127,7 @@
     --chart-profit-4-ink: #ffffff;
     --chart-profit-5-ink: #020f08;
     --chart-loss-1: #991b1b;
-    --chart-loss-2: #b91c1c;
+    --chart-loss-2: #C81E1E; /* = down.main */
     --chart-loss-3: #dc2626;
     --chart-loss-4: #be123c;
     --chart-loss-5: #e11d48;
@@ -101,18 +137,18 @@
     --chart-loss-4-ink: #ffffff;
     --chart-loss-5-ink: #ffffff;
     /* Neither a profit nor a loss: a priced holding at exactly break-even. */
-    --chart-flat: #64748b;
+    --chart-flat: #5A6A7D; /* = textMuted */
     --chart-flat-ink: #ffffff;
 
     /* The category ladder — for a breakdown that carries no P&L at all (the
        dashboard's sector composition counts holdings, so no slice is up or down).
-       It stays inside the brand hue on purpose: painting those slices green and
-       red would claim a direction the data does not have, and green/red are
-       reserved for money. Six steps, then it wraps; every step carries the ink
-       that clears 4.5:1 on it, and each fill clears 3:1 against the card:
-         navy 10.36  blue 6.70  bright-blue 5.17  indigo 7.90  sky 5.93  cyan 7.27 */
+       It stays inside the palette's blue on purpose: painting those slices green and
+       red would claim a direction the data does not have, and green/red belong to
+       money. Six steps, then it wraps; every step carries the ink that clears 4.5:1 on
+       it, and each fill clears 3:1 against the card:
+         navy 10.36  blue 6.57  bright-blue 5.17  indigo 7.90  sky 5.93  cyan 7.27 */
     --chart-cat-1: #1E3A8A;
-    --chart-cat-2: #1D4ED8;
+    --chart-cat-2: #0B5FA5; /* = info.main, the palette's blue */
     --chart-cat-3: #2563EB;
     --chart-cat-4: #4338CA;
     --chart-cat-5: #0369A1;
@@ -123,15 +159,17 @@
     --chart-cat-4-ink: #ffffff;
     --chart-cat-5-ink: #ffffff;
     --chart-cat-6-ink: #ffffff;
-    /* Named series, so a chart stops carrying a hex of its own. Measured
-       against the card: benchmark 6.70, volume 4.76, buy 5.02, support 5.69,
-       resistance 6.57, neutral 7.58. */
-    --chart-benchmark: #1d4ed8;
-    --chart-volume: #64748b;
-    --chart-buy: #b45309;
-    --chart-support: #067647;
-    --chart-resistance: #b42318;
-    --chart-neutral: #475569;
+    /* Named series, so a chart stops carrying a hex of its own. Each one is now a
+       named token from the shared palette rather than a third copy of a colour, and
+       each was re-measured against the card: benchmark 6.57 (= info), volume 5.54
+       (= textMuted), buy 5.02 (= warning), support 5.02 (= up), resistance 5.74
+       (= down), neutral 7.05 (= textSecondary). */
+    --chart-benchmark: #0B5FA5;
+    --chart-volume: #5A6A7D;
+    --chart-buy: #B45309;
+    --chart-support: #15803D;
+    --chart-resistance: #C81E1E;
+    --chart-neutral: #4A5A6E;
 
     /* Shape. One radius scale: sm 8 / md 10 / lg 12 / xl 16. */
     --radius: 0.75rem;
@@ -140,76 +178,91 @@
   .dark {
     color-scheme: dark;
 
-    /* surface/background 1.21, border/surface 1.58, surface-2/surface 1.13 —
-       measured, so the cards are distinguishable from the canvas in the dark
-       too instead of both being the same near-black. */
-    --background: 218.6 50% 5.5%; /* #070C15 app canvas */
-    --surface: 223.3 45% 15.7%; /* #16203A cards, panels */
-    --surface-2: 221.5 39.4% 19.4%; /* #1E2A45 inset rows, hover */
-    --overlay: 222.5 42% 18%; /* #1B2740 menus, dialogs, sheets */
-    --border: 220.9 30.1% 28.6%; /* #33415F hairline */
-    --input: 220.9 30.1% 28.6%;
-    --ring: 219.7 82.2% 64.7%;
+    /* The same ladder, dark. surface/background 1.30, surface-elevated/surface 1.13,
+       border/surface 1.58 — measured, so a card is distinguishable from the canvas and
+       a menu from the card. `sunken` is the one step that goes *below* the canvas: it
+       is the well an inset row or a hovered menu item drops into. */
+    --background: 220 48.8% 8.4%; /* #0B1220 app canvas */
+    --surface: 220 41.5% 12.7%; /* #131C2E cards, panels */
+    --sunken: 220 51.7% 5.7%; /* #070C16 inset rows, zebra, hover */
+    --surface-2: var(--sunken);
+    --surface-elevated: 220 36.6% 16.1%; /* #1A2438 menus and dialogs above the card */
+    --overlay: var(--surface-elevated);
+    --border: 218 30.8% 26.1%; /* #2E3D57 hairline */
+    --border-strong: 215 15.9% 55.7%; /* #7C8BA0 4.91 on surface, for control outlines */
+    --input: var(--border-strong);
+    --ring: 158.1 64.4% 51.6%; /* #34D399 focus ring = primary, 9.74 on background */
 
-    --text: 220 48.4% 93.9%; /* #E8EDF7 13.74 on surface */
-    --muted: 221.5 39.4% 19.4%; /* #1E2A45 */
-    --muted-foreground: 218 23.4% 65.7%; /* #93A2BC 6.25 on surface */
+    --text: 217.5 53.3% 94.1%; /* #E8EEF8 14.61 on surface */
+    --muted: var(--sunken);
+    --muted-foreground: 215.6 22.9% 72.5%; /* #A9B6C9 8.29 on surface */
+    --text-muted: 215 15.9% 55.7%; /* #7C8BA0 4.91 on surface */
 
-    --primary: 219.7 82.2% 64.7%; /* #5B8DEF 4.99 on surface */
-    --primary-hover: 218.9 85.9% 72.2%; /* #7BA6F5 */
-    --primary-foreground: 218.3 72% 9.8%; /* #07142B 5.68 on primary */
-    --secondary: 221.5 39.4% 19.4%;
-    --secondary-foreground: 220 48.4% 93.9%;
-    --accent: 221.5 39.4% 19.4%;
-    --accent-foreground: 220 48.4% 93.9%;
-    --destructive: 4.2 76.5% 40%; /* #B42318 */
-    --destructive-foreground: 5 85.7% 97.3%;
+    --primary: 158.1 64.4% 51.6%; /* #34D399 8.86 on surface */
+    --primary-hover: 159.1 70.6% 58.6%; /* #4BE0AC */
+    --primary-active: 158.3 70.6% 45.3%; /* #22C58A */
+    --primary-foreground: 162.6 79.5% 7.6%; /* #04231A 8.67 on primary */
+    --primary-soft: 151.2 43.9% 11.2%; /* #10291D */
+    --on-primary-soft: 150.3 64.8% 68.8%; /* #7CE3B0 9.93 on that tint */
+    --secondary: var(--sunken);
+    --secondary-foreground: var(--text);
+    --accent: var(--sunken);
+    --accent-foreground: var(--text);
+    --destructive: 0 90.6% 70.8%; /* #F87171 = the palette's down.main, 6.16 on surface */
+    --destructive-foreground: 355.2 42.4% 11.6%; /* #2A1113 = down.soft; ink on a light red */
 
-    --profit: 158.1 64.4% 51.6%; /* #34D399 8.39 on surface */
-    --profit-light: 158 80.4% 10%; /* #052E1F */
-    --profit-dark: 156.2 71.6% 66.9%; /* #6EE7B7 9.72 on profit-light */
-    --loss: 0 90.6% 70.8%; /* #F87171 5.83 on surface */
-    --loss-light: 0 68.1% 13.5%; /* #3A0B0B */
-    --loss-dark: 0 93.5% 81.8%; /* #FCA5A5 8.98 on loss-light */
-    --warning: 43.3 96.4% 56.3%; /* #FBBF24 9.66 on surface */
-    --warning-light: 41.9 84.1% 12.4%; /* #3A2A05 */
-    --warning-dark: 45.9 96.7% 64.5%; /* #FCD34D 9.62 on warning-light */
-    --info: 198.4 93.2% 59.6%; /* #38BDF8 7.53 on surface */
-    --info-light: 202.8 78.4% 14.5%; /* #082C42 */
-    --info-dark: 199.4 95.5% 73.9%; /* #7DD3FC 8.69 on info-light */
+    --profit: 141.9 69.2% 58%; /* #4ADE80 9.77 on surface */
+    --profit-light: 151.2 43.9% 11.2%; /* #10291D */
+    --profit-dark: 141.7 76.6% 73.1%; /* #86EFAC 11.02 on profit-light */
+    --loss: 0 90.6% 70.8%; /* #F87171 6.16 on surface */
+    --loss-light: 355.2 42.4% 11.6%; /* #2A1113 */
+    --loss-dark: 0 93.5% 81.8%; /* #FCA5A5 9.31 on loss-light */
+    --warning: 43.3 96.4% 56.3%; /* #FBBF24 10.20 on surface */
+    --warning-light: 40 48.4% 12.2%; /* #2E2410 */
+    --warning-dark: 45.9 96.7% 64.5%; /* #FCD34D 10.58 on warning-light */
+    --info: 213.1 93.9% 67.8%; /* #60A5FA 6.70 on surface */
+    --info-light: 213.7 53.2% 15.1%; /* #12243B */
+    --info-dark: 199.4 95.5% 73.9%; /* #7DD3FC 9.39 on info-light */
 
-    /* Same ladders, lifted for the dark card: the light-theme greens sat too close
-       to the background to read as shapes. Measured the same way against the dark
-       card — ink/fill first, fill/card second:
-         profit 5.02 5.93 8.58 10.17 11.22   loss 6.47 4.83 4.95 6.74 9.82   flat 6.96 */
+    --hover-wash: rgba(232, 238, 248, 0.06);
+    --selected-wash: rgba(52, 211, 153, 0.12);
+
+    /* Same ladders, lifted for the dark card: the light-theme greens sat too close to
+       the background to read as shapes. Measured the same way against the dark card —
+       ink/fill first, fill/card second:
+         profit 5.02 5.93 8.58 10.17 11.22 / 3.40 5.17 7.47 8.86 9.77
+         loss   4.70 4.83 4.95 6.74 9.82 / 3.63 3.53 4.53 6.16 8.97
+         flat   5.40 / 4.91
+       The first loss tone used to be #b91c1c, which measured 2.49 against the old
+       dark card and 2.63 against this one — below the 3:1 a shape needs, and never
+       asserted by a test. It is #E11D48 now, which clears both. */
     --chart-profit-1: #15803d;
     --chart-profit-2: #16a34a;
     --chart-profit-3: #22c55e;
     --chart-profit-4: #34d399;
-    --chart-profit-5: #4ade80;
+    --chart-profit-5: #4ADE80; /* = up.main */
     --chart-profit-1-ink: #ffffff;
     --chart-profit-2-ink: #020f08;
     --chart-profit-3-ink: #020f08;
     --chart-profit-4-ink: #020f08;
     --chart-profit-5-ink: #020f08;
-    --chart-loss-1: #b91c1c;
+    --chart-loss-1: #E11D48;
     --chart-loss-2: #dc2626;
     --chart-loss-3: #ef4444;
-    --chart-loss-4: #f87171;
+    --chart-loss-4: #F87171; /* = down.main */
     --chart-loss-5: #fca5a5;
     --chart-loss-1-ink: #ffffff;
     --chart-loss-2-ink: #ffffff;
     --chart-loss-3-ink: #2a0606;
     --chart-loss-4-ink: #2a0606;
     --chart-loss-5-ink: #2a0606;
-    --chart-flat: #94a3b8;
-    --chart-flat-ink: #0f172a;
-    /* Same category ladder, lifted for the dark card — the light-theme steps are
-       too close to the background there to read as shapes. Ink/fill first, then
-       fill/card: 5.09/4.39, 7.36/6.34, 10.38/8.95, 9.39/8.09, 11.23/9.68,
-       13.18/11.35. */
+    --chart-flat: #7C8BA0; /* = textMuted */
+    --chart-flat-ink: #0b1220;
+    /* Same category ladder, lifted for the dark card — the light-theme steps are too
+       close to the background there to read as shapes. Ink/fill first, then fill/card:
+       5.09/4.63, 7.36/6.70, 10.38/9.44, 9.39/8.54, 11.23/10.21, 13.18/11.98. */
     --chart-cat-1: #3B82F6;
-    --chart-cat-2: #60A5FA;
+    --chart-cat-2: #60A5FA; /* = info.main */
     --chart-cat-3: #93C5FD;
     --chart-cat-4: #A5B4FC;
     --chart-cat-5: #7DD3FC;
@@ -220,14 +273,15 @@
     --chart-cat-4-ink: #0b1220;
     --chart-cat-5-ink: #0b1220;
     --chart-cat-6-ink: #0b1220;
-    /* Measured against the dark card: benchmark 4.99, volume 6.29, buy 9.66,
-       support 8.39, resistance 5.83, neutral 10.87. */
-    --chart-benchmark: #5b8def;
-    --chart-volume: #94a3b8;
-    --chart-buy: #fbbf24;
-    --chart-support: #34d399;
-    --chart-resistance: #f87171;
-    --chart-neutral: #cbd5e1;
+    /* Measured against the dark card: benchmark 6.70 (= info), volume 4.91
+       (= textMuted), buy 10.20 (= warning), support 9.77 (= up), resistance 6.16
+       (= down), neutral 8.29 (= textSecondary). */
+    --chart-benchmark: #60A5FA;
+    --chart-volume: #7C8BA0;
+    --chart-buy: #FBBF24;
+    --chart-support: #4ADE80;
+    --chart-resistance: #F87171;
+    --chart-neutral: #A9B6C9;
   }
 
   /*
