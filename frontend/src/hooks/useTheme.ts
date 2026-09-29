@@ -5,8 +5,8 @@ type Theme = 'light' | 'dark' | 'system';
 
 /** Kept in step with the pre-paint bootstrap in index.html. */
 const THEME_COLOR: Record<'light' | 'dark', string> = {
-  light: '#F4F7FB',
-  dark: '#070C15',
+  light: '#F5F7FA',
+  dark: '#0B1220',
 };
 
 /**
