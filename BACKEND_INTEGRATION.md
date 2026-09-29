@@ -225,3 +225,67 @@ CREATE INDEX idx_dividends_holding ON dividend_records(holding_id);
 | [Yahoo Finance (yfinance)](https://finance.yahoo.com) | `ENGRO.KA` ticker format |
 | [Alpha Vantage](https://www.alphavantage.co) | Has Pakistani stocks |
 | Custom scraper | See `MockMarketDataProvider` for the interface shape |
+
+---
+
+## 7. What the shipped proxy implements
+
+`backend/` is not a sketch of the above — it is a running implementation of it. The
+contract it answers:
+
+### Accounts (`/api/auth`, `/api/users`)
+
+| Route | Who | What |
+|---|---|---|
+| `POST /api/auth/signup` | anyone, while the instance is empty | the first account, which becomes the admin |
+| `POST /api/auth/login` | anyone | starts a session (httpOnly cookie) |
+| `POST /api/auth/logout` | signed in | ends it |
+| `GET /api/auth/me` | signed in | the account behind the session |
+| `PATCH /api/auth/me` | signed in | display name, phone, timezone, preferences |
+| `POST /api/auth/password` | signed in | change password; ends every other session |
+| `GET /api/users` | admin | the roster, with portfolio **counts** only |
+| `POST /api/users` | admin | create an account; returns its first password once |
+| `PATCH /api/users/:id/status` | admin | suspend or reactivate |
+| `PATCH /api/users/:id/role` | admin | promote or demote |
+| `DELETE /api/users/:id` | admin | the deliberate path; suspension is the normal tool |
+
+The server refuses the last admin's demotion, suspension or deletion, any self-targeting,
+and any attempt to reach another account's portfolio — which answers `404`, the same as
+a portfolio that does not exist.
+
+### Portfolios (`/api/portfolios`)
+
+| Route | What |
+|---|---|
+| `GET /api/portfolios`, `GET /api/portfolios/:id` | the account's portfolios |
+| `POST`, `PATCH /:id`, `DELETE /:id`, `POST /:id/duplicate` | portfolio lifecycle |
+| `POST /:id/holdings`, `PATCH /:id/holdings/:holdingId`, `DELETE /:id/holdings/:holdingId` | holdings |
+| `POST /:id/holdings/:holdingId/buys`, `PATCH …/buys/:buyId`, `DELETE …/buys/:buyId` | the buy log |
+| `POST …/dividends`, `DELETE …/dividends/:dividendId` | dividends |
+| `GET /api/portfolios/export`, `POST /api/portfolios/import` | backup and restore |
+
+Every mutation answers with the whole portfolio it belongs to — including the re-derived
+holding — so a client never has to guess what the write produced.
+
+### The buy log
+
+`holding_buys` is the source of truth for a holding's quantity and average: `shares` is
+the log's total and `avg_purchase_price` its cost-weighted mean, by the same arithmetic
+the browser uses. An entry is either a `buy` or an `opening` — the latter is how a
+position that predates the log, or one edited directly, is represented. `opening` is
+never accepted from a client.
+
+Editing a holding's totals rewrites its `opening` entry so the log still derives to the
+result; an edit it cannot represent answers `409 LOG_CONFLICT` and changes nothing.
+Deleting the final entry deletes the holding.
+
+### Running the tests
+
+```sh
+make test            # both suites
+make test-frontend   # vitest
+make test-backend    # node --test, against a separate _test database
+```
+
+The backend suite creates and drops its own database (`psx_portfolio_test`); point
+`TEST_DATABASE` elsewhere if that name is taken.

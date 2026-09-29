@@ -16,6 +16,7 @@ export const ROUTES = {
   MARKET_STOCK_PATH: (symbol: string) => `/market/${symbol}`,
   SETTINGS: '/settings',
   PROFILE: '/profile',
+  ADMIN_USERS: '/admin/users',
   LOGIN: '/login',
   SIGNUP: '/signup',
   NOT_FOUND: '*',

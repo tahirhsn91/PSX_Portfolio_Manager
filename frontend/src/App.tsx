@@ -7,6 +7,7 @@ import { AuthGuard } from '@/components/auth/AuthGuard';
 import { Login } from '@/pages/Login';
 import { Signup } from '@/pages/Signup';
 import { Profile } from '@/pages/Profile';
+import { AdminUsers } from '@/pages/AdminUsers';
 import { Dashboard } from '@/pages/Dashboard';
 import { Portfolios } from '@/pages/Portfolios';
 import { PortfolioDetail } from '@/pages/PortfolioDetail';
@@ -57,6 +58,7 @@ function AppRoutes() {
           <Route path={ROUTES.MARKET_STOCK} element={<StockDetail />} />
           <Route path={ROUTES.SETTINGS} element={<Settings />} />
           <Route path={ROUTES.PROFILE} element={<Profile />} />
+          <Route path={ROUTES.ADMIN_USERS} element={<AdminUsers />} />
           <Route path={ROUTES.NOT_FOUND} element={<NotFound />} />
         </Route>
       </Route>

@@ -20,7 +20,7 @@ export function BottomNav() {
       className="shrink-0 border-t bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
     >
       <ul className="grid grid-cols-4">
-        {NAV_ITEMS.map(({ label, icon: Icon, to }) => {
+        {NAV_ITEMS.filter((item) => !item.adminOnly).map(({ label, icon: Icon, to }) => {
           const isActive = isNavItemActive(pathname, to);
           return (
             <li key={to}>

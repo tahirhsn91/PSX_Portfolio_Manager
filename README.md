@@ -169,12 +169,44 @@ npm run format    # Prettier
 
 ### State is Separated
 
-- **Zustand** handles domain state (portfolios, market cache, UI preferences)
+- **Zustand** handles domain state (the portfolio cache, market cache, UI preferences)
 - **TanStack Query** handles server-state (fetching, caching, background refresh)
-- **LocalStorage** is the persistence layer (abstracted behind `Zustand persist` and `LocalStorageService`)
+- **Postgres** is the persistence layer for every portfolio, holding, buy and dividend,
+  reached through the proxy API; the store holds what the server last said and replaces
+  a portfolio with the server's answer after each mutation rather than editing its own copy
+- **LocalStorage** holds only what belongs to this device — the theme, display
+  preferences, and which portfolio you last had open
+
+---
+
+## Accounts and storage
+
+Every route that touches a portfolio requires a signed-in account, and a portfolio is
+only ever reachable by the account that owns it. The session is an httpOnly cookie, so
+no token is readable from JavaScript, and the account row is re-read on every request —
+which is why suspending somebody takes effect on their next call rather than whenever a
+token happens to expire.
+
+Sign-up is closed once the instance has its first account. After that, an admin creates
+accounts from **Users** in the sidebar: the server generates the first password, shows
+it once so it can be handed over, stores only a bcrypt hash, and requires the account to
+replace it at first sign-in.
+
+A holding's quantity and average are derived from a buy log on the server rather than
+stored beside it. Two consequences worth knowing:
+
+- Editing a holding's quantity, average or date rewrites its `opening` entry so the log
+  still adds up to what you asked for, and an edit the log cannot represent — below what
+  the real purchases already account for — is refused with a `409` rather than applied
+  half-way;
+- Deleting the last entry of a holding's log removes the holding, because an empty log
+  describes nothing.
 
 ---
 
 ## Backend Integration
 
-See `BACKEND_INTEGRATION.md` for detailed guide on connecting Node.js, .NET, Firebase, or Supabase.
+The proxy in `backend/` is a working implementation of what `BACKEND_INTEGRATION.md`
+describes: Express, Postgres, cookie sessions and role checks. That guide remains the
+reference for swapping in a different stack (Node.js, .NET, Firebase, Supabase) behind
+the same frontend — start there if you are replacing it rather than extending it.

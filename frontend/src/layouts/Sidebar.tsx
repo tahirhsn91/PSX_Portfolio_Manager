@@ -4,7 +4,8 @@ import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
-import { NAV_GROUPS, isNavItemActive, navItemClass } from './nav';
+import { useMe } from '@/hooks';
+import { navGroupsFor, isNavItemActive, navItemClass } from './nav';
 
 /**
  * Desktop navigation. The items are grouped (workspace vs configuration) instead
@@ -15,6 +16,9 @@ import { NAV_GROUPS, isNavItemActive, navItemClass } from './nav';
 export function Sidebar() {
   const { isSidebarCollapsed, toggleSidebar } = useUIStore();
   const { pathname } = useLocation();
+  const { data: user } = useMe();
+  // Only decides whether the admin group is drawn; the server is what refuses it.
+  const isAdmin = user?.role === 'admin';
 
   return (
     <aside
@@ -46,7 +50,7 @@ export function Sidebar() {
       {/* Destinations */}
       <TooltipProvider delayDuration={0}>
         <nav aria-label="Main navigation" className="flex-1 space-y-4 overflow-y-auto p-2">
-          {NAV_GROUPS.map((group) => (
+          {navGroupsFor(isAdmin).map((group) => (
             <div key={group.label}>
               {!isSidebarCollapsed && (
                 <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
