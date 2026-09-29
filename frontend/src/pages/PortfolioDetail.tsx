@@ -14,6 +14,7 @@ import { HoldingForm } from '@/features/portfolio/HoldingForm';
 import { AllocationPieChart, PortfolioValueChart, BenchmarkComparisonChart, rangeConfig } from '@/features/charts';
 import type { ComparisonBenchmark, ComparisonRange } from '@/features/charts';
 import { usePortfolioStore, useUIStore } from '@/store';
+import { ApiError } from '@/services/http';
 import { usePortfolioMetrics, useIndex, usePortfolioHistory, useCandles } from '@/hooks';
 import { buildSectorAllocation, buildHoldingAllocation } from '@/utils';
 import { ROUTES, PSX_INDICES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
@@ -129,10 +130,18 @@ export function PortfolioDetail() {
     ? portfolio.holdings.find((h) => h.id === editingHolding.id) ?? editingHolding
     : null;
 
-  const handleAdd = (values: HoldingFormValues) => {
-    addHolding({ portfolioId: id, ...values });
-    addNotification({ type: 'success', title: `${values.symbol} added to portfolio` });
-    setAddOpen(false);
+  const handleAdd = async (values: HoldingFormValues) => {
+    try {
+      await addHolding({ portfolioId: id, ...values });
+      addNotification({ type: 'success', title: `${values.symbol} added to portfolio` });
+      setAddOpen(false);
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: `Could not add ${values.symbol}`,
+        message: (err as Error).message,
+      });
+    }
   };
 
   /**
@@ -140,15 +149,23 @@ export function PortfolioDetail() {
    * and average from the whole log. The dialog stays open — the history it
    * shows has just changed — and the notification reports the new position.
    */
-  const handleUpdateBuy = (buyId: string, patch: { shares: number; pricePerShare: number }) => {
+  const handleUpdateBuy = async (buyId: string, patch: { shares: number; pricePerShare: number }) => {
     if (!editingHolding) return;
-    const updated = updateBuy(id, editingHolding.id, buyId, patch);
-    if (!updated) return;
-    addNotification({
-      type: 'success',
-      title: 'Purchase updated',
-      message: `${updated.symbol} is now ${updated.shares.toLocaleString()} shares at ${formatCurrency(updated.averagePurchasePrice)} average.`,
-    });
+    try {
+      const updated = await updateBuy(id, editingHolding.id, buyId, patch);
+      if (!updated) return;
+      addNotification({
+        type: 'success',
+        title: 'Purchase updated',
+        message: `${updated.symbol} is now ${updated.shares.toLocaleString()} shares at ${formatCurrency(updated.averagePurchasePrice)} average.`,
+      });
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: 'Could not update the purchase',
+        message: (err as Error).message,
+      });
+    }
   };
 
   /**
@@ -156,10 +173,20 @@ export function PortfolioDetail() {
    * left, so the numbers reported are the position's, not a subtraction — and
    * when the purchase removed was the last one, the holding goes with it.
    */
-  const handleDeleteBuy = (buyId: string) => {
+  const handleDeleteBuy = async (buyId: string) => {
     if (!editingHolding) return;
     const removed = (editingHolding.buys ?? []).find((b) => b.id === buyId);
-    const result = deleteBuy(id, editingHolding.id, buyId);
+    let result;
+    try {
+      result = await deleteBuy(id, editingHolding.id, buyId);
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: 'Could not remove the purchase',
+        message: (err as Error).message,
+      });
+      return;
+    }
     if (!result || !removed) return;
 
     if (result.kind === 'holding-removed') {
@@ -181,11 +208,23 @@ export function PortfolioDetail() {
     });
   };
 
-  const handleUpdate = (values: HoldingFormValues) => {
+  const handleUpdate = async (values: HoldingFormValues) => {
     if (!editingHolding) return;
-    updateHolding(id, { id: editingHolding.id, ...values });
-    addNotification({ type: 'success', title: 'Holding updated' });
-    setEditingHolding(null);
+    try {
+      await updateHolding(id, { id: editingHolding.id, ...values });
+      addNotification({ type: 'success', title: 'Holding updated' });
+      setEditingHolding(null);
+    } catch (err) {
+      // The buy log can refuse an edit it cannot represent — editing a position below
+      // what its real purchases already account for. The server leaves the holding
+      // exactly as it was, and this is the only place that can explain why.
+      const refused = err instanceof ApiError && err.isLogConflict;
+      addNotification({
+        type: 'error',
+        title: refused ? 'That edit cannot be logged' : 'Could not update the holding',
+        message: (err as Error).message,
+      });
+    }
   };
 
   /**
@@ -193,30 +232,46 @@ export function PortfolioDetail() {
    * and the weighted average and appends the purchase to the holding's log; all
    * this has to do is report what changed.
    */
-  const handleBuy = (values: BuyFormValues) => {
+  const handleBuy = async (values: BuyFormValues) => {
     if (!editingHolding) return;
     const before = `${editingHolding.shares.toLocaleString()} @ ${formatCurrency(editingHolding.averagePurchasePrice)}`;
-    const updated = buyInto(id, {
-      holdingId: editingHolding.id,
-      shares: values.shares,
-      pricePerShare: values.pricePerShare,
-      date: values.date,
-    });
-    if (!updated) return;
-    addNotification({
-      type: 'success',
-      title: `Bought ${values.shares.toLocaleString()} ${updated.symbol}`,
-      message: `Now ${updated.shares.toLocaleString()} shares at ${formatCurrency(updated.averagePurchasePrice)} average (was ${before}).`,
-    });
-    setEditingHolding(null);
+    try {
+      const updated = await buyInto(id, {
+        holdingId: editingHolding.id,
+        shares: values.shares,
+        pricePerShare: values.pricePerShare,
+        date: values.date,
+      });
+      if (!updated) return;
+      addNotification({
+        type: 'success',
+        title: `Bought ${values.shares.toLocaleString()} ${updated.symbol}`,
+        message: `Now ${updated.shares.toLocaleString()} shares at ${formatCurrency(updated.averagePurchasePrice)} average (was ${before}).`,
+      });
+      setEditingHolding(null);
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: `Could not log the purchase of ${values.shares.toLocaleString()} shares`,
+        message: (err as Error).message,
+      });
+    }
   };
 
-  const confirmDeleteHolding = () => {
+  const confirmDeleteHolding = async () => {
     const holding = holdingToDelete;
     if (!holding) return;
-    deleteHolding(id, holding.id);
-    addNotification({ type: 'info', title: `${holding.symbol} removed` });
-    setHoldingToDelete(null);
+    try {
+      await deleteHolding(id, holding.id);
+      addNotification({ type: 'info', title: `${holding.symbol} removed` });
+      setHoldingToDelete(null);
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: `Could not remove ${holding.symbol}`,
+        message: (err as Error).message,
+      });
+    }
   };
 
   const sectorAlloc = buildSectorAllocation(portfolio, metrics?.holdingMetrics ?? []);

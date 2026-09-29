@@ -109,7 +109,12 @@ export const portfoliosApi = {
   },
 
   // ─── The buy log ───────────────────────────────────────────────────────────
-  addBuy: async (portfolioId: string, holdingId: string, input: BuyInput): Promise<Portfolio> => {
+  /** The holding is named by the path, so the body carries only the purchase. */
+  addBuy: async (
+    portfolioId: string,
+    holdingId: string,
+    input: Omit<BuyInput, 'holdingId'>
+  ): Promise<Portfolio> => {
     const { portfolio } = await request<PortfolioEnvelope>(
       `${BASE}/${portfolioId}/holdings/${holdingId}/buys`,
       { method: 'POST', body: body(input) }
