@@ -32,9 +32,7 @@ import { EmptyState, PageHeader } from '@/components/shared';
 import { useMe } from '@/hooks';
 import { useUIStore } from '@/store';
 import { usersApi, type ManagedUser } from '@/services/admin';
-
-const formatWhen = (value?: string | null) =>
-  value ? new Date(value).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : 'never';
+import { formatDateTime } from '@/utils';
 
 export function AdminUsers() {
   const { data: me } = useMe();
@@ -287,7 +285,7 @@ export function AdminUsers() {
                         </td>
                         <td className="align-middle py-2 pr-2 tabular-nums">{user.portfolioCount}</td>
                         <td className="align-middle py-2 pr-2 whitespace-nowrap text-muted-foreground">
-                          {formatWhen(user.lastLoginAt)}
+                          {formatDateTime(user.lastLoginAt, 'never')}
                         </td>
                         <td className="align-middle py-2 pr-0">
                           {/* Self-targeting is refused by the server; not offering it here
