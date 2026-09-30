@@ -237,14 +237,14 @@ export function AdminUsers() {
                     const isSelf = user.id === me?.id;
                     return (
                       <tr key={user.id} className="border-b last:border-0">
-                        <td className="py-3 pr-3">
+                        <td className="py-2 pr-3">
                           <span className="font-medium">{user.email}</span>
                           {isSelf && <span className="ml-2 text-xs text-muted-foreground">(you)</span>}
                         </td>
-                        <td className="py-3 pr-3">
+                        <td className="py-2 pr-3">
                           <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>{user.role}</Badge>
                         </td>
-                        <td className="py-3 pr-3">
+                        <td className="py-2 pr-3">
                           <Badge variant={user.isActive ? 'secondary' : 'outline'}>
                             {user.isActive ? 'active' : 'suspended'}
                           </Badge>
@@ -252,13 +252,16 @@ export function AdminUsers() {
                             <span className="ml-2 text-xs text-muted-foreground">owes a password change</span>
                           )}
                         </td>
-                        <td className="py-3 pr-3 tabular-nums">{user.portfolioCount}</td>
-                        <td className="py-3 pr-3 text-muted-foreground">{formatWhen(user.lastLoginAt)}</td>
-                        <td className="py-3">
+                        <td className="py-2 pr-3 tabular-nums">{user.portfolioCount}</td>
+                        <td className="py-2 pr-3 text-muted-foreground">{formatWhen(user.lastLoginAt)}</td>
+                        <td className="py-2 pr-0">
                           {/* Self-targeting is refused by the server; not offering it here
                               keeps the reason out of an error message. */}
                           {!isSelf && (
-                            <div className="flex flex-wrap gap-2">
+                            /* One line, always: wrapping put "Make admin" *under* "Suspend"
+                               and doubled the row (121px against 65px). The table's wrapper
+                               already scrolls sideways if the columns outgrow the card. */
+                            <div className="flex items-center gap-2 whitespace-nowrap">
                               <Button
                                 variant="outline"
                                 size="sm"
