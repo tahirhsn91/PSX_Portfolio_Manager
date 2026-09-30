@@ -1,0 +1,46 @@
+import { describe, expect, it } from 'vitest';
+import { formatDate, formatDateTime } from './formatters';
+
+/**
+ * en-GB spells September "Sept" — four letters where the other eleven months use three —
+ * so these pin the abbreviated form the app asks for, and the day-first order that comes
+ * with it. Values are built without a Z so the assertions hold in whatever zone the suite
+ * runs in.
+ */
+describe('formatDate', () => {
+  it('abbreviates September to three letters', () => {
+    expect(formatDate('2026-09-29', 'short')).toBe('29 Sep 2026');
+    expect(formatDate('2026-09-29', 'short')).not.toContain('Sept');
+  });
+
+  it('leaves the other months and the day-first order alone', () => {
+    expect(formatDate('2024-03-15', 'short')).toBe('15 Mar 2024');
+    expect(formatDate('2026-07-04', 'short')).toBe('04 Jul 2026');
+    expect(formatDate('2026-01-01', 'short')).toBe('01 Jan 2026');
+  });
+
+  it('still spells the month out when asked for long', () => {
+    expect(formatDate('2026-09-29', 'long')).toBe('29 September 2026');
+  });
+
+  it('falls back rather than printing an invalid date', () => {
+    expect(formatDate(null)).toBe('—');
+    expect(formatDate('nonsense')).toBe('—');
+  });
+});
+
+describe('formatDateTime', () => {
+  it('puts a 24-hour clock beside the date', () => {
+    expect(formatDateTime(new Date('2026-09-29T14:19:00').toISOString())).toBe('29 Sep 2026, 14:19');
+  });
+
+  it('renders midnight as 00:19, not 24:19', () => {
+    expect(formatDateTime(new Date('2026-09-29T00:19:00').toISOString())).toBe('29 Sep 2026, 00:19');
+  });
+
+  it('takes the caller\'s word for what "no sign-in yet" reads as', () => {
+    expect(formatDateTime(null)).toBe('—');
+    expect(formatDateTime(null, 'never')).toBe('never');
+    expect(formatDateTime('nonsense')).toBe('—');
+  });
+});
