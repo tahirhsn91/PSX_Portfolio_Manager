@@ -125,7 +125,7 @@ router.post(
       `INSERT INTO users (email, password_hash, display_name, role, must_change_password)
        VALUES ($1, $2, $3, $4, TRUE)
        RETURNING id, email, display_name, role, is_active, must_change_password,
-                 phone, timezone, preferences, created_at, last_login_at`,
+                 phone, timezone, preferences, created_at, last_seen_at`,
       [email, passwordHash, displayName, role],
     );
 
@@ -158,7 +158,7 @@ router.get(
 
     const { rows } = await query(
       `SELECT u.id, u.email, u.display_name, u.role, u.is_active, u.must_change_password,
-              u.phone, u.timezone, u.preferences, u.created_at, u.last_login_at,
+              u.phone, u.timezone, u.preferences, u.created_at, u.last_seen_at,
               COALESCE(p.n, 0)::int AS portfolio_count
          FROM users u
          LEFT JOIN (SELECT user_id, COUNT(*) AS n FROM portfolios GROUP BY user_id) p
@@ -182,7 +182,7 @@ router.get(
   wrap(async (req, res) => {
     const { rows } = await query(
       `SELECT u.id, u.email, u.display_name, u.role, u.is_active, u.must_change_password,
-              u.phone, u.timezone, u.preferences, u.created_at, u.last_login_at,
+              u.phone, u.timezone, u.preferences, u.created_at, u.last_seen_at,
               COALESCE(p.n, 0)::int AS portfolio_count
          FROM users u
          LEFT JOIN (SELECT user_id, COUNT(*) AS n FROM portfolios GROUP BY user_id) p
@@ -216,7 +216,7 @@ router.patch(
     const { rows } = await query(
       `UPDATE users SET is_active = $1, updated_at = NOW() WHERE id = $2
        RETURNING id, email, display_name, role, is_active, must_change_password,
-                 phone, timezone, preferences, created_at, last_login_at`,
+                 phone, timezone, preferences, created_at, last_seen_at`,
       [isActive, target.id],
     );
     await recordEvent(isActive ? 'activated' : 'suspended', {
@@ -246,7 +246,7 @@ router.patch(
     const { rows } = await query(
       `UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2
        RETURNING id, email, display_name, role, is_active, must_change_password,
-                 phone, timezone, preferences, created_at, last_login_at`,
+                 phone, timezone, preferences, created_at, last_seen_at`,
       [role, target.id],
     );
     // The middleware reads the role from the row on every request, so the target's

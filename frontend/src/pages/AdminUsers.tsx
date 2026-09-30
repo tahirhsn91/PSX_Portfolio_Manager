@@ -252,7 +252,7 @@ export function AdminUsers() {
                     <th scope="col" className="py-2 pr-2 font-semibold">Role</th>
                     <th scope="col" className="py-2 pr-2 font-semibold">Status</th>
                     <th scope="col" className="py-2 pr-2 font-semibold">Portfolios</th>
-                    <th scope="col" className="py-2 pr-2 font-semibold">Last sign-in</th>
+                    <th scope="col" className="py-2 pr-2 font-semibold">Last seen</th>
                     <th scope="col" className="py-2 font-semibold">Actions</th>
                   </tr>
                 </thead>
@@ -285,7 +285,7 @@ export function AdminUsers() {
                         </td>
                         <td className="align-middle py-2 pr-2 tabular-nums">{user.portfolioCount}</td>
                         <td className="align-middle py-2 pr-2 whitespace-nowrap text-muted-foreground">
-                          {formatDateTime(user.lastLoginAt, 'never')}
+                          {formatDateTime(user.lastSeenAt, 'never')}
                         </td>
                         <td className="align-middle py-2 pr-0">
                           {/* Self-targeting is refused by the server; not offering it here
