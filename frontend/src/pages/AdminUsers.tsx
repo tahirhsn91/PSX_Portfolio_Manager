@@ -13,7 +13,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Search, ShieldCheck, UserPlus, UserX, UserCheck, TriangleAlert } from 'lucide-react';
+import { Search, ShieldCheck, Trash2, UserPlus, UserX, UserCheck, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -46,6 +46,12 @@ export function AdminUsers() {
   const [query, setQuery] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  // Deleting is two deliberate steps: `pendingDelete` says what goes with the account,
+  // `confirmDelete` is the last chance to stop. Two, because the server's DELETE is
+  // permanent and takes the account's portfolios, holdings and buys with it.
+  const [pendingDelete, setPendingDelete] = useState<ManagedUser | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<ManagedUser | null>(null);
 
   // The generated password, held just long enough to hand over.
   const [handover, setHandover] = useState<{ email: string; password: string } | null>(null);
@@ -132,6 +138,26 @@ export function AdminUsers() {
       });
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const handleDelete = async (user: ManagedUser) => {
+    setBusyId(user.id);
+    try {
+      await usersApi.remove(user.id);
+      setUsers((current) => current.filter((u) => u.id !== user.id));
+      addNotification({ type: 'success', title: `${user.email} deleted permanently` });
+    } catch (err) {
+      // The server refuses self-targeting and the last admin, and says which.
+      addNotification({
+        type: 'error',
+        title: 'Could not delete the account',
+        message: (err as Error).message,
+      });
+    } finally {
+      setBusyId(null);
+      setConfirmDelete(null);
+      setPendingDelete(null);
     }
   };
 
@@ -224,11 +250,11 @@ export function AdminUsers() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-xs uppercase tracking-wider text-muted-foreground">
-                    <th scope="col" className="py-2 pr-3 font-semibold">Account</th>
-                    <th scope="col" className="py-2 pr-3 font-semibold">Role</th>
-                    <th scope="col" className="py-2 pr-3 font-semibold">Status</th>
-                    <th scope="col" className="py-2 pr-3 font-semibold">Portfolios</th>
-                    <th scope="col" className="py-2 pr-3 font-semibold">Last sign-in</th>
+                    <th scope="col" className="py-2 pr-2 font-semibold">Account</th>
+                    <th scope="col" className="py-2 pr-2 font-semibold">Role</th>
+                    <th scope="col" className="py-2 pr-2 font-semibold">Status</th>
+                    <th scope="col" className="py-2 pr-2 font-semibold">Portfolios</th>
+                    <th scope="col" className="py-2 pr-2 font-semibold">Last sign-in</th>
                     <th scope="col" className="py-2 font-semibold">Actions</th>
                   </tr>
                 </thead>
@@ -237,31 +263,40 @@ export function AdminUsers() {
                     const isSelf = user.id === me?.id;
                     return (
                       <tr key={user.id} className="border-b last:border-0">
-                        <td className="py-2 pr-3">
-                          <span className="font-medium">{user.email}</span>
-                          {isSelf && <span className="ml-2 text-xs text-muted-foreground">(you)</span>}
+                        <td className="align-middle py-2 pr-2">
+                          {/* The "owes a password change" note lives here, not beside the status
+                              badge: as a second line in the Status cell it left that row's badge
+                              off the centre line every other row's badge sits on. */}
+                          <div className="flex flex-col">
+                            <span className="font-medium">
+                              {user.email}
+                              {isSelf && <span className="ml-2 text-xs text-muted-foreground">(you)</span>}
+                            </span>
+                            {user.mustChangePassword && (
+                              <span className="text-xs text-muted-foreground">owes a password change</span>
+                            )}
+                          </div>
                         </td>
-                        <td className="py-2 pr-3">
+                        <td className="align-middle py-2 pr-2">
                           <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>{user.role}</Badge>
                         </td>
-                        <td className="py-2 pr-3">
+                        <td className="align-middle py-2 pr-2">
                           <Badge variant={user.isActive ? 'secondary' : 'outline'}>
                             {user.isActive ? 'active' : 'suspended'}
                           </Badge>
-                          {user.mustChangePassword && (
-                            <span className="ml-2 text-xs text-muted-foreground">owes a password change</span>
-                          )}
                         </td>
-                        <td className="py-2 pr-3 tabular-nums">{user.portfolioCount}</td>
-                        <td className="py-2 pr-3 text-muted-foreground">{formatWhen(user.lastLoginAt)}</td>
-                        <td className="py-2 pr-0">
+                        <td className="align-middle py-2 pr-2 tabular-nums">{user.portfolioCount}</td>
+                        <td className="align-middle py-2 pr-2 whitespace-nowrap text-muted-foreground">
+                          {formatWhen(user.lastLoginAt)}
+                        </td>
+                        <td className="align-middle py-2 pr-0">
                           {/* Self-targeting is refused by the server; not offering it here
                               keeps the reason out of an error message. */}
                           {!isSelf && (
                             /* One line, always: wrapping put "Make admin" *under* "Suspend"
                                and doubled the row (121px against 65px). The table's wrapper
                                already scrolls sideways if the columns outgrow the card. */
-                            <div className="flex items-center gap-2 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5 whitespace-nowrap">
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -287,6 +322,21 @@ export function AdminUsers() {
                                 onClick={() => void handleRole(user)}
                               >
                                 {user.role === 'admin' ? 'Make user' : 'Make admin'}
+                              </Button>
+                              {/* Icon-only: a third labelled button pushed the table past the
+                                  card and clipped itself behind a scrollbar. Red on its own is
+                                  not the whole affordance — the tooltip and the accessible name
+                                  say what it does. */}
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                className="h-8 w-8"
+                                disabled={busyId === user.id}
+                                onClick={() => setPendingDelete(user)}
+                                title="Delete permanently"
+                                aria-label={`Delete ${user.email} permanently`}
+                              >
+                                <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
                               </Button>
                             </div>
                           )}
@@ -354,6 +404,81 @@ export function AdminUsers() {
             </Button>
             <Button onClick={() => void handleCreate()} disabled={!form.email}>
               Create account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/*
+        Deleting is asked twice, deliberately. The first dialog is the facts — what goes
+        with the account, which is not obvious from a roster row — and the second is the
+        plain "this cannot be undone". Suspension is one button away and reversible; this
+        is the only action on the screen that destroys data.
+      */}
+      <Dialog open={!!pendingDelete} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {pendingDelete?.email}?</DialogTitle>
+            <DialogDescription>
+              This is permanent. Suspending the account does the same job reversibly.
+            </DialogDescription>
+          </DialogHeader>
+
+          <ul className="space-y-2 text-sm text-muted-foreground">
+            <li>
+              {pendingDelete?.portfolioCount === 0 ? (
+                <>· They own no portfolios, so only the account itself goes.</>
+              ) : (
+                <>
+                  · Their{' '}
+                  <strong className="text-foreground">
+                    {pendingDelete?.portfolioCount} portfolio{pendingDelete?.portfolioCount === 1 ? '' : 's'}
+                  </strong>{' '}
+                  go with them, and every holding and buy inside.
+                </>
+              )}
+            </li>
+            <li>· They are signed out, and cannot sign in again or be reactivated.</li>
+            <li>· The record of what they did goes too; the deletion itself is recorded against your account.</li>
+          </ul>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setConfirmDelete(pendingDelete);
+                setPendingDelete(null);
+              }}
+            >
+              Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!confirmDelete} onOpenChange={(open) => !open && setConfirmDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Last check — delete {confirmDelete?.email} for good?</DialogTitle>
+            <DialogDescription>
+              Asked once more because it cannot be undone. Nothing on this screen can bring the
+              account or its portfolios back.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDelete(null)}>
+              Keep the account
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={busyId === confirmDelete?.id}
+              onClick={() => confirmDelete && void handleDelete(confirmDelete)}
+            >
+              <Trash2 aria-hidden="true" className="mr-1.5 h-4 w-4" />
+              Delete permanently
             </Button>
           </DialogFooter>
         </DialogContent>
