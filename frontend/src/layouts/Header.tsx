@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Brand, NotificationBell } from '@/components/shared';
+import { NotificationBell } from '@/components/shared';
 import { useTheme } from '@/hooks';
 import { useMarketStatus } from '@/hooks';
 import { cn } from '@/lib/utils';
@@ -62,8 +62,8 @@ export function Header({ onOpenNav }: HeaderProps) {
         >
           <Menu aria-hidden="true" className="h-5 w-5" />
         </Button>
-        {/* The bar's own identity on mobile, where the sidebar is not on screen. */}
-        <Brand size="sm" className="md:hidden" />
+        {/* No brand here, deliberately: it sat between the menu button and the market chip
+            and read as clutter. The drawer and the desktop sidebar carry the logo. */}
 
         {marketStatus && (
           <div
