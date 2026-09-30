@@ -30,12 +30,15 @@ describe('formatDate', () => {
 });
 
 describe('formatDateTime', () => {
-  it('puts a 24-hour clock beside the date', () => {
-    expect(formatDateTime(new Date('2026-09-29T14:19:00').toISOString())).toBe('29 Sep 2026, 14:19');
+  it('puts a 12-hour clock beside the date, no space before the meridiem', () => {
+    expect(formatDateTime(new Date('2026-09-29T21:30:00').toISOString())).toBe('29 Sep 2026, 9:30PM');
+    expect(formatDateTime(new Date('2026-09-29T14:19:00').toISOString())).toBe('29 Sep 2026, 2:19PM');
+    expect(formatDateTime(new Date('2026-09-29T09:05:00').toISOString())).toBe('29 Sep 2026, 9:05AM');
   });
 
-  it('renders midnight as 00:19, not 24:19', () => {
-    expect(formatDateTime(new Date('2026-09-29T00:19:00').toISOString())).toBe('29 Sep 2026, 00:19');
+  it('renders midnight as 12:19AM and noon as 12:00PM', () => {
+    expect(formatDateTime(new Date('2026-09-29T00:19:00').toISOString())).toBe('29 Sep 2026, 12:19AM');
+    expect(formatDateTime(new Date('2026-09-29T12:00:00').toISOString())).toBe('29 Sep 2026, 12:00PM');
   });
 
   it('takes the caller\'s word for what "no sign-in yet" reads as', () => {
