@@ -51,4 +51,13 @@ export const usersApi = {
     });
     return user;
   },
+
+  /**
+   * Permanent. The server refuses self-targeting and the last admin, and the account's
+   * portfolios, holdings and buys cascade away with it — which is why the screen asks
+   * twice before calling this and offers suspension as the reversible alternative.
+   */
+  remove: async (id: string): Promise<void> => {
+    await request<{ ok: boolean; deleted: string }>(`${BASE}/${id}`, { method: 'DELETE' });
+  },
 };
