@@ -62,14 +62,22 @@ function dayMonthYear(date: Date, month: 'short' | 'long'): string {
     .join('');
 }
 
-/** 24-hour clock. `hourCycle: 'h23'` because `hour12: false` renders midnight as 24:00. */
+/**
+ * The clock, as "9:30PM": 12-hour, uppercase meridiem, no space in front of it.
+ *
+ * Arithmetic rather than Intl, because this runtime's ICU answers the 12-hour cycle with
+ * 0 for both midnight and noon — it renders 00:19 as "0:19AM" and 12:00 as "0:00PM". It is
+ * the same ICU that turns midnight into "24:19" under hour12: false.
+ */
 function clockTime(date: Date): string {
-  return new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
+  const hours = date.getHours();
+  const hour = hours % 12 === 0 ? 12 : hours % 12;
+  return `${hour}:${String(date.getMinutes()).padStart(2, '0')}${hours < 12 ? 'AM' : 'PM'}`;
 }
 
 /**
  * Format a date and the time of day
- * e.g. "2026-09-29T00:19:00Z" → "29 Sep 2026, 00:19"
+ * e.g. "2026-09-29T21:30:00" → "29 Sep 2026, 9:30PM"
  */
 export function formatDateTime(value: string | null | undefined, empty = '—'): string {
   if (!value) return empty;
