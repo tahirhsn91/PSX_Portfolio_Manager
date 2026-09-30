@@ -58,7 +58,7 @@ function invalid(res, message) {
 /** The columns signSession and the payload both need, in one place. */
 const SESSION_COLUMNS = `
   id, email, display_name, password_hash, role, is_active, token_version,
-  must_change_password, phone, timezone, preferences, created_at, last_login_at
+  must_change_password, phone, timezone, preferences, created_at, last_seen_at
 `;
 
 function readCredentials(body = {}) {
@@ -128,7 +128,7 @@ router.post(
       throw err;
     }
 
-    await query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [row.id]);
+    await query('UPDATE users SET last_seen_at = NOW() WHERE id = $1', [row.id]);
     await recordEvent('signup', { userId: row.id, ip: clientIp(req) });
     setSessionCookie(res, signSession(row));
     return res.status(201).json({ user: serializeUser(row) });
@@ -166,7 +166,7 @@ router.post(
       });
     }
 
-    await query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
+    await query('UPDATE users SET last_seen_at = NOW() WHERE id = $1', [user.id]);
     await recordEvent('login', { userId: user.id, ip: clientIp(req) });
     setSessionCookie(res, signSession(user));
     // `user` still carries password_hash; serializeUser never emits it.
@@ -185,6 +185,28 @@ router.post(
   }),
 );
 
+/**
+ * Note that the account was just used, for the roster's "Last seen" column.
+ *
+ * Throttled to a write a minute: the client calls this on every focus and after every
+ * sign-in, and a burst of those should not become a burst of writes. Returns the value to
+ * report either way, so the response carries the same stamp the column will.
+ */
+async function touchLastSeen(id) {
+  const { rows } = await query(
+    `UPDATE users
+        SET last_seen_at = NOW()
+      WHERE id = $1
+        AND (last_seen_at IS NULL OR last_seen_at < NOW() - INTERVAL '1 minute')
+      RETURNING last_seen_at`,
+    [id],
+  );
+  if (rows[0]) return rows[0].last_seen_at;
+
+  const { rows: current } = await query('SELECT last_seen_at FROM users WHERE id = $1', [id]);
+  return current[0] ? current[0].last_seen_at : null;
+}
+
 // ── GET /api/auth/me ──────────────────────────────────────────────────────────
 router.get(
   '/me',
@@ -198,6 +220,11 @@ router.get(
         .status(401)
         .json({ error: { code: 'UNAUTHENTICATED', message: 'Account no longer exists' } });
     }
+    // Opening or focusing the app calls this route, so it doubles as "the account was
+    // just used". Deliberately not in the auth middleware: the market endpoints poll while
+    // a tab sits open, and touching there would report a user as active all night.
+    row.last_seen_at = await touchLastSeen(row.id);
+
     // Must-change-password is reported here rather than blocking, so the app can
     // route the account to the change-password screen instead of showing a wall.
     return res.json({ user: serializeUser(row), mustChangePassword: row.must_change_password });
@@ -243,7 +270,7 @@ router.patch(
     const { rows } = await query(
       `UPDATE users SET ${sets.join(', ')}, updated_at = NOW()
         WHERE id = $${params.length}
-        RETURNING ${'id, email, display_name, role, is_active, must_change_password, phone, timezone, preferences, created_at, last_login_at'}`,
+        RETURNING ${'id, email, display_name, role, is_active, must_change_password, phone, timezone, preferences, created_at, last_seen_at'}`,
       params,
     );
     return res.json({ user: serializeUser(rows[0]) });

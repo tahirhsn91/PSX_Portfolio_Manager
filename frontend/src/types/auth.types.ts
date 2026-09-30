@@ -18,7 +18,7 @@ export interface AuthUser {
   timezone: string | null;
   preferences: Record<string, unknown>;
   createdAt: string;
-  lastLoginAt: string | null;
+  lastSeenAt: string | null;
 }
 
 /** A row in the admin roster: an account plus what it owns. */
