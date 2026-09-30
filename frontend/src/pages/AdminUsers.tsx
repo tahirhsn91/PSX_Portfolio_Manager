@@ -434,7 +434,8 @@ export function AdminUsers() {
                   <strong className="text-foreground">
                     {pendingDelete?.portfolioCount} portfolio{pendingDelete?.portfolioCount === 1 ? '' : 's'}
                   </strong>{' '}
-                  go with them, and every holding and buy inside.
+                  {pendingDelete?.portfolioCount === 1 ? 'goes' : 'go'} with them, and every holding and
+                  buy inside.
                 </>
               )}
             </li>
