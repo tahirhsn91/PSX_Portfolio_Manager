@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LineChart, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useMe } from '@/hooks';
+import { Brand } from '@/components/shared';
 import { navGroupsFor, isNavItemActive, navItemClass } from './nav';
 
 interface MobileNavProps {
@@ -45,17 +46,8 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
           aria-describedby={undefined}
         >
           <div className="flex h-16 shrink-0 items-center justify-between gap-3 border-b px-3">
-            <DialogPrimitive.Title className="flex items-center gap-3 text-base font-semibold">
-              <span
-                aria-hidden="true"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground"
-              >
-                <LineChart className="h-5 w-5" />
-              </span>
-              <span className="flex flex-col leading-tight">
-                <span className="text-sm font-semibold">PSX Portfolio</span>
-                <span className="text-xs font-normal text-muted-foreground">Manager</span>
-              </span>
+            <DialogPrimitive.Title className="flex items-center">
+              <Brand />
             </DialogPrimitive.Title>
             {/* 44x44: the header's close affordances were the smallest targets in the app. */}
             <DialogPrimitive.Close
