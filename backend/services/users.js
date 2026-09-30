@@ -17,7 +17,7 @@ const { query } = require('../db/pool');
 
 const PUBLIC_COLUMNS = `
   id, email, display_name, role, is_active, must_change_password,
-  phone, timezone, preferences, created_at, last_login_at
+  phone, timezone, preferences, created_at, last_seen_at
 `;
 
 /**
@@ -37,7 +37,7 @@ function serializeUser(row) {
     timezone: row.timezone ?? null,
     preferences: row.preferences ?? {},
     createdAt: row.created_at,
-    lastLoginAt: row.last_login_at ?? null,
+    lastSeenAt: row.last_seen_at ?? null,
   };
 }
 

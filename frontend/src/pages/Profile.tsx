@@ -120,8 +120,8 @@ export function Profile() {
             </Badge>
           </div>
           <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">Last sign-in</span>
-            <span>{formatDateTime(user.lastLoginAt)}</span>
+            <span className="text-muted-foreground">Last seen</span>
+            <span>{formatDateTime(user.lastSeenAt)}</span>
           </div>
           <Separator />
           <Button
