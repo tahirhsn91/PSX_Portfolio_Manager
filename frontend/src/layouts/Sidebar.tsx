@@ -1,10 +1,11 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, LineChart } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/store';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { useMe } from '@/hooks';
+import { Brand } from '@/components/shared';
 import { navGroupsFor, isNavItemActive, navItemClass } from './nav';
 
 /**
@@ -32,19 +33,10 @@ export function Sidebar() {
       )}
     >
       {/* Brand */}
-      <div className="flex h-16 items-center gap-3 border-b px-3">
-        <div
-          aria-hidden="true"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground"
-        >
-          <LineChart className="h-5 w-5" />
-        </div>
-        {!isSidebarCollapsed && (
-          <div className="flex min-w-0 flex-col leading-tight">
-            <span className="truncate text-sm font-semibold">PSX Portfolio</span>
-            <span className="truncate text-xs text-muted-foreground">Manager</span>
-          </div>
-        )}
+      <div className="flex h-16 items-center border-b px-3">
+        {/* Collapsed the rail is 64px wide, so only the mark fits; it is centred to stay
+            on the nav icons' axis below it. */}
+        {isSidebarCollapsed ? <Brand mark className="mx-auto" /> : <Brand />}
       </div>
 
       {/* Destinations */}

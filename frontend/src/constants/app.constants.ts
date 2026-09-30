@@ -3,6 +3,8 @@
  */
 
 export const APP_NAME = 'PSX Portfolio Manager';
+/** The name the logo artwork carries. Kept beside APP_NAME so a rename has one obvious home. */
+export const BRAND_NAME = 'MyPortfolio365';
 export const APP_VERSION = '1.0.0';
 export const STORAGE_VERSION = '1';
 
