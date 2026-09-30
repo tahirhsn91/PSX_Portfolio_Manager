@@ -50,6 +50,35 @@ export function formatCompactNumber(value: number | null | undefined): string {
 }
 
 /**
+ * en-GB and every English locale beside en-US abbreviate September as "Sept" — four
+ * letters where the other eleven months use three. Callers here want "Sep", and swapping
+ * to en-US would flip the day and month around, so the month part is trimmed instead,
+ * whatever the locale hands back.
+ */
+function dayMonthYear(date: Date, month: 'short' | 'long'): string {
+  return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month, year: 'numeric' })
+    .formatToParts(date)
+    .map((part) => (part.type === 'month' && month === 'short' ? part.value.slice(0, 3) : part.value))
+    .join('');
+}
+
+/** 24-hour clock. `hourCycle: 'h23'` because `hour12: false` renders midnight as 24:00. */
+function clockTime(date: Date): string {
+  return new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date);
+}
+
+/**
+ * Format a date and the time of day
+ * e.g. "2026-09-29T00:19:00Z" → "29 Sep 2026, 00:19"
+ */
+export function formatDateTime(value: string | null | undefined, empty = '—'): string {
+  if (!value) return empty;
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return empty;
+  return `${dayMonthYear(date, 'short')}, ${clockTime(date)}`;
+}
+
+/**
  * Format a date string
  * e.g. "2024-03-15" → "15 Mar 2024"
  */
@@ -70,11 +99,7 @@ export function formatDate(dateStr: string | null | undefined, format: 'short' |
       return `${Math.floor(days / 365)} years ago`;
     }
 
-    return new Intl.DateTimeFormat('en-PK', {
-      day: '2-digit',
-      month: format === 'long' ? 'long' : 'short',
-      year: 'numeric',
-    }).format(date);
+    return dayMonthYear(date, format === 'long' ? 'long' : 'short');
   } catch {
     return '—';
   }

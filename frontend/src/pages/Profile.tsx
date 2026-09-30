@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { FormError } from '@/components/auth/FormError';
 import { PageHeader } from '@/components/shared';
 import { ROUTES } from '@/constants';
+import { formatDateTime } from '@/utils';
 import { useChangePassword, useLogout, useMe, useUpdateProfile } from '@/hooks';
 import { ApiError } from '@/services';
 
@@ -120,7 +121,7 @@ export function Profile() {
           </div>
           <div className="flex items-center justify-between gap-4">
             <span className="text-muted-foreground">Last sign-in</span>
-            <span>{user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : '—'}</span>
+            <span>{formatDateTime(user.lastLoginAt)}</span>
           </div>
           <Separator />
           <Button
