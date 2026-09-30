@@ -1,9 +1,9 @@
-import { Sun, Moon, Monitor, Menu, LineChart } from 'lucide-react';
+import { Sun, Moon, Monitor, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { NotificationBell } from '@/components/shared/NotificationBell';
+import { Brand, NotificationBell } from '@/components/shared';
 import { useTheme } from '@/hooks';
 import { useMarketStatus } from '@/hooks';
 import { cn } from '@/lib/utils';
@@ -63,10 +63,7 @@ export function Header({ onOpenNav }: HeaderProps) {
           <Menu aria-hidden="true" className="h-5 w-5" />
         </Button>
         {/* The bar's own identity on mobile, where the sidebar is not on screen. */}
-        <span className="flex items-center gap-2 md:hidden">
-          <LineChart aria-hidden="true" className="h-5 w-5 text-primary" />
-          <span className="truncate text-sm font-semibold">PSX Portfolio</span>
-        </span>
+        <Brand size="sm" className="md:hidden" />
 
         {marketStatus && (
           <div
