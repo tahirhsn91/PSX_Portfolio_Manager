@@ -9,4 +9,5 @@ export { CompanySearch } from './CompanySearch';
 export { MetricBand } from './MetricBand';
 export type { BandStat } from './MetricBand';
 export { NotificationBell } from './NotificationBell';
+export { Brand } from './Brand';
 export { PageHeader } from './PageHeader';
