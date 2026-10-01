@@ -3,6 +3,27 @@
 @tailwind utilities;
 
 /*
+ * The document never scrolls.
+ *
+ * Every layout in this app is a fixed-height shell (`MainLayout` is `h-dvh` with
+ * `overflow-hidden`; `AuthLayout` centres its card inside a scrolling `<main>`),
+ * so `<main>` is the only thing meant to scroll. When a page's content made the
+ * *document* scrollable instead, the whole shell — sidebar and header included —
+ * slid up out of view and left a dead band at the bottom with a second, useless
+ * scrollbar next to `<main>`'s.
+ *
+ * Pinning the viewport makes that impossible rather than merely unlikely: nothing
+ * below the fold is reachable by scrolling the document, because nothing belongs
+ * there. Scrolling stays where it was designed to be — inside `<main>`.
+ */
+@layer base {
+  html,
+  body {
+    overflow: hidden;
+  }
+}
+
+/*
  * Design tokens.
  *
  * Two rules govern this file:

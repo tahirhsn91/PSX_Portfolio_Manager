@@ -32,7 +32,22 @@ export function MainLayout() {
         <MobileNav open={navOpen} onOpenChange={setNavOpen} />
         <div className="flex flex-1 flex-col overflow-hidden">
           <Header onOpenNav={() => setNavOpen(true)} />
-          <main id="main" tabIndex={-1} className="flex-1 overflow-auto focus-visible:outline-none">
+          {/*
+            `contain-paint` is load-bearing, not decoration — the same reason the
+            holdings table carries it. Chromium adds a nested scroller's overflowing
+            content to the *document's* scrollable area as well as its own, so this
+            page's content (880px inside a 486px viewport) made the document itself
+            scrollable. That produced a second, useless vertical scrollbar, and
+            scrolling it slid the whole shell — sidebar and header included — up off
+            the screen. Containing this box keeps the overflow where it belongs: in
+            here, on this element's own scrollbar. Measured at 1280x577: without the
+            class the document scrolls 139px; with it, 0.
+          */}
+          <main
+            id="main"
+            tabIndex={-1}
+            className="contain-paint flex-1 overflow-auto focus-visible:outline-none"
+          >
             <ErrorBoundary>
               {/* One content width for the whole app, so a 1920px screen does not
                   stretch a table to 1900px of mostly-empty rows. */}
