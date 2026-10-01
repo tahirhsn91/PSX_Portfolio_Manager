@@ -312,24 +312,30 @@ export function HoldingsTable({
         aria-busy={isLoading || undefined}
         tabIndex={0}
       >
-        <table className="w-full min-w-[64rem] text-sm">
+        {/* `min-w` is here so the columns cannot squash into unreadable slivers on a
+            narrow screen (where this box scrolls horizontally by design). At 64rem it
+            was wide enough to overflow the desktop card as well: a 962px card at
+            1280px, so every desk showed a 66px horizontal scrollbar for nothing.
+            52rem fits the card with room to spare while still being too wide to
+            squash. */}
+        <table className="w-full min-w-[52rem] text-sm">
           <thead>
             <tr className="border-b bg-muted/40">
               <SortHeader col="symbol" label="Symbol" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="left" />
-              <th scope="col" className="px-3 py-3 text-right font-medium">Shares</th>
-              <th scope="col" className="px-3 py-3 text-right font-medium">Avg cost</th>
-              <th scope="col" className="px-3 py-3 text-right font-medium">Price</th>
+              <th scope="col" className="px-1.5 py-3 text-right font-medium">Shares</th>
+              <th scope="col" className="px-1.5 py-3 text-right font-medium">Avg cost</th>
+              <th scope="col" className="px-1.5 py-3 text-right font-medium">Price</th>
               <SortHeader col="currentValue" label="Value" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
               <SortHeader col="todayChangePercent" label="Today" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
               <SortHeader col="unrealizedPLPercent" label="Return" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
               <SortHeader col="weightInPortfolio" label="Weight" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-              <th scope="col" className="px-3 py-3 text-left font-medium">Bought</th>
+              <th scope="col" className="px-1.5 py-3 text-left font-medium">Bought</th>
               {/* Pinned to the right edge of the scroll box: the row actions
                   stay on screen even when the ten columns need the wrapper to
                   scroll sideways, so they never need a sideways drag first. */}
               <th
                 scope="col"
-                className="sticky right-0 z-10 w-[104px] border-l border-border bg-muted px-3 py-3"
+                className="sticky right-0 z-10 w-[88px] border-l border-border bg-muted px-1.5 py-3"
               >
                 <span className="sr-only">Actions</span>
               </th>
@@ -339,22 +345,22 @@ export function HoldingsTable({
             {isLoading
               ? Array.from({ length: SKELETON_ROWS }).map((_, i) => (
                   <tr key={i} className="border-b">
-                    <td className="px-4 py-3">
+                    <td className="px-1.5 py-3">
                       <Skeleton className="h-4 w-20" />
                       <Skeleton className="mt-2 h-3 w-28" />
                     </td>
-                    <td className="px-4 py-3"><Skeleton className="ml-auto h-4 w-14" /></td>
-                    <td className="px-4 py-3"><Skeleton className="ml-auto h-4 w-20" /></td>
-                    <td className="px-4 py-3"><Skeleton className="ml-auto h-4 w-20" /></td>
-                    <td className="px-4 py-3"><Skeleton className="ml-auto h-4 w-24" /></td>
-                    <td className="px-4 py-3"><Skeleton className="ml-auto h-4 w-16" /></td>
-                    <td className="px-4 py-3"><Skeleton className="ml-auto h-4 w-20" /></td>
-                    <td className="px-4 py-3"><Skeleton className="ml-auto h-4 w-12" /></td>
-                    <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
-                    <td className="sticky right-0 z-10 w-[104px] border-l border-border bg-card px-3 py-3">
+                    <td className="px-1.5 py-3"><Skeleton className="ml-auto h-4 w-14" /></td>
+                    <td className="px-1.5 py-3"><Skeleton className="ml-auto h-4 w-20" /></td>
+                    <td className="px-1.5 py-3"><Skeleton className="ml-auto h-4 w-20" /></td>
+                    <td className="px-1.5 py-3"><Skeleton className="ml-auto h-4 w-24" /></td>
+                    <td className="px-1.5 py-3"><Skeleton className="ml-auto h-4 w-16" /></td>
+                    <td className="px-1.5 py-3"><Skeleton className="ml-auto h-4 w-20" /></td>
+                    <td className="px-1.5 py-3"><Skeleton className="ml-auto h-4 w-12" /></td>
+                    <td className="px-1.5 py-3"><Skeleton className="h-4 w-20" /></td>
+                    <td className="sticky right-0 z-10 w-[88px] border-l border-border bg-card px-1.5 py-3">
                       <div className="flex justify-end gap-1">
-                        <Skeleton className="h-11 w-11" />
-                        <Skeleton className="h-11 w-11" />
+                        <Skeleton className="h-8 w-8" />
+                        <Skeleton className="h-8 w-8" />
                       </div>
                     </td>
                   </tr>
@@ -368,7 +374,7 @@ export function HoldingsTable({
                       className="group border-b transition-colors hover:bg-muted/30 cursor-pointer"
                       onClick={() => navigate(ROUTES.STOCK_DETAIL_PATH(portfolioId, holding.symbol))}
                     >
-                      <td className="px-3 py-3">
+                      <td className="px-1.5 py-3">
                         <div className="flex flex-col">
                           <Link
                             to={ROUTES.STOCK_DETAIL_PATH(portfolioId, holding.symbol)}
@@ -381,25 +387,25 @@ export function HoldingsTable({
                           {!priced && <UnavailableChip />}
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-right font-mono tabular-nums">{holding.shares.toLocaleString()}</td>
-                      <td className="px-3 py-3 text-right font-mono tabular-nums">{formatCurrency(holding.averagePurchasePrice)}</td>
-                      <td className="px-3 py-3 text-right font-mono tabular-nums">{priced && m ? formatCurrency(m.currentPrice) : '—'}</td>
-                      <td className="px-3 py-3 text-right font-mono font-medium tabular-nums">{priced && m ? formatCurrency(m.currentValue) : '—'}</td>
-                      <td className="px-3 py-3 text-right">
+                      <td className="px-1.5 py-3 text-right font-mono tabular-nums">{holding.shares.toLocaleString()}</td>
+                      <td className="px-1.5 py-3 text-right font-mono tabular-nums">{formatCurrency(holding.averagePurchasePrice)}</td>
+                      <td className="px-1.5 py-3 text-right font-mono tabular-nums">{priced && m ? formatCurrency(m.currentPrice) : '—'}</td>
+                      <td className="px-1.5 py-3 text-right font-mono font-medium tabular-nums">{priced && m ? formatCurrency(m.currentValue) : '—'}</td>
+                      <td className="px-1.5 py-3 text-right">
                         {priced && m && (
                           <PLValue value={m.todayChangePercent} showIcon={false} className="tabular-nums" />
                         )}
                       </td>
-                      <td className="px-3 py-3 text-right">
+                      <td className="px-1.5 py-3 text-right">
                         {priced && m ? <PLValue value={m.unrealizedPLPercent} className="tabular-nums" /> : <span className="text-xs text-muted-foreground">—</span>}
                       </td>
-                      <td className="px-3 py-3 text-right text-xs whitespace-nowrap tabular-nums text-muted-foreground">
+                      <td className="px-1.5 py-3 text-right text-xs whitespace-nowrap tabular-nums text-muted-foreground">
                         {priced && m ? `${m.weightInPortfolio.toFixed(1)}%` : '—'}
                       </td>
-                      <td className="px-3 py-3 text-xs whitespace-nowrap text-muted-foreground">
+                      <td className="px-1.5 py-3 text-xs whitespace-nowrap text-muted-foreground">
                         {formatDate(holding.purchaseDate)}
                       </td>
-                      <td className="sticky right-0 z-10 w-[104px] border-l border-border bg-card px-3 py-3 transition-colors group-hover:bg-muted/30">
+                      <td className="sticky right-0 z-10 w-[88px] border-l border-border bg-card px-1.5 py-3 transition-colors group-hover:bg-muted/30">
                         {/* Clicks on the actions must not also open the stock's page. */}
                         <div onClick={(e) => e.stopPropagation()}>
                           {actions(holding)}
