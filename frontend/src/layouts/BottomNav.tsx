@@ -19,16 +19,18 @@ export function BottomNav() {
       aria-label="Primary"
       className="shrink-0 border-t bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
     >
-      <ul className="grid grid-cols-4">
+      {/* Five destinations, five columns — `grid-cols-4` here dropped the fifth
+          (Profile) onto a second row and made the bar twice as tall. */}
+      <ul className="grid grid-cols-5">
         {NAV_ITEMS.filter((item) => !item.adminOnly).map(({ label, icon: Icon, to }) => {
           const isActive = isNavItemActive(pathname, to);
           return (
-            <li key={to}>
+            <li key={to} className="min-w-0">
               {/* h-14 (56px) clears the 44x44 touch-target floor with room for a label. */}
               <NavLink to={to} aria-current={isActive ? 'page' : undefined} className={bottomNavItemClass(isActive)}>
                 <Icon aria-hidden="true" className="h-5 w-5" />
                 {/* text-xs, not text-[11px]: it is the only label on the control. */}
-                <span>{label}</span>
+                <span className="max-w-full truncate">{label}</span>
               </NavLink>
             </li>
           );

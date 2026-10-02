@@ -444,7 +444,7 @@ export function PortfolioDetail() {
         </TabsContent>
 
         <TabsContent value="charts" className="mt-4">
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {/* A single allocation slot: the switch in the card header decides whether
                 the pie breaks the portfolio down by holding or by sector, so the row
                 never spends two cards on the same question. */}

@@ -217,7 +217,7 @@ export function Dashboard() {
           when both exist. With one, it takes the full width instead of leaving a
           dead column beside it. */}
       {(pieData.length > 0 || sectorData.length > 0) && (
-        <div className={cn('grid gap-4', pieData.length > 0 && sectorData.length > 0 && 'lg:grid-cols-2')}>
+        <div className={cn('grid grid-cols-1 gap-4', pieData.length > 0 && sectorData.length > 0 && 'lg:grid-cols-2')}>
           {pieData.length > 0 && (
             <AllocationPieChart data={pieData} title="Where your money is" />
           )}
