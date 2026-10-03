@@ -150,7 +150,12 @@ export class CapitalStakeMarketDataProvider implements IMarketDataProvider {
   // ── Internal fetch helper ──────────────────────────────────────────────────
 
   private async cs<T>(path: string, params?: Record<string, string>): Promise<T> {
-    const url = new URL(`${this.proxyBase}/api/cs/${path}`);
+    // The second argument makes a RELATIVE base work. VITE_PROXY_BASE_URL is now an empty
+    // string (same origin — see frontend/.env.production), so the URL here is just
+    // "/api/cs/...", and `new URL("/api/cs/...")` with no base throws
+    // "TypeError: Invalid URL" before any request is made. An absolute base is unaffected:
+    // the base argument is ignored when the first argument is already absolute.
+    const url = new URL(`${this.proxyBase}/api/cs/${path}`, window.location.origin);
     if (params) {
       Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
     }
