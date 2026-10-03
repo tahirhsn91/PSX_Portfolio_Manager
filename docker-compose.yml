@@ -151,8 +151,14 @@ services:
       dockerfile: Dockerfile
       # VITE_* vars must be baked at build time (Vite bundles them into JS)
       args:
+        # Neither of these is consumed by frontend/Dockerfile, which declares only
+        # VITE_MARKET_API_URL / VITE_MARKET_API_KEY / VITE_API_BASE_URL — so the built
+        # bundle takes these values from the committed frontend/.env.production (see that
+        # file's header). They are passed here so `docker compose config` shows the intent.
+        # VITE_PROXY_BASE_URL defaults to EMPTY = same origin, matching that file: the
+        # frontend container's nginx proxies /api/ to the `proxy-prod` service.
         VITE_MARKET_PROVIDER: ${VITE_MARKET_PROVIDER:-mock}
-        VITE_PROXY_BASE_URL: ${VITE_PROXY_BASE_URL:-http://localhost:4000}
+        VITE_PROXY_BASE_URL: ${VITE_PROXY_BASE_URL:-}
     ports:
       - "80:80"                  # host:80 → Nginx
     environment:
