@@ -16,21 +16,24 @@ const Tabs = TabsPrimitive.Root;
  *                under the selected tab. Reads as navigation between views of
  *                one record rather than a mode switch.
  *
- * Every trigger is at least 44px tall, and every list is at least as tall as its
- * own padding plus its trigger, so a strip never overflows the box it lives in.
- * The `overflow-x-auto` a strip declares is for genuinely narrow viewports only —
- * `overflow-x: auto` forces `overflow-y` to `auto` as well, so a list that is a
- * few pixels too short silently grows a vertical scrollbar on every screen.
+ * Every trigger is at least 44px tall (h-11 / h-10), and every list is at least
+ * as tall as its own padding plus its trigger, so a strip never overflows the box
+ * it lives in.
+ *
+ * Strips wrap instead of scroll: `flex-wrap` lets a strip whose tabs outgrow the
+ * viewport flow onto a second line, so the app has no horizontal scrollbar. (The
+ * old `overflow-x-auto` also forced `overflow-y` to `auto`, so a list a few pixels
+ * short could grow a phantom vertical scrollbar on every screen.)
  */
 export type TabsListVariant = 'default' | 'segmented' | 'underline';
 
 const LIST_VARIANT_CLASS: Record<TabsListVariant, string> = {
   default:
-    'inline-flex h-12 max-w-full items-stretch justify-start overflow-x-auto rounded-lg bg-muted p-0.5 text-muted-foreground',
+    'inline-flex min-h-12 max-w-full flex-wrap items-stretch justify-start rounded-lg bg-muted p-0.5 text-muted-foreground',
   segmented:
-    'group inline-flex h-11 max-w-full items-center justify-start gap-0.5 overflow-x-auto rounded-md border bg-surface p-0.5 text-muted-foreground',
+    'group inline-flex min-h-11 max-w-full flex-wrap items-center justify-start gap-0.5 rounded-md border bg-surface p-0.5 text-muted-foreground',
   underline:
-    'inline-flex h-11 max-w-full items-stretch justify-start gap-1 overflow-x-auto border-b border-border p-0 text-muted-foreground',
+    'inline-flex min-h-11 max-w-full flex-wrap items-stretch justify-start gap-1 border-b border-border p-0 text-muted-foreground',
 };
 
 const TabsList = React.forwardRef<
@@ -53,10 +56,10 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      // `h-full`, not a fixed height: the trigger fills the list's content box,
-      // whatever padding the variant gives it. A fixed height that is a few pixels
-      // taller than that box is what used to make every strip show a scrollbar.
-      'inline-flex h-full shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-medium ring-offset-background transition-[color,background-color,border-color,box-shadow] duration-base ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+      // h-11 (44px), not `h-full`: the list no longer has a fixed height — it wraps
+      // onto extra lines when the tabs outgrow the viewport — so there is no parent
+      // height for `h-full` to fill. The segmented variant overrides to h-10.
+      'inline-flex h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-medium ring-offset-background transition-[color,background-color,border-color,box-shadow] duration-base ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
       // default: filled pill track
       'group-data-[variant=default]:hover:text-foreground group-data-[variant=default]:data-[state=active]:bg-primary group-data-[variant=default]:data-[state=active]:text-primary-foreground group-data-[variant=default]:data-[state=active]:shadow-card',
       // segmented: compact switch inside a card header

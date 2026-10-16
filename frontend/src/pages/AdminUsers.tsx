@@ -244,8 +244,93 @@ export function AdminUsers() {
           )}
 
           {users.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <>
+              {/* Cards below xl: the six columns (account, role, status, portfolios,
+                  last seen, actions) do not fit a phone or tablet, so the same rows
+                  render as stacked cards — no sideways scroll. */}
+              <div className="space-y-3 xl:hidden">
+                {users.map((user) => {
+                  const isSelf = user.id === me?.id;
+                  return (
+                    <div key={user.id} className="rounded-lg border bg-card p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="break-words font-medium">
+                            {user.email}
+                            {isSelf && <span className="ml-2 text-xs text-muted-foreground">(you)</span>}
+                          </div>
+                          {user.mustChangePassword && (
+                            <div className="text-xs text-muted-foreground">owes a password change</div>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>{user.role}</Badge>
+                          <Badge variant={user.isActive ? 'secondary' : 'outline'}>
+                            {user.isActive ? 'active' : 'suspended'}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t pt-3 text-xs">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <dt className="text-muted-foreground">Portfolios</dt>
+                          <dd className="tabular-nums">{user.portfolioCount}</dd>
+                        </div>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <dt className="text-muted-foreground">Last seen</dt>
+                          <dd className="whitespace-nowrap text-muted-foreground">{formatDateTime(user.lastSeenAt, 'never')}</dd>
+                        </div>
+                      </dl>
+
+                      {!isSelf && (
+                        <div className="mt-3 flex flex-wrap gap-2 border-t pt-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busyId === user.id}
+                            onClick={() => void handleStatus(user)}
+                          >
+                            {user.isActive ? (
+                              <>
+                                <UserX aria-hidden="true" className="mr-1.5 h-3.5 w-3.5" />
+                                Suspend
+                              </>
+                            ) : (
+                              <>
+                                <UserCheck aria-hidden="true" className="mr-1.5 h-3.5 w-3.5" />
+                                Reactivate
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={busyId === user.id}
+                            onClick={() => void handleRole(user)}
+                          >
+                            {user.role === 'admin' ? 'Make user' : 'Make admin'}
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            className="h-8 w-8"
+                            disabled={busyId === user.id}
+                            onClick={() => setPendingDelete(user)}
+                            title="Delete permanently"
+                            aria-label={`Delete ${user.email} permanently`}
+                          >
+                            <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* The table itself: shown at xl and up, where all six columns fit. */}
+              <div className="hidden xl:block">
+                <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-xs uppercase tracking-wider text-muted-foreground">
                     <th scope="col" className="py-2 pr-2 font-semibold">Account</th>
@@ -344,7 +429,8 @@ export function AdminUsers() {
                   })}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

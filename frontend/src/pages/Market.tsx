@@ -478,7 +478,7 @@ export function Market() {
                     ))}
               </ul>
 
-              <div className="hidden overflow-x-auto rounded-xl border lg:block">
+              <div className="hidden rounded-xl border lg:block">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-surface-2">
