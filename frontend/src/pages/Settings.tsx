@@ -269,12 +269,13 @@ export function Settings() {
 
       <div className="lg:grid lg:grid-cols-[minmax(0,13rem)_minmax(0,1fr)] lg:items-start lg:gap-8">
         {/*
-         * Section nav. A horizontally scrollable strip on mobile (a left column has
-         * no room there) and a sticky column from `lg` up, so the sections stay one
-         * click away while the reader scrolls a long page.
+         * Section nav. A wrapping strip on mobile (a left column has no room there)
+         * and a sticky column from `lg` up, so the sections stay one click away while
+         * the reader scrolls a long page. It wraps rather than scrolling, so the page
+         * has no horizontal scrollbar.
          */}
         <nav aria-label="Settings sections" className="lg:sticky lg:top-6">
-          <ul className="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:gap-1 lg:pb-0">
+          <ul className="flex flex-wrap gap-1 pb-1 lg:flex-col lg:gap-1 lg:pb-0">
             {SECTIONS.map(({ id, label }) => {
               const current = activeSection === id;
               return (

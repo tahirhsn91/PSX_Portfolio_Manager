@@ -191,9 +191,10 @@ export function HoldingsTable({
           : `${sorted.length} holding${sorted.length !== 1 ? 's' : ''} shown`}
       </p>
 
-      {/* Phones: a ten-column table needs ~990px, so below md the same rows
-          render as cards instead. Same data, same sort state, same 44px actions. */}
-      <div className={cn('space-y-3 md:hidden', className)} aria-busy={isLoading || undefined}>
+      {/* Below xl a ten-column table needs more room than the content column has,
+          so the same rows render as cards instead. Same data, same sort state,
+          same 44px actions. */}
+      <div className={cn('space-y-3 xl:hidden', className)} aria-busy={isLoading || undefined}>
         <div className="flex items-center gap-2">
           <Select value={sortKey} onValueChange={(value) => setSortKey(value as SortKey)}>
             <SelectTrigger className="h-11 flex-1" aria-label="Sort holdings by">
@@ -294,31 +295,20 @@ export function HoldingsTable({
         )}
       </div>
 
-      {/* md and up keep the table, inside its own scroll container: when the
-          viewport (or the sidebar) leaves no room for ten columns the table
-          scrolls sideways *within this box*, and the page itself never does.
-          `contain-paint` is load-bearing, not decoration: without it Chromium
-          still adds the table's overflowing width to the *document's* scrollable
-          area, so the page grows a 26px horizontal scrollbar of its own even
-          though this box is the one doing the scrolling. Measured at 1280px:
-          without the class the document scrolls 26px; with it, 0. */}
+      {/* xl and up keep the table. The ten columns need ~990px, which the content
+          column only has once the sidebar (256px) and page padding are accounted
+          for — i.e. at the 1280px `xl` breakpoint and above. Below that the same
+          rows render as cards, so the table never needs to scroll sideways. */}
       <div
         className={cn(
-          'hidden max-w-full overflow-x-auto overscroll-x-contain contain-paint rounded-lg border md:block',
+          'hidden rounded-lg border xl:block',
           className,
         )}
         role="region"
         aria-label="Holdings"
         aria-busy={isLoading || undefined}
-        tabIndex={0}
       >
-        {/* `min-w` is here so the columns cannot squash into unreadable slivers on a
-            narrow screen (where this box scrolls horizontally by design). At 64rem it
-            was wide enough to overflow the desktop card as well: a 962px card at
-            1280px, so every desk showed a 66px horizontal scrollbar for nothing.
-            52rem fits the card with room to spare while still being too wide to
-            squash. */}
-        <table className="w-full min-w-[52rem] text-sm">
+        <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/40">
               <SortHeader col="symbol" label="Symbol" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="left" />
