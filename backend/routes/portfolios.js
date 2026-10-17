@@ -27,6 +27,15 @@ router.use(requireAuth, blockUntilPasswordChanged);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A real calendar day, not just the right shape — '2026-13-40' and '2026-02-30'
+ *  both match DATE_RE but name no day that exists. */
+const isValidISODate = (s) => {
+  if (!DATE_RE.test(s)) return false;
+  const [y, m, d] = s.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+};
 const DIVIDEND_TYPES = ['cash', 'stock', 'bonus'];
 
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
@@ -91,7 +100,21 @@ function serializeCash(row) {
   };
 }
 
-function serializeHolding(row, dividends, buys = [], sells = []) {
+/** One declared (not yet received) dividend. Dates are optional — a source may
+ *  publish only some of them, and a missing one must stay missing. */
+function serializeDeclaredDividend(row) {
+  return {
+    id: row.id,
+    holdingId: row.holding_id,
+    amountPerShare: num(row.amount_per_share),
+    ...(row.announcement_date ? { announcementDate: isoDate(row.announcement_date) } : {}),
+    ...(row.ex_dividend_date ? { exDividendDate: isoDate(row.ex_dividend_date) } : {}),
+    ...(row.book_closure_date ? { bookClosureDate: isoDate(row.book_closure_date) } : {}),
+    ...(row.payment_date ? { paymentDate: isoDate(row.payment_date) } : {}),
+  };
+}
+
+function serializeHolding(row, dividends, buys = [], sells = [], declaredDividends = []) {
   return {
     id: row.id,
     portfolioId: row.portfolio_id,
@@ -107,6 +130,7 @@ function serializeHolding(row, dividends, buys = [], sells = []) {
     // with no log is an empty one, never `undefined`.
     buys,
     sells,
+    declaredDividends,
   };
 }
 
@@ -204,6 +228,22 @@ async function listPortfolios(userId) {
     cashByPortfolio.set(c.portfolio_id, list);
   }
 
+  const declaredRows = holdingIds.length
+    ? (
+        await query(
+          'SELECT * FROM declared_dividends WHERE holding_id = ANY($1::uuid[]) ORDER BY payment_date NULLS LAST, created_at',
+          [holdingIds],
+        )
+      ).rows
+    : [];
+
+  const declaredByHolding = new Map();
+  for (const d of declaredRows) {
+    const list = declaredByHolding.get(d.holding_id) ?? [];
+    list.push(serializeDeclaredDividend(d));
+    declaredByHolding.set(d.holding_id, list);
+  }
+
   const holdingsByPortfolio = new Map();
   for (const h of holdingRows) {
     const list = holdingsByPortfolio.get(h.portfolio_id) ?? [];
@@ -213,6 +253,7 @@ async function listPortfolios(userId) {
         dividendsByHolding.get(h.id) ?? [],
         buysByHolding.get(h.id) ?? [],
         sellsByHolding.get(h.id) ?? [],
+        declaredByHolding.get(h.id) ?? [],
       ),
     );
     holdingsByPortfolio.set(h.portfolio_id, list);
@@ -269,6 +310,19 @@ async function findOwnedCash(userId, portfolioId, cashId) {
        JOIN portfolios p ON p.id = c.portfolio_id
       WHERE c.id = $1 AND c.portfolio_id = $2 AND p.user_id = $3`,
     [cashId, portfolioId, userId],
+  );
+  return rows[0] ?? null;
+}
+
+/** Ownership gate for a single declared (upcoming) dividend. */
+async function findOwnedDeclaredDividend(userId, portfolioId, holdingId, dividendId) {
+  if (!UUID_RE.test(dividendId)) return null;
+  const { rows } = await query(
+    `SELECT d.* FROM declared_dividends d
+       JOIN holdings h ON h.id = d.holding_id
+       JOIN portfolios p ON p.id = h.portfolio_id
+      WHERE d.id = $1 AND d.holding_id = $2 AND h.portfolio_id = $3 AND p.user_id = $4`,
+    [dividendId, holdingId, portfolioId, userId],
   );
   return rows[0] ?? null;
 }
@@ -412,6 +466,34 @@ function readCashInput(body = {}) {
   const notes = body.notes ? String(body.notes).trim().slice(0, 2000) : null;
 
   return { values: { date, type, amount, notes }, errors };
+}
+
+/** A declared (upcoming) dividend. Every date is optional: a row carries only
+ *  what the source publishes, and a missing date must stay missing. */
+function readDeclaredDividendInput(body = {}) {
+  const errors = [];
+  const amountPerShare = Number(body.amountPerShare);
+  if (!Number.isFinite(amountPerShare) || amountPerShare < 0) {
+    errors.push('Amount per share must be 0 or greater');
+  }
+
+  const optDate = (key, label) => {
+    const raw = body[key];
+    if (raw == null || raw === '') return null;
+    const d = String(raw).slice(0, 10);
+    if (!isValidISODate(d)) errors.push(`${label} must be a real date (YYYY-MM-DD)`);
+    return d;
+  };
+
+  const values = {
+    amountPerShare,
+    announcementDate: optDate('announcementDate', 'Announcement date'),
+    exDividendDate: optDate('exDividendDate', 'Ex-dividend date'),
+    bookClosureDate: optDate('bookClosureDate', 'Book-closure date'),
+    paymentDate: optDate('paymentDate', 'Payment date'),
+  };
+
+  return { values, errors };
 }
 
 function readDividendInput(body = {}) {
@@ -1005,6 +1087,96 @@ router.delete(
     await query('UPDATE portfolios SET updated_at = NOW() WHERE id = $1', [portfolio.id]);
 
     return res.json({ portfolio: await loadPortfolio(req.user.id, portfolio.id) });
+  }),
+);
+
+// ── Declared (upcoming) dividends ─────────────────────────────────────────────
+// User-entered because the scraper feed publishes no declared-dividend calendar.
+// Distinct from the *received* dividend log below: a declared dividend is never
+// shown as paid until it is separately recorded as received.
+
+router.post(
+  '/:id/holdings/:holdingId/declared-dividends',
+  wrap(async (req, res) => {
+    const holding = await findOwnedHolding(req.user.id, req.params.id, req.params.holdingId);
+    if (!holding) return notFound(res);
+
+    const { values, errors } = readDeclaredDividendInput(req.body);
+    if (errors.length) return invalid(res, errors.join('; '));
+
+    await query(
+      `INSERT INTO declared_dividends
+         (holding_id, amount_per_share, announcement_date, ex_dividend_date, book_closure_date, payment_date)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        holding.id,
+        values.amountPerShare,
+        values.announcementDate,
+        values.exDividendDate,
+        values.bookClosureDate,
+        values.paymentDate,
+      ],
+    );
+    await query('UPDATE portfolios SET updated_at = NOW() WHERE id = $1', [holding.portfolio_id]);
+
+    return res.status(201).json({ portfolio: await loadPortfolio(req.user.id, holding.portfolio_id) });
+  }),
+);
+
+router.patch(
+  '/:id/holdings/:holdingId/declared-dividends/:dividendId',
+  wrap(async (req, res) => {
+    const holding = await findOwnedHolding(req.user.id, req.params.id, req.params.holdingId);
+    if (!holding) return notFound(res);
+    const declared = await findOwnedDeclaredDividend(
+      req.user.id,
+      req.params.id,
+      holding.id,
+      req.params.dividendId,
+    );
+    if (!declared) return notFound(res);
+
+    const { values, errors } = readDeclaredDividendInput(req.body);
+    if (errors.length) return invalid(res, errors.join('; '));
+
+    await query(
+      `UPDATE declared_dividends
+         SET amount_per_share = $3, announcement_date = $4, ex_dividend_date = $5,
+             book_closure_date = $6, payment_date = $7
+       WHERE id = $1 AND holding_id = $2`,
+      [
+        declared.id,
+        holding.id,
+        values.amountPerShare,
+        values.announcementDate,
+        values.exDividendDate,
+        values.bookClosureDate,
+        values.paymentDate,
+      ],
+    );
+    await query('UPDATE portfolios SET updated_at = NOW() WHERE id = $1', [holding.portfolio_id]);
+
+    return res.json({ portfolio: await loadPortfolio(req.user.id, holding.portfolio_id) });
+  }),
+);
+
+router.delete(
+  '/:id/holdings/:holdingId/declared-dividends/:dividendId',
+  wrap(async (req, res) => {
+    const holding = await findOwnedHolding(req.user.id, req.params.id, req.params.holdingId);
+    if (!holding) return notFound(res);
+    const declared = await findOwnedDeclaredDividend(
+      req.user.id,
+      req.params.id,
+      holding.id,
+      req.params.dividendId,
+    );
+    if (!declared) return notFound(res);
+
+    await query('DELETE FROM declared_dividends WHERE id = $1 AND holding_id = $2', [declared.id, holding.id]);
+    await query('UPDATE portfolios SET updated_at = NOW() WHERE id = $1', [holding.portfolio_id]);
+
+    return res.json({ portfolio: await loadPortfolio(req.user.id, holding.portfolio_id) });
   }),
 );
 
