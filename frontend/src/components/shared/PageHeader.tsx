@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { motion, useReducedMotion } from 'framer-motion';
 
 interface Crumb {
   label: string;
@@ -28,8 +29,14 @@ interface PageHeaderProps {
  * their own name twice.
  */
 export function PageHeader({ title, description, breadcrumbs, actions, meta, className }: PageHeaderProps) {
+  const reduced = useReducedMotion();
   return (
-    <header className={cn('flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between', className)}>
+    <motion.header
+      initial={reduced ? false : { opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: reduced ? 0 : 0.35, ease: [0.2, 0, 0, 1] }}
+      className={cn('flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between', className)}
+    >
       <div className="min-w-0 space-y-1">
         {breadcrumbs && breadcrumbs.length > 0 && (
           <nav aria-label="Breadcrumb">
@@ -59,6 +66,6 @@ export function PageHeader({ title, description, breadcrumbs, actions, meta, cla
         {meta}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2 sm:shrink-0">{actions}</div>}
-    </header>
+    </motion.header>
   );
 }

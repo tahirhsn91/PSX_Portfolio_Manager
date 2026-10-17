@@ -28,6 +28,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { PageHeader } from '@/components/shared';
+import { ScrollReveal } from '@/components/animations';
 import { useUIStore, usePortfolioStore } from '@/store';
 import { storageService } from '@/services';
 import { useReducedMotion, useTheme } from '@/hooks';
@@ -266,6 +267,7 @@ export function Settings() {
         title="Settings"
         description="Appearance, the data this browser holds, and what the app is."
       />
+      <ScrollReveal className="space-y-6">
 
       <div className="lg:grid lg:grid-cols-[minmax(0,13rem)_minmax(0,1fr)] lg:items-start lg:gap-8">
         {/*
@@ -616,6 +618,7 @@ export function Settings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </ScrollReveal>
     </div>
   );
 }

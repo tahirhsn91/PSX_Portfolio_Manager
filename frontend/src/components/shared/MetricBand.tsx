@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { Reveal } from '@/components/animations';
 
 export interface BandStat {
   label: string;
@@ -65,7 +66,7 @@ export function MetricBand({ label, value, change, stats, notice, isLoading }: M
   return (
     <Card>
       <CardContent className="grid gap-6 p-5 md:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-center">
-        <div className="min-w-0">
+        <Reveal className="min-w-0" delay={0.02} y={12}>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
           {/* The one figure on the page that is allowed to be large. */}
           <p className="mt-1 text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl">{value}</p>
@@ -81,11 +82,11 @@ export function MetricBand({ label, value, change, stats, notice, isLoading }: M
             </p>
           )}
           {notice && <div className="mt-3">{notice}</div>}
-        </div>
+        </Reveal>
 
         <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
-          {stats.map((stat) => (
-            <div key={stat.label} className="min-w-0">
+          {stats.map((stat, i) => (
+            <Reveal key={stat.label} className="min-w-0" delay={0.08 + i * 0.06} y={12}>
               <dt className="truncate text-xs text-muted-foreground">{stat.label}</dt>
               <dd
                 className={cn(
@@ -96,7 +97,7 @@ export function MetricBand({ label, value, change, stats, notice, isLoading }: M
                 {stat.value}
               </dd>
               {stat.hint && <p className="mt-0.5 truncate text-xs text-muted-foreground">{stat.hint}</p>}
-            </div>
+            </Reveal>
           ))}
         </dl>
       </CardContent>

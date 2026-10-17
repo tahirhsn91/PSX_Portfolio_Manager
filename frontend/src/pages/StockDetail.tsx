@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyState, ErrorState, MetricCard, PageHeader, RangeBar } from '@/components/shared';
+import { ScrollReveal } from '@/components/animations';
 import { StockPriceChart } from '@/features/charts';
 import { PredictionPanel } from '@/features/prediction/PredictionPanel';
 import { useStockDetail, useHistoricalData, useStockPrediction } from '@/hooks';
@@ -178,6 +179,7 @@ export function StockDetail({ variant }: StockDetailProps = {}) {
           ) : undefined
         }
       />
+      <ScrollReveal className="space-y-6">
 
       {/* One figures grid: the price leads it, and nothing here repeats a figure that
           is already on the page. Every region below owns its loading, empty and error
@@ -403,6 +405,7 @@ export function StockDetail({ variant }: StockDetailProps = {}) {
           </div>
         </TabsContent>
       </Tabs>
+      </ScrollReveal>
     </div>
   );
 }
