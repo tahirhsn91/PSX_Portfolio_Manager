@@ -35,9 +35,22 @@ export const buySchema = z.object({
 /** Correcting a logged trade: the same numbers, the same limits. */
 export const tradeSchema = buySchema.pick({ shares: true, pricePerShare: true });
 
+/**
+ * The Sell action. Price may be 0 (some corporate trades settle at no per-share
+ * cost) and fees are optional — the server defaults them to 0.
+ */
+export const sellSchema = z.object({
+  shares: z.number({ required_error: 'Quantity is required' }).positive('Must be positive').max(10_000_000),
+  pricePerShare: z.number({ required_error: 'Sell price is required' }).nonnegative('Must be 0 or more').max(1_000_000),
+  fees: z.number().nonnegative('Must be 0 or more').optional().default(0),
+  date: z.string().min(1, 'Sell date is required'),
+});
+
 export type TradeFormValues = z.infer<typeof tradeSchema>;
 
 export type BuyFormValues = z.infer<typeof buySchema>;
+
+export type SellFormValues = z.infer<typeof sellSchema>;
 
 export type PortfolioFormValues = z.infer<typeof portfolioSchema>;
 export type HoldingFormValues = z.infer<typeof holdingSchema>;

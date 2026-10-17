@@ -21,6 +21,7 @@ import type {
   UpdateHoldingInput,
   DividendRecord,
   BuyInput,
+  SellInput,
 } from '@/types';
 
 const BASE = '/api/portfolios';
@@ -148,6 +149,65 @@ export const portfoliosApi = {
       `${BASE}/${portfolioId}/holdings/${holdingId}/buys/${buyId}`,
       { method: 'DELETE' }
     );
+  },
+
+  // ─── The sell log ───────────────────────────────────────────────────────────
+  /** The holding is named by the path; the body carries only the sale. */
+  addSell: async (
+    portfolioId: string,
+    holdingId: string,
+    input: Omit<SellInput, 'holdingId'>
+  ): Promise<Portfolio> => {
+    const { portfolio } = await request<PortfolioEnvelope>(
+      `${BASE}/${portfolioId}/holdings/${holdingId}/sells`,
+      { method: 'POST', body: body(input) }
+    );
+    return portfolio;
+  },
+
+  updateSell: async (
+    portfolioId: string,
+    holdingId: string,
+    sellId: string,
+    patchBody: { date: string; shares: number; pricePerShare: number; fees: number }
+  ): Promise<Portfolio> => {
+    const { portfolio } = await request<PortfolioEnvelope>(
+      `${BASE}/${portfolioId}/holdings/${holdingId}/sells/${sellId}`,
+      { method: 'PATCH', body: body(patchBody) }
+    );
+    return portfolio;
+  },
+
+  removeSell: async (
+    portfolioId: string,
+    holdingId: string,
+    sellId: string
+  ): Promise<Portfolio> => {
+    const { portfolio } = await request<PortfolioEnvelope>(
+      `${BASE}/${portfolioId}/holdings/${holdingId}/sells/${sellId}`,
+      { method: 'DELETE' }
+    );
+    return portfolio;
+  },
+
+  // ─── Cash transactions ──────────────────────────────────────────────────────
+  addCash: async (
+    portfolioId: string,
+    input: { date: string; type: 'deposit' | 'withdrawal'; amount: number; notes?: string }
+  ): Promise<Portfolio> => {
+    const { portfolio } = await request<PortfolioEnvelope>(
+      `${BASE}/${portfolioId}/cash`,
+      { method: 'POST', body: body(input) }
+    );
+    return portfolio;
+  },
+
+  removeCash: async (portfolioId: string, cashId: string): Promise<Portfolio> => {
+    const { portfolio } = await request<PortfolioEnvelope>(
+      `${BASE}/${portfolioId}/cash/${cashId}`,
+      { method: 'DELETE' }
+    );
+    return portfolio;
   },
 
   // ─── Dividends ─────────────────────────────────────────────────────────────
