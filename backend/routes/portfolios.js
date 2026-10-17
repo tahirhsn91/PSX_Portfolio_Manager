@@ -67,7 +67,31 @@ function serializeBuy(row) {
   };
 }
 
-function serializeHolding(row, dividends, buys = []) {
+/** One entry in a holding's sell log. */
+function serializeSell(row) {
+  return {
+    id: row.id,
+    holdingId: row.holding_id,
+    date: isoDate(row.date),
+    shares: num(row.shares),
+    pricePerShare: num(row.price_per_share),
+    fees: num(row.fees),
+  };
+}
+
+/** One cash movement into or out of a portfolio. */
+function serializeCash(row) {
+  return {
+    id: row.id,
+    portfolioId: row.portfolio_id,
+    date: isoDate(row.date),
+    type: row.type,
+    amount: num(row.amount),
+    ...(row.notes ? { notes: row.notes } : {}),
+  };
+}
+
+function serializeHolding(row, dividends, buys = [], sells = []) {
   return {
     id: row.id,
     portfolioId: row.portfolio_id,
@@ -82,10 +106,11 @@ function serializeHolding(row, dividends, buys = []) {
     // Required by the frontend's `Holding`, so it is always an array — a holding
     // with no log is an empty one, never `undefined`.
     buys,
+    sells,
   };
 }
 
-function serializePortfolio(row, holdings) {
+function serializePortfolio(row, holdings, cashTransactions = []) {
   return {
     id: row.id,
     name: row.name,
@@ -94,6 +119,7 @@ function serializePortfolio(row, holdings) {
     createdAt: isoStamp(row.created_at),
     updatedAt: isoStamp(row.updated_at),
     holdings,
+    cashTransactions,
   };
 }
 
@@ -146,14 +172,55 @@ async function listPortfolios(userId) {
     buysByHolding.set(b.holding_id, list);
   }
 
+  const sellRows = holdingIds.length
+    ? (
+        await query(
+          'SELECT * FROM holding_sells WHERE holding_id = ANY($1::uuid[]) ORDER BY date, created_at',
+          [holdingIds],
+        )
+      ).rows
+    : [];
+
+  const sellsByHolding = new Map();
+  for (const s of sellRows) {
+    const list = sellsByHolding.get(s.holding_id) ?? [];
+    list.push(serializeSell(s));
+    sellsByHolding.set(s.holding_id, list);
+  }
+
+  const cashRows = portfolioIds.length
+    ? (
+        await query(
+          'SELECT * FROM cash_transactions WHERE portfolio_id = ANY($1::uuid[]) ORDER BY date, created_at',
+          [portfolioIds],
+        )
+      ).rows
+    : [];
+
+  const cashByPortfolio = new Map();
+  for (const c of cashRows) {
+    const list = cashByPortfolio.get(c.portfolio_id) ?? [];
+    list.push(serializeCash(c));
+    cashByPortfolio.set(c.portfolio_id, list);
+  }
+
   const holdingsByPortfolio = new Map();
   for (const h of holdingRows) {
     const list = holdingsByPortfolio.get(h.portfolio_id) ?? [];
-    list.push(serializeHolding(h, dividendsByHolding.get(h.id) ?? [], buysByHolding.get(h.id) ?? []));
+    list.push(
+      serializeHolding(
+        h,
+        dividendsByHolding.get(h.id) ?? [],
+        buysByHolding.get(h.id) ?? [],
+        sellsByHolding.get(h.id) ?? [],
+      ),
+    );
     holdingsByPortfolio.set(h.portfolio_id, list);
   }
 
-  return portfolioRows.map((p) => serializePortfolio(p, holdingsByPortfolio.get(p.id) ?? []));
+  return portfolioRows.map((p) =>
+    serializePortfolio(p, holdingsByPortfolio.get(p.id) ?? [], cashByPortfolio.get(p.id) ?? []),
+  );
 }
 
 async function loadPortfolio(userId, id) {
@@ -177,6 +244,31 @@ async function findOwnedBuy(userId, portfolioId, holdingId, buyId) {
        JOIN portfolios p ON p.id = h.portfolio_id
       WHERE b.id = $1 AND b.holding_id = $2 AND h.portfolio_id = $3 AND p.user_id = $4`,
     [buyId, holdingId, portfolioId, userId],
+  );
+  return rows[0] ?? null;
+}
+
+/** Ownership gate for a single logged sale. */
+async function findOwnedSell(userId, portfolioId, holdingId, sellId) {
+  if (!UUID_RE.test(sellId)) return null;
+  const { rows } = await query(
+    `SELECT s.* FROM holding_sells s
+       JOIN holdings h ON h.id = s.holding_id
+       JOIN portfolios p ON p.id = h.portfolio_id
+      WHERE s.id = $1 AND s.holding_id = $2 AND h.portfolio_id = $3 AND p.user_id = $4`,
+    [sellId, holdingId, portfolioId, userId],
+  );
+  return rows[0] ?? null;
+}
+
+/** Ownership gate for a single cash transaction. */
+async function findOwnedCash(userId, portfolioId, cashId) {
+  if (!UUID_RE.test(cashId)) return null;
+  const { rows } = await query(
+    `SELECT c.* FROM cash_transactions c
+       JOIN portfolios p ON p.id = c.portfolio_id
+      WHERE c.id = $1 AND c.portfolio_id = $2 AND p.user_id = $3`,
+    [cashId, portfolioId, userId],
   );
   return rows[0] ?? null;
 }
@@ -281,6 +373,45 @@ function readBuyInput(body = {}) {
   }
 
   return { values: { date, shares, pricePerShare }, errors };
+}
+
+/** A logged sale. */
+function readSellInput(body = {}) {
+  const errors = [];
+  const date = String(body.date ?? '').slice(0, 10);
+  if (!DATE_RE.test(date)) errors.push('Date must be YYYY-MM-DD');
+
+  const shares = Number(body.shares);
+  if (!Number.isFinite(shares) || shares <= 0) errors.push('Shares must be greater than 0');
+
+  const pricePerShare = Number(body.pricePerShare);
+  if (!Number.isFinite(pricePerShare) || pricePerShare < 0) {
+    errors.push('Price per share must be 0 or greater');
+  }
+
+  const fees = Number(body.fees ?? 0);
+  if (!Number.isFinite(fees) || fees < 0) errors.push('Fees must be 0 or greater');
+
+  return { values: { date, shares, pricePerShare, fees }, errors };
+}
+
+/** A cash movement into or out of a portfolio. */
+function readCashInput(body = {}) {
+  const errors = [];
+  const date = String(body.date ?? '').slice(0, 10);
+  if (!DATE_RE.test(date)) errors.push('Date must be YYYY-MM-DD');
+
+  const type = String(body.type ?? '');
+  if (!['deposit', 'withdrawal'].includes(type)) {
+    errors.push('Type must be deposit or withdrawal');
+  }
+
+  const amount = Number(body.amount);
+  if (!Number.isFinite(amount) || amount <= 0) errors.push('Amount must be greater than 0');
+
+  const notes = body.notes ? String(body.notes).trim().slice(0, 2000) : null;
+
+  return { values: { date, type, amount, notes }, errors };
 }
 
 function readDividendInput(body = {}) {
@@ -765,6 +896,115 @@ router.delete(
       portfolio: await loadPortfolio(req.user.id, holding.portfolio_id),
       holdingRemoved: result.kind === 'holding-removed',
     });
+  }),
+);
+
+// ── The sell log ───────────────────────────────────────────────────────────────
+// Mirrors the buy log: each mutation re-derives the holding in the same transaction
+// and answers with the whole portfolio. A sale that would leave the ledger short is
+// refused with 409, not half-applied.
+
+router.post(
+  '/:id/holdings/:holdingId/sells',
+  wrap(async (req, res) => {
+    const holding = await findOwnedHolding(req.user.id, req.params.id, req.params.holdingId);
+    if (!holding) return notFound(res);
+
+    const { values, errors } = readSellInput(req.body);
+    if (errors.length) return invalid(res, errors.join('; '));
+
+    const outcome = await withTransaction(async (client) => {
+      const result = await ledger.addSell(client, holding, values);
+      if (result.ok) {
+        await client.query('UPDATE portfolios SET updated_at = NOW() WHERE id = $1', [holding.portfolio_id]);
+      }
+      return result;
+    });
+
+    if (!outcome.ok) return conflict(res, outcome.reason);
+    return res.status(201).json({ portfolio: await loadPortfolio(req.user.id, holding.portfolio_id) });
+  }),
+);
+
+router.patch(
+  '/:id/holdings/:holdingId/sells/:sellId',
+  wrap(async (req, res) => {
+    const holding = await findOwnedHolding(req.user.id, req.params.id, req.params.holdingId);
+    if (!holding) return notFound(res);
+    const sell = await findOwnedSell(req.user.id, req.params.id, holding.id, req.params.sellId);
+    if (!sell) return notFound(res);
+
+    const { values, errors } = readSellInput(req.body);
+    if (errors.length) return invalid(res, errors.join('; '));
+
+    const outcome = await withTransaction(async (client) => {
+      const result = await ledger.updateSell(client, holding.id, sell.id, values);
+      if (result.ok) {
+        await client.query('UPDATE portfolios SET updated_at = NOW() WHERE id = $1', [holding.portfolio_id]);
+      }
+      return result;
+    });
+
+    if (!outcome.ok) return conflict(res, outcome.reason);
+    return res.json({ portfolio: await loadPortfolio(req.user.id, holding.portfolio_id) });
+  }),
+);
+
+router.delete(
+  '/:id/holdings/:holdingId/sells/:sellId',
+  wrap(async (req, res) => {
+    const holding = await findOwnedHolding(req.user.id, req.params.id, req.params.holdingId);
+    if (!holding) return notFound(res);
+    const sell = await findOwnedSell(req.user.id, req.params.id, holding.id, req.params.sellId);
+    if (!sell) return notFound(res);
+
+    const outcome = await withTransaction(async (client) => {
+      const result = await ledger.deleteSell(client, holding.id, sell.id);
+      if (result.ok) {
+        await client.query('UPDATE portfolios SET updated_at = NOW() WHERE id = $1', [holding.portfolio_id]);
+      }
+      return result;
+    });
+
+    if (!outcome.ok) return conflict(res, outcome.reason);
+    return res.json({ portfolio: await loadPortfolio(req.user.id, holding.portfolio_id) });
+  }),
+);
+
+// ── Cash transactions ──────────────────────────────────────────────────────────
+
+router.post(
+  '/:id/cash',
+  wrap(async (req, res) => {
+    const portfolio = await findOwnedPortfolio(req.user.id, req.params.id);
+    if (!portfolio) return notFound(res);
+
+    const { values, errors } = readCashInput(req.body);
+    if (errors.length) return invalid(res, errors.join('; '));
+
+    await query(
+      `INSERT INTO cash_transactions (portfolio_id, date, type, amount, notes)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [portfolio.id, values.date, values.type, values.amount, values.notes],
+    );
+    await query('UPDATE portfolios SET updated_at = NOW() WHERE id = $1', [portfolio.id]);
+
+    return res.status(201).json({ portfolio: await loadPortfolio(req.user.id, portfolio.id) });
+  }),
+);
+
+router.delete(
+  '/:id/cash/:cashId',
+  wrap(async (req, res) => {
+    const portfolio = await findOwnedPortfolio(req.user.id, req.params.id);
+    if (!portfolio) return notFound(res);
+    const cash = await findOwnedCash(req.user.id, req.params.id, req.params.cashId);
+    if (!cash) return notFound(res);
+
+    await query('DELETE FROM cash_transactions WHERE id = $1 AND portfolio_id = $2', [cash.id, portfolio.id]);
+    await query('UPDATE portfolios SET updated_at = NOW() WHERE id = $1', [portfolio.id]);
+
+    return res.json({ portfolio: await loadPortfolio(req.user.id, portfolio.id) });
   }),
 );
 
