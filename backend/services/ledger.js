@@ -24,6 +24,9 @@ const roundMoney = (amount) => Math.round(amount * 100) / 100;
 
 const num = (v) => (v === null || v === undefined ? 0 : Number(v));
 
+/** Normalize a DATE (or ISO string) to 'YYYY-MM-DD' — pg returns DATE as a Date. */
+const dayOf = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v).slice(0, 10));
+
 /** The store's `positionFromBuys`, unchanged. */
 function positionFromBuys(buys) {
   const shares = buys.reduce((sum, b) => sum + num(b.shares), 0);
@@ -40,6 +43,57 @@ async function loadBuys(client, holdingId) {
   return rows;
 }
 
+/** The sell log for a holding, oldest first. */
+async function loadSells(client, holdingId) {
+  const { rows } = await client.query(
+    'SELECT * FROM holding_sells WHERE holding_id = $1 ORDER BY date, created_at',
+    [holdingId],
+  );
+  return rows;
+}
+
+/**
+ * The position a holding's full ledger (buys + sells) describes, under the
+ * weighted-average (perpetual) method. Mirrors the frontend's `replayLedger`;
+ * only the position is needed here — realized P/L is computed at read time.
+ */
+function replayPosition(buys, sells) {
+  const events = [
+    ...buys.map((b) => ({ date: dayOf(b.date), shares: num(b.shares), pricePerShare: num(b.price_per_share), type: 'buy' })),
+    ...sells.map((s) => ({ date: dayOf(s.date), shares: num(s.shares), pricePerShare: num(s.price_per_share), type: 'sell' })),
+  ].sort((a, b) => a.date.localeCompare(b.date));
+
+  let shares = 0;
+  let cost = 0;
+  for (const e of events) {
+    if (e.type === 'buy') {
+      shares += e.shares;
+      cost += e.shares * e.pricePerShare;
+    } else {
+      const average = shares > 0 ? cost / shares : 0;
+      const qty = Math.max(0, Math.min(e.shares, shares));
+      shares -= qty;
+      cost -= average * qty;
+    }
+  }
+  return { shares, averagePurchasePrice: shares > 0 ? roundMoney(cost / shares) : 0 };
+}
+
+/** Does a chronological replay of buys + sells ever go short? (oversell check). */
+function ledgerGoesNegative(buys, sells) {
+  const events = [
+    ...buys.map((b) => ({ date: dayOf(b.date), shares: num(b.shares), type: 'buy' })),
+    ...sells.map((s) => ({ date: dayOf(s.date), shares: num(s.shares), type: 'sell' })),
+  ].sort((a, b) => a.date.localeCompare(b.date));
+
+  let shares = 0;
+  for (const e of events) {
+    shares += e.type === 'buy' ? e.shares : -e.shares;
+    if (shares < -1e-9) return true;
+  }
+  return false;
+}
+
 /**
  * Recompute the holding from its log and write the totals back. `purchase_date` is
  * deliberately untouched: it describes the position, not the latest purchase — every
@@ -47,7 +101,8 @@ async function loadBuys(client, holdingId) {
  */
 async function deriveFromLog(client, holdingId) {
   const buys = await loadBuys(client, holdingId);
-  const position = positionFromBuys(buys);
+  const sells = await loadSells(client, holdingId);
+  const position = replayPosition(buys, sells);
   const { rows } = await client.query(
     `UPDATE holdings SET shares = $2, avg_purchase_price = $3
       WHERE id = $1 RETURNING *`,
@@ -84,6 +139,13 @@ async function ensureOpeningEntry(client, holding) {
  * and is refused, leaving the holding exactly as it was.
  */
 async function absorbEdit(client, holding, next) {
+  const sells = await loadSells(client, holding.id);
+  if (sells.length > 0) {
+    return {
+      ok: false,
+      reason: 'This holding has sales — edit its position through the buy/sell ledger.',
+    };
+  }
   await ensureOpeningEntry(client, holding);
 
   const buys = await loadBuys(client, holding.id);
@@ -163,14 +225,65 @@ async function deleteBuy(client, holdingId, buyId) {
   return { kind: 'updated', holding };
 }
 
+/** Log a sale. Refused (without writing) if the ledger would ever go short. */
+async function addSell(client, holding, input) {
+  const buys = await loadBuys(client, holding.id);
+  const sells = await loadSells(client, holding.id);
+  if (ledgerGoesNegative(buys, [...sells, { date: input.date, shares: input.shares }])) {
+    return { ok: false, reason: 'This sale exceeds the shares owned at its date.' };
+  }
+  const { rows } = await client.query(
+    `INSERT INTO holding_sells (holding_id, date, shares, price_per_share, fees)
+     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [holding.id, input.date, input.shares, input.pricePerShare, input.fees ?? 0],
+  );
+  await deriveFromLog(client, holding.id);
+  return { ok: true, sell: rows[0] };
+}
+
+/** Correct one logged sale; the whole position is re-derived from the ledger. */
+async function updateSell(client, holdingId, sellId, input) {
+  const buys = await loadBuys(client, holdingId);
+  const sells = await loadSells(client, holdingId);
+  const rest = sells.filter((s) => s.id !== sellId);
+  if (ledgerGoesNegative(buys, [...rest, { date: input.date, shares: input.shares }])) {
+    return { ok: false, reason: 'This sale exceeds the shares owned at its date.' };
+  }
+  const { rows } = await client.query(
+    `UPDATE holding_sells SET date = $3, shares = $4, price_per_share = $5, fees = $6
+      WHERE id = $1 AND holding_id = $2 RETURNING *`,
+    [sellId, holdingId, input.date, input.shares, input.pricePerShare, input.fees ?? 0],
+  );
+  if (!rows.length) return { ok: false, reason: 'Sale not found.' };
+  await deriveFromLog(client, holdingId);
+  return { ok: true, sell: rows[0] };
+}
+
+/** Remove a logged sale; the whole position is re-derived from the ledger. */
+async function deleteSell(client, holdingId, sellId) {
+  const { rowCount } = await client.query(
+    'DELETE FROM holding_sells WHERE id = $1 AND holding_id = $2',
+    [sellId, holdingId],
+  );
+  if (!rowCount) return { ok: false, reason: 'Sale not found.' };
+  await deriveFromLog(client, holdingId);
+  return { ok: true };
+}
+
 module.exports = {
   roundMoney,
   positionFromBuys,
   loadBuys,
+  loadSells,
+  replayPosition,
+  ledgerGoesNegative,
   deriveFromLog,
   ensureOpeningEntry,
   absorbEdit,
   addBuy,
   updateBuy,
   deleteBuy,
+  addSell,
+  updateSell,
+  deleteSell,
 };
