@@ -22,6 +22,7 @@ import type {
   DividendRecord,
   BuyInput,
   SellInput,
+  DeclaredDividendInput,
 } from '@/types';
 
 const BASE = '/api/portfolios';
@@ -230,6 +231,44 @@ export const portfoliosApi = {
   ): Promise<Portfolio> => {
     const { portfolio } = await request<PortfolioEnvelope>(
       `${BASE}/${portfolioId}/holdings/${holdingId}/dividends/${dividendId}`,
+      { method: 'DELETE' }
+    );
+    return portfolio;
+  },
+
+  // ─── Declared (upcoming) dividends ──────────────────────────────────────────
+  addDeclaredDividend: async (
+    portfolioId: string,
+    holdingId: string,
+    input: Omit<DeclaredDividendInput, 'holdingId'>
+  ): Promise<Portfolio> => {
+    const { portfolio } = await request<PortfolioEnvelope>(
+      `${BASE}/${portfolioId}/holdings/${holdingId}/declared-dividends`,
+      { method: 'POST', body: body(input) }
+    );
+    return portfolio;
+  },
+
+  updateDeclaredDividend: async (
+    portfolioId: string,
+    holdingId: string,
+    dividendId: string,
+    patch: Omit<DeclaredDividendInput, 'holdingId'>
+  ): Promise<Portfolio> => {
+    const { portfolio } = await request<PortfolioEnvelope>(
+      `${BASE}/${portfolioId}/holdings/${holdingId}/declared-dividends/${dividendId}`,
+      { method: 'PATCH', body: body(patch) }
+    );
+    return portfolio;
+  },
+
+  removeDeclaredDividend: async (
+    portfolioId: string,
+    holdingId: string,
+    dividendId: string
+  ): Promise<Portfolio> => {
+    const { portfolio } = await request<PortfolioEnvelope>(
+      `${BASE}/${portfolioId}/holdings/${holdingId}/declared-dividends/${dividendId}`,
       { method: 'DELETE' }
     );
     return portfolio;
