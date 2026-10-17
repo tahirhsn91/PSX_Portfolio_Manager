@@ -22,11 +22,12 @@
  * one place. The scraper's own rule — that a component reads the theme, never a literal
  * — holds here in exactly the same way.
  *
- * Deliberately NOT carried over from the scraper's file: `typeScale`, `radius`, `motion`,
- * `layout` and `shadowsFor`. Those are the scraper's MUI theme, and this app has its own
- * answer for each (Tailwind's scale, one `--radius`, two motion curves). Copying values
- * that nothing here reads would create a second place for them to drift from, which is
- * the opposite of the point. Colours are what the two apps share today.
+ * Deliberately NOT carried over from the scraper's file: `nav`, `chart`, `typeScale`,
+ * `radius`, `motion`, `layout` and `shadowsFor`. Those are the scraper's MUI theme, and
+ * this app has its own answer for each (CSS variables, Tailwind's scale, one `--radius`,
+ * two motion curves). Copying values that nothing here reads would create a second place
+ * for them to drift from, which is the opposite of the point. Colours are what the two
+ * apps share today.
  *
  * Two of this app's variable names differ from the scraper's on purpose, because the
  * words mean different things in a Tailwind/shadcn app — see the notes on `accent` and
@@ -80,55 +81,55 @@ export interface ModeTokens {
 }
 
 export const lightTokens: ModeTokens = {
-  bg: '#F5F7FA',
+  bg: '#F1F1F1',
   surface: '#FFFFFF',
   surfaceElevated: '#FFFFFF',
-  sunken: '#EDF1F6',
-  border: '#D8E0E9',
-  borderStrong: '#7B8A9C', // 3.52:1 on white
-  text: '#0F172A', // 17.85:1 on surface
-  textSecondary: '#4A5A6E', // 7.05:1
-  textMuted: '#5A6A7D', // 5.54:1
-  primary: '#0B7A50', // 5.37:1 against white text
-  primaryHover: '#096440',
-  primaryActive: '#075435',
+  sunken: '#F8F8F8',
+  border: '#D8D8D8',
+  borderStrong: '#757575', // 4.61:1 on white — control outlines answer to 1.4.11
+  text: '#333333', // 12.63:1 on surface
+  textSecondary: '#666666', // 5.74:1
+  textMuted: '#6B6B6B', // 5.33:1
+  primary: '#007A42', // 5.44:1 with white text, 4.81:1 as text on the page
+  primaryHover: '#00693A',
+  primaryActive: '#005C33',
   onPrimary: '#FFFFFF',
-  primarySoft: '#E3F3EB',
-  onPrimarySoft: '#146C34', // 5.67:1 on primarySoft
-  up: { main: '#15803D', soft: '#E7F6EC', onSoft: '#146C34' }, // 5.02:1 / 5.83:1
-  down: { main: '#C81E1E', soft: '#FDECEC', onSoft: '#A31515' }, // 5.74:1 / 6.87:1
-  warning: { main: '#B45309', soft: '#FDF3E7' }, // 5.02:1
-  info: { main: '#0B5FA5', soft: '#E8F1FA' }, // 6.57:1
-  accent: { main: '#B45309', soft: '#FDF3E7' },
-  focusRing: '#0B7A50', // 5.00:1 against the light background
-  hoverWash: 'rgba(15, 23, 42, 0.04)',
-  selectedWash: 'rgba(11, 122, 80, 0.08)',
+  primarySoft: '#EAF7F0',
+  onPrimarySoft: '#007A42', // 4.93:1 on primarySoft
+  up: { main: '#007A42', soft: '#EAF7F0', onSoft: '#007A42' }, // 5.44 / 4.93
+  down: { main: '#D62F35', soft: '#FCEBEC', onSoft: '#A3161B' }, // 4.86 / 6.78
+  warning: { main: '#6B4E0A', soft: '#F2E3C1' }, // 7.72:1 on surface, 6.08:1 on the tint
+  info: { main: '#666666', soft: '#EFEFEF' }, // 5.74:1 — the scraper reserves grey for neutral info
+  accent: { main: '#D6A333', soft: '#F2E3C1' }, // the scraper's gold: a fill and a series colour
+  focusRing: '#007A42', // 4.81:1 against the page
+  hoverWash: 'rgba(51, 51, 51, 0.04)',
+  selectedWash: 'rgba(0, 122, 66, 0.08)',
 };
 
 export const darkTokens: ModeTokens = {
-  bg: '#0B1220',
-  surface: '#131C2E',
-  surfaceElevated: '#1A2438',
-  sunken: '#070C16',
-  border: '#2E3D57', // hairline separator
-  borderStrong: '#7C8BA0', // 4.91:1 on surface (>= 3:1 for control outlines)
-  text: '#E8EEF8', // 14.61:1 on surface
-  textSecondary: '#A9B6C9', // 8.29:1
-  textMuted: '#7C8BA0', // 4.91:1
-  primary: '#34D399', // 8.86:1 as text on surface
-  primaryHover: '#4BE0AC',
-  primaryActive: '#22C58A',
-  onPrimary: '#04231A', // 8.67:1 on primary
-  primarySoft: '#10291D',
-  onPrimarySoft: '#7CE3B0', // 9.93:1 on primarySoft
-  up: { main: '#4ADE80', soft: '#10291D', onSoft: '#86EFAC' }, // 9.77:1 / 11.02:1
-  down: { main: '#F87171', soft: '#2A1113', onSoft: '#FCA5A5' }, // 6.16:1 / 9.31:1
-  warning: { main: '#FBBF24', soft: '#2E2410' }, // 10.20:1
-  info: { main: '#60A5FA', soft: '#12243B' }, // 6.70:1
-  accent: { main: '#F59E0B', soft: '#2E2410' },
-  focusRing: '#34D399', // 9.74:1 against the dark background
-  hoverWash: 'rgba(232, 238, 248, 0.06)',
-  selectedWash: 'rgba(52, 211, 153, 0.12)',
+  bg: '#161817',
+  surface: '#222524',
+  surfaceElevated: '#2B2F2D',
+  sunken: '#0F1110',
+  border: '#3A3F3D', // hairline separator
+  borderStrong: '#8A908D', // 4.75:1 on surface (>= 3:1 for control outlines)
+  text: '#F1F1F1', // 13.69:1 on surface
+  textSecondary: '#C9CCCB', // 9.56:1
+  textMuted: '#A8ADAB', // 6.80:1
+  primary: '#32CE8A', // 7.61:1 on surface
+  primaryHover: '#45D89A',
+  primaryActive: '#28B878',
+  onPrimary: '#0F2118', // 8.26:1 on primary
+  primarySoft: '#1B3328',
+  onPrimarySoft: '#7BE7B6', // 8.99:1 on primarySoft
+  up: { main: '#32CE8A', soft: '#1B3328', onSoft: '#7BE7B6' }, // 7.61 / 8.99
+  down: { main: '#F4747A', soft: '#3A2022', onSoft: '#F9AEB1' }, // 5.61 / 8.31
+  warning: { main: '#E0B95C', soft: '#3A2F1C' }, // 8.29:1 on surface
+  info: { main: '#A8ADAB', soft: '#2B2F2D' }, // 6.80:1
+  accent: { main: '#E0B95C', soft: '#3A2F1C' },
+  focusRing: '#45D89A', // 9.81:1 against the page
+  hoverWash: 'rgba(241, 241, 241, 0.06)',
+  selectedWash: 'rgba(50, 206, 138, 0.16)',
 };
 
 export const tokensFor = (mode: PaletteMode): ModeTokens => (mode === 'dark' ? darkTokens : lightTokens);
