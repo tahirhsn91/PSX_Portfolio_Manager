@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { FormError } from '@/components/auth/FormError';
 import { PageHeader } from '@/components/shared';
+import { ScrollReveal } from '@/components/animations';
 import { ROUTES } from '@/constants';
 import { formatDateTime } from '@/utils';
 import { useChangePassword, useLogout, useMe, useUpdateProfile } from '@/hooks';
@@ -90,6 +91,7 @@ export function Profile() {
   return (
     <div className="space-y-6">
       <PageHeader title="Profile" description="Your account and its password." />
+      <ScrollReveal className="space-y-6">
 
       {/* A password somebody else chose is the one thing on this page that is
           urgent, so it comes first and stays until it is dealt with. */}
@@ -273,6 +275,7 @@ export function Profile() {
           </form>
         </CardContent>
       </Card>
+      </ScrollReveal>
     </div>
   );
 }

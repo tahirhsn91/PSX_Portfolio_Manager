@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useOutlet } from 'react-router-dom';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { MobileNav } from './MobileNav';
 import { BottomNav } from './BottomNav';
 import { EnvBanner, ErrorBoundary } from '@/components/shared';
-import { ScrollRootContext, ScrollProgress } from '@/components/animations';
+import { ScrollRootContext, ScrollProgress, PageTransition } from '@/components/animations';
 import { Toaster } from '@/components/ui/toaster';
 
 export function MainLayout() {
@@ -14,7 +13,6 @@ export function MainLayout() {
   const mainRef = useRef<HTMLElement>(null);
   const location = useLocation();
   const outlet = useOutlet();
-  const reduced = useReducedMotion();
 
   // The app's only scroll container must return to the top on navigation —
   // otherwise a page change inherits the previous page's scroll depth.
@@ -59,17 +57,7 @@ export function MainLayout() {
                 <div className="mx-auto w-full max-w-[1600px] p-4 md:p-6 lg:p-8">
                   {/* Route transition: keyed by pathname so each navigation
                       cross-fades the outgoing page out and the new one in. */}
-                  <AnimatePresence mode="wait" initial={false}>
-                    <motion.div
-                      key={location.pathname}
-                      initial={reduced ? false : { opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={reduced ? undefined : { opacity: 0, y: -8 }}
-                      transition={{ duration: reduced ? 0 : 0.22, ease: [0.2, 0, 0, 1] }}
-                    >
-                      {outlet}
-                    </motion.div>
-                  </AnimatePresence>
+                  <PageTransition>{outlet}</PageTransition>
                 </div>
               </ErrorBoundary>
             </main>

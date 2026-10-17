@@ -1,3 +1,4 @@
+import { motion, useReducedMotion } from 'framer-motion';
 import { Sun, Moon, Monitor, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,6 +28,7 @@ const THEME_LABEL = { light: 'Light', dark: 'Dark', system: 'System' } as const;
 export function Header({ onOpenNav }: HeaderProps) {
   const { theme, setTheme } = useTheme();
   const { data: marketStatus } = useMarketStatus();
+  const reduced = useReducedMotion();
 
   const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor;
   const isOpen = marketStatus?.isOpen ?? false;
@@ -50,7 +52,12 @@ export function Header({ onOpenNav }: HeaderProps) {
     : null;
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/70 md:px-6">
+    <motion.header
+      initial={reduced ? false : { opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: reduced ? 0 : 0.3, ease: [0.2, 0, 0, 1] }}
+      className="flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/70 md:px-6"
+    >
       <div className="flex min-w-0 items-center gap-2">
         {/* Phones and small tablets only — from `md` the sidebar is on screen. */}
         <Button
@@ -123,6 +130,6 @@ export function Header({ onOpenNav }: HeaderProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-    </header>
+    </motion.header>
   );
 }

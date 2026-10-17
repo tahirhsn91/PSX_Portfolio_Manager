@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { useMe } from '@/hooks';
 import { Brand } from '@/components/shared';
+import { Reveal } from '@/components/animations';
 import { navGroupsFor, isNavItemActive, navItemClass } from './nav';
 
 /**
@@ -33,17 +34,17 @@ export function Sidebar() {
       )}
     >
       {/* Brand */}
-      <div className="flex h-16 items-center border-b px-3">
+      <Reveal delay={0.02} y={12} className="flex h-16 items-center border-b px-3">
         {/* Collapsed the rail is 64px wide, so only the mark fits; it is centred to stay
             on the nav icons' axis below it. */}
         {isSidebarCollapsed ? <Brand mark className="mx-auto" /> : <Brand />}
-      </div>
+      </Reveal>
 
       {/* Destinations */}
       <TooltipProvider delayDuration={0}>
         <nav aria-label="Main navigation" className="flex-1 space-y-4 overflow-y-auto p-2">
-          {navGroupsFor(isAdmin).map((group) => (
-            <div key={group.label}>
+          {navGroupsFor(isAdmin).map((group, i) => (
+            <Reveal key={group.label} delay={0.06 + i * 0.05} y={12}>
               {!isSidebarCollapsed && (
                 <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {group.label}
@@ -75,7 +76,7 @@ export function Sidebar() {
                   );
                 })}
               </ul>
-            </div>
+            </Reveal>
           ))}
         </nav>
       </TooltipProvider>

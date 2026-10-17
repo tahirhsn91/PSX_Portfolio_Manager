@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { EmptyState, PageHeader } from '@/components/shared';
+import { ScrollReveal } from '@/components/animations';
 import { useMe } from '@/hooks';
 import { useUIStore } from '@/store';
 import { usersApi, type ManagedUser } from '@/services/admin';
@@ -177,6 +178,7 @@ export function AdminUsers() {
         title="Accounts"
         description="Who can sign in, what role they hold, and whether they are active. Portfolio contents stay private to their owner."
       />
+      <ScrollReveal className="space-y-6">
 
       {handover && (
         <Card className="border-primary/40">
@@ -568,6 +570,7 @@ export function AdminUsers() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </ScrollReveal>
     </div>
   );
 }
