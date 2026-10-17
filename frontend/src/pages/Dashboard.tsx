@@ -12,6 +12,7 @@ import { usePortfolioStore } from '@/store';
 import { ROUTES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
 import { formatCurrency, formatPercent } from '@/utils';
 import { cn } from '@/lib/utils';
+import { ScrollReveal } from '@/components/animations';
 import { useState } from 'react';
 
 /** One row of the movers list. */
@@ -170,6 +171,7 @@ export function Dashboard() {
       />
 
       {/* Movers: which holdings are carrying the return, and which are dragging it. */}
+      <ScrollReveal>
       <div className="grid gap-4 sm:grid-cols-2">
         {[
           { title: 'Top gainers', rows: gainers, empty: 'Nothing is showing an unrealised gain.' },
@@ -211,12 +213,14 @@ export function Dashboard() {
           </Card>
         ))}
       </div>
+      </ScrollReveal>
 
       {/* Holdings composition and the market's own sector performance, side by side:
           one is "where my money is", the other is "what the market did" — but only
           when both exist. With one, it takes the full width instead of leaving a
           dead column beside it. */}
       {(pieData.length > 0 || sectorData.length > 0) && (
+        <ScrollReveal delay={0.05}>
         <div className={cn('grid grid-cols-1 gap-4', pieData.length > 0 && sectorData.length > 0 && 'lg:grid-cols-2')}>
           {pieData.length > 0 && (
             <AllocationPieChart data={pieData} title="Where your money is" />
@@ -225,10 +229,12 @@ export function Dashboard() {
             <SectorBarChart data={sectorData} title="Sector performance (market)" />
           )}
         </div>
+        </ScrollReveal>
       )}
 
       {/* Benchmark comparison — the portfolio's own line, priced from its holdings */}
       {metricsPerPortfolio.length > 0 && (
+        <ScrollReveal delay={0.1}>
         <BenchmarkComparisonChart
           title={portfolios.length === 1
             ? `${portfolios[0].name} vs ${benchmark.label}`
@@ -241,6 +247,7 @@ export function Dashboard() {
           portfolioLoading={portfolioHistoryLoading}
           benchmarkLoading={kseLoading}
         />
+        </ScrollReveal>
       )}
     </div>
   );
