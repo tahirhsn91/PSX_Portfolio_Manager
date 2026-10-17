@@ -75,6 +75,75 @@ export function positionFromBuys(
   return { shares, averagePurchasePrice: shares > 0 ? roundMoney(cost / shares) : 0 };
 }
 
+/** A completed sale, as entered into a holding's ledger. */
+export interface SellLedgerEntry {
+  date: string; // ISO date — the day of the sale
+  shares: number; // quantity sold
+  pricePerShare: number; // PKR received per share
+  fees: number; // PKR fees/taxes charged on this sale
+}
+
+/** The position and realized P/L a holding's full ledger (buys + sells) describes. */
+export interface ReplayedPosition {
+  shares: number;
+  averagePurchasePrice: number;
+  totalCostBasis: number;
+  realizedPL: number;
+  totalFees: number;
+}
+
+/**
+ * Replay a holding's buys and sells in chronological order under the
+ * weighted-average (perpetual) method, returning the position and the realized
+ * P/L the ledger produced.
+ *
+ * A buy raises the running average; a sell realises
+ * `(salePrice − average) × qty − fees` and leaves the average unchanged. The
+ * running average is kept unrounded so realized P/L is exact to the paisa, and
+ * only the returned figures are rounded (matching `positionFromBuys`, which
+ * rounds once).
+ *
+ * A sell larger than the shares owned at its date is clamped to what is owned —
+ * the server rejects such a sell before this ever runs, so the clamp is a guard,
+ * not a silent correction.
+ */
+export function replayLedger(
+  buys: { date: string; shares: number; pricePerShare: number }[],
+  sells: SellLedgerEntry[]
+): ReplayedPosition {
+  const events = [
+    ...buys.map((b) => ({ date: b.date, shares: b.shares, pricePerShare: b.pricePerShare, type: 'buy' as const })),
+    ...sells.map((s) => ({ date: s.date, shares: s.shares, pricePerShare: s.pricePerShare, fees: s.fees, type: 'sell' as const })),
+  ].sort((a, b) => a.date.localeCompare(b.date));
+
+  let shares = 0;
+  let cost = 0; // total cost of the remaining shares, unrounded
+  let realizedPL = 0;
+  let totalFees = 0;
+
+  for (const e of events) {
+    if (e.type === 'buy') {
+      shares += e.shares;
+      cost += e.shares * e.pricePerShare;
+    } else {
+      const average = shares > 0 ? cost / shares : 0;
+      const qty = Math.max(0, Math.min(e.shares, shares));
+      realizedPL += (e.pricePerShare - average) * qty - e.fees;
+      totalFees += e.fees;
+      shares -= qty;
+      cost -= average * qty;
+    }
+  }
+
+  return {
+    shares,
+    averagePurchasePrice: shares > 0 ? roundMoney(cost / shares) : 0,
+    totalCostBasis: roundMoney(cost),
+    realizedPL: roundMoney(realizedPL),
+    totalFees: roundMoney(totalFees),
+  };
+}
+
 /** Quantity and cost a buy log accounts for. */
 export function buyLogTotals(buys: { shares: number; pricePerShare: number }[]): { shares: number; cost: number } {
   return buys.reduce(
@@ -107,16 +176,22 @@ export function calculateHoldingMetrics(
 ): HoldingMetrics {
   const costBasis = holding.shares * holding.averagePurchasePrice;
   const totalDividendIncome = holding.dividendsReceived.reduce((sum, d) => sum + d.totalAmount, 0);
+  // Realized P/L is a fact of the ledger, not of the current quote, so it is
+  // replayed even when the feed cannot price the position.
+  const realizedPL = holding.sells?.length
+    ? replayLedger(holding.buys ?? [], holding.sells).realizedPL
+    : 0;
 
   if (!isQuoteUsable(quote)) {
-    // Facts only (cost, dividends). Everything price-derived is 0 and guarded by
-    // `priceAvailable` at every render site and aggregate.
+    // Facts only (cost, dividends, realized P/L). Everything price-derived is 0
+    // and guarded by `priceAvailable` at every render site and aggregate.
     return {
       holdingId: holding.id,
       priceAvailable: false,
       currentPrice: 0,
       currentValue: 0,
       costBasis,
+      realizedPL,
       unrealizedPL: 0,
       unrealizedPLPercent: 0,
       todayChange: 0,
@@ -136,7 +211,7 @@ export function calculateHoldingMetrics(
   const todayChange = quote.change ?? 0;
   const todayChangePercent = quote.changePercent ?? 0;
   const todayPL = todayChange * holding.shares;
-  const totalReturn = unrealizedPL + totalDividendIncome;
+  const totalReturn = realizedPL + unrealizedPL + totalDividendIncome;
   const totalReturnPercent = costBasis !== 0 ? (totalReturn / costBasis) * 100 : 0;
 
   return {
@@ -145,6 +220,7 @@ export function calculateHoldingMetrics(
     currentPrice,
     currentValue,
     costBasis,
+    realizedPL,
     unrealizedPL,
     unrealizedPLPercent,
     todayChange,
@@ -192,7 +268,8 @@ export function calculatePortfolioMetrics(
   // incomparable with the index shown beside it.
   const todayPLPercent = currentValue - todayPL !== 0 ? (todayPL / (currentValue - todayPL)) * 100 : 0;
   const totalDividendIncome = pricedMetrics.reduce((s, m) => s + m.totalDividendIncome, 0);
-  const totalReturn = totalPL + totalDividendIncome;
+  const totalRealizedPL = pricedMetrics.reduce((s, m) => s + m.realizedPL, 0);
+  const totalReturn = totalPL + totalRealizedPL + totalDividendIncome;
   const totalReturnPercent = totalInvestment !== 0 ? (totalReturn / totalInvestment) * 100 : 0;
 
   // Best / worst performer by unrealized P&L % — priced holdings only: an unpriced
@@ -209,6 +286,7 @@ export function calculatePortfolioMetrics(
     currentValue,
     totalPL,
     totalPLPercent,
+    totalRealizedPL,
     todayPL,
     todayPLPercent,
     totalDividendIncome,
@@ -248,7 +326,8 @@ export function aggregatePortfolioMetrics(metrics: PortfolioMetrics[]): Omit<Por
   const totalPL = currentValue - totalInvestment;
   const todayPL = metrics.reduce((s, m) => s + m.todayPL, 0);
   const totalDividendIncome = metrics.reduce((s, m) => s + m.totalDividendIncome, 0);
-  const totalReturn = totalPL + totalDividendIncome;
+  const totalRealizedPL = metrics.reduce((s, m) => s + m.totalRealizedPL, 0);
+  const totalReturn = totalPL + totalRealizedPL + totalDividendIncome;
 
   // Carried through the aggregate so the dashboard can report the same caveat.
   const unpricedHoldings = metrics.reduce((s, m) => s + m.unpricedHoldings, 0);
@@ -259,6 +338,7 @@ export function aggregatePortfolioMetrics(metrics: PortfolioMetrics[]): Omit<Por
     currentValue,
     totalPL,
     totalPLPercent: totalInvestment !== 0 ? (totalPL / totalInvestment) * 100 : 0,
+    totalRealizedPL,
     todayPL,
     // Same convention as the single-portfolio metrics.
     todayPLPercent: currentValue - todayPL !== 0 ? (todayPL / (currentValue - todayPL)) * 100 : 0,

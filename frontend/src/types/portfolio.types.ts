@@ -11,6 +11,8 @@ export interface Portfolio {
   updatedAt: string;
   color: string; // hex color for UI differentiation
   holdings: Holding[];
+  /** Cash movements into/out of the portfolio (deposits/withdrawals). Absent on rows predating the feature. */
+  cashTransactions?: CashTransaction[];
 }
 
 export interface Holding {
@@ -35,6 +37,13 @@ export interface Holding {
    * store rehydrates (see `portfolioStore`'s `merge`).
    */
   buys: BuyRecord[];
+  /**
+   * Append-only log of sells against this position. `shares` above is the
+   * quantity after buys minus sells; realized P/L is replayed from `buys` +
+   * `sells` (`replayLedger`), never stored. Absent on rows predating the feature
+   * (normalised to `[]` on rehydrate).
+   */
+  sells?: SellRecord[];
 }
 
 /** One entry in a holding's buy log. */
@@ -69,6 +78,26 @@ export interface DividendRecord {
   type: 'cash' | 'stock' | 'bonus';
 }
 
+/** One entry in a holding's sell log. */
+export interface SellRecord {
+  id: string;
+  holdingId: string;
+  date: string; // ISO date — the day of this sale
+  shares: number; // quantity sold
+  pricePerShare: number; // PKR received per share
+  fees: number; // PKR fees/taxes charged on this sale
+}
+
+/** A cash movement into or out of a portfolio (deposit/withdrawal). */
+export interface CashTransaction {
+  id: string;
+  portfolioId: string;
+  date: string; // ISO date string
+  type: 'deposit' | 'withdrawal';
+  amount: number; // PKR, positive
+  notes?: string;
+}
+
 // Computed/derived values (not stored, calculated at runtime)
 export interface HoldingMetrics {
   holdingId: string;
@@ -83,6 +112,8 @@ export interface HoldingMetrics {
   currentPrice: number;
   currentValue: number;
   costBasis: number;
+  /** Realized P/L replayed from the holding's buys and sells. */
+  realizedPL: number;
   unrealizedPL: number;
   unrealizedPLPercent: number;
   todayChange: number;
@@ -101,6 +132,8 @@ export interface PortfolioMetrics {
   currentValue: number;
   totalPL: number;
   totalPLPercent: number;
+  /** Realized P/L summed across holdings (0 when no sells have been logged). */
+  totalRealizedPL: number;
   todayPL: number;
   todayPLPercent: number;
   totalDividendIncome: number;
@@ -147,4 +180,13 @@ export interface BuyInput {
   shares: number;
   pricePerShare: number;
   date: string; // ISO date string
+}
+
+/** A sale entered against a holding. */
+export interface SellInput {
+  holdingId: string;
+  shares: number;
+  pricePerShare: number;
+  date: string; // ISO date string
+  fees: number; // PKR
 }
