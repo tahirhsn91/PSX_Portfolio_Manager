@@ -30,7 +30,7 @@ export function Dashboard() {
   const portfolios = usePortfolioStore((s) => s.portfolios);
   const { aggregate, isLoading, metricsPerPortfolio } = useAllPortfoliosMetrics();
   const { data: kse100, isLoading: kseLoading } = useKSE100();
-  const { data: sectorData = [] } = useSectorPerformance();
+  const { data: sectorData = [], isLoading: sectorLoading } = useSectorPerformance();
   const [range, setRange] = useState<ComparisonRange>('3M');
   const reduced = useReducedMotion();
 
@@ -240,14 +240,16 @@ export function Dashboard() {
           one is "where my money is", the other is "what the market did" — but only
           when both exist. With one, it takes the full width instead of leaving a
           dead column beside it. */}
-      {(pieData.length > 0 || sectorData.length > 0) && (
+      {(pieData.length > 0 || sectorLoading || sectorData.length > 0) && (
         <ScrollReveal delay={0.05}>
-        <div className={cn('grid grid-cols-1 gap-4', pieData.length > 0 && sectorData.length > 0 && 'lg:grid-cols-2')}>
+        <div className={cn('grid grid-cols-1 gap-4', pieData.length > 0 && (sectorLoading || sectorData.length > 0) && 'lg:grid-cols-2')}>
           {pieData.length > 0 && (
             <AllocationPieChart data={pieData} title="Where your money is" />
           )}
-          {sectorData.length > 0 && (
-            <SectorBarChart data={sectorData} title="Sector performance (market)" />
+          {/* Sector performance arrives async, so it shows a skeleton during the
+              first fetch instead of simply being absent until the data lands. */}
+          {(sectorLoading || sectorData.length > 0) && (
+            <SectorBarChart data={sectorData} title="Sector performance (market)" isLoading={sectorLoading} />
           )}
         </div>
         </ScrollReveal>

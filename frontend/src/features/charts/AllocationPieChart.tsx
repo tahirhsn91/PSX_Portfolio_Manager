@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency, formatPercent } from '@/utils';
 import { useReducedMotion } from '@/hooks';
+import { useToneFills } from './useChartTokens';
 import { assignTones, categoryTone, FAMILY_TEXT, FLAT_TONE, type ChartTone, type ToneFamily } from './chartTones';
 import { ChartSummary, type ChartSummaryItem } from './ChartSummary';
 
@@ -111,6 +112,7 @@ const SliceLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index
 
 export function AllocationPieChart({ data, title = 'Portfolio Allocation', headerExtra, isLoading = false }: AllocationPieChartProps) {
   const reduced = useReducedMotion();
+  const toneFills = useToneFills();
 
   /**
    * Two palettes, chosen by whether the data can answer "did this make money":
@@ -202,10 +204,11 @@ export function AllocationPieChart({ data, title = 'Portfolio Allocation', heade
                     isAnimationActive={!reduced}
                   >
                     {chartData.map((entry, index) => (
-                      // A class, not a `fill` attribute: the tone is a CSS variable, so the
-                      // same slice is correct in the light and the dark theme — and the
-                      // in-slice label reads its ink off the same tone.
-                      <Cell key={`cell-${index}`} className={entry.tone.fill} />
+                      // A concrete fill, not a class: recharts' pie sector writes its own
+                      // default `fill` attribute, and a class-based utility is not guaranteed
+                      // to win against it (see useToneFills). The in-slice label still reads
+                      // its ink off the tone's class.
+                      <Cell key={`cell-${index}`} fill={toneFills[entry.tone.fill] ?? 'currentColor'} />
                     ))}
                   </Pie>
                   <Tooltip content={<CustomTooltip />} />

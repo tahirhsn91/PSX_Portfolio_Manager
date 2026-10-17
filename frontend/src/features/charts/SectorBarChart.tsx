@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useReducedMotion } from '@/hooks';
 import { ChartSummary, type ChartSummaryItem } from './ChartSummary';
-import { useChartTokens } from './useChartTokens';
+import { useChartTokens, useToneFills } from './useChartTokens';
 
 interface SectorData {
   sector: string;
@@ -133,6 +133,7 @@ export function SectorBarChart({ data, title = 'Sector Performance', isLoading =
   // The zero baseline is a series-coloured line, not a class: recharts puts its own
   // `stroke` attribute on a ReferenceLine, and an attribute beats an inherited class.
   const tokens = useChartTokens();
+  const toneFills = useToneFills();
 
   const rows: Row[] = [...data]
     .sort((a, b) => b.changePercent - a.changePercent)
@@ -220,7 +221,11 @@ export function SectorBarChart({ data, title = 'Sector Performance', isLoading =
                     label={<SignedBarLabel decimals={decimals} dense={dense} />}
                   >
                     {rows.map((entry, index) => (
-                      <Cell key={`cell-${index}`} className={toneClass(entry.changePercent)} fillOpacity={0.85} />
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={toneFills[toneClass(entry.changePercent)] ?? 'currentColor'}
+                        fillOpacity={0.85}
+                      />
                     ))}
                   </Bar>
                 </BarChart>

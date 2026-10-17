@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { PROFIT_TONES, LOSS_TONES, CATEGORY_TONES, FLAT_TONE } from './chartTones';
 
 /**
  * The chart tokens, resolved to concrete colours.
@@ -97,4 +98,42 @@ export function useChartTokens(): ChartTokens {
   }, []);
 
   return tokens;
+}
+
+/** `fill-chart-cat-1` -> `--chart-cat-1`; a tone's class and its CSS variable differ by exactly this. */
+const fillClassToVar = (fillClass: string): string => `--${fillClass.slice('fill-'.length)}`;
+
+/**
+ * The tone-ladder fills, resolved to concrete colours.
+ *
+ * Recharts' pie `Sector` and bar `Rectangle` write the series colour into the
+ * SVG `fill` **attribute** (their own default `#808080` when a `<Cell>` carries
+ * only a class), and a CSS custom property does not resolve in attribute
+ * position — so the class-based `fill-chart-*` utility a slice wears cannot be
+ * relied on to win against that attribute. Reading the variable off the
+ * document keeps `index.css` the single source of these colours, and the values
+ * are re-read on theme flip exactly like `useChartTokens`.
+ */
+function readToneFills(): Record<string, string> {
+  const fills: Record<string, string> = {};
+  if (typeof document === 'undefined') return fills;
+  const styles = getComputedStyle(document.documentElement);
+  for (const tone of [...PROFIT_TONES, ...LOSS_TONES, ...CATEGORY_TONES, FLAT_TONE]) {
+    fills[tone.fill] = styles.getPropertyValue(fillClassToVar(tone.fill)).trim() || UNRESOLVED;
+  }
+  return fills;
+}
+
+/** Keyed by the tone's `fill` class, returns the concrete colour to hand recharts as a `fill` attribute. */
+export function useToneFills(): Record<string, string> {
+  const [fills, setFills] = useState<Record<string, string>>(readToneFills);
+
+  useEffect(() => {
+    setFills(readToneFills());
+    const observer = new MutationObserver(() => setFills(readToneFills()));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
+  return fills;
 }
