@@ -24,6 +24,7 @@ import { formatCurrency, formatPercent, formatVolume, formatCompactNumber } from
 import type { PSXCompany } from '@/types';
 import { ROUTES } from '@/constants';
 import { cn } from '@/lib/utils';
+import { ScrollReveal } from '@/components/animations';
 
 /** The row rhythm every list on this page shares: 44px tall, one focus ring. */
 const ROW_LINK =
@@ -271,6 +272,7 @@ export function Market() {
         </CardContent>
       </Card>
 
+      <ScrollReveal>
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -545,6 +547,7 @@ export function Market() {
           )}
         </TabsContent>
       </Tabs>
+      </ScrollReveal>
     </div>
   );
 }

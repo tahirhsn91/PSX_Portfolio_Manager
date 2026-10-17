@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Compass, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ROUTES } from '@/constants';
@@ -10,9 +11,16 @@ import { ROUTES } from '@/constants';
  * viewport, and no single low-contrast link out.
  */
 export function NotFound() {
+  const reduced = useReducedMotion();
+
   return (
     <div className="flex min-h-[50vh] items-center justify-center py-6">
-      <div className="w-full max-w-md rounded-xl border bg-card p-6 text-center text-card-foreground shadow-card sm:p-8">
+      <motion.div
+        initial={reduced ? false : { opacity: 0, scale: 0.9, y: 24 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+        className="w-full max-w-md rounded-xl border bg-card p-6 text-center text-card-foreground shadow-card sm:p-8"
+      >
         <p
           aria-hidden="true"
           className="font-mono text-xs font-semibold uppercase tracking-widest text-muted-foreground tabular-nums"
@@ -37,7 +45,7 @@ export function NotFound() {
             </Link>
           </Button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

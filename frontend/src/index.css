@@ -356,6 +356,7 @@
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    animation-play-state: running !important;
     transition-duration: 0.01ms !important;
     transition-delay: 0ms !important;
     scroll-behavior: auto !important;
@@ -420,4 +421,30 @@ select.calendar-select option:hover {
   .tsqd-open-btn-container {
     bottom: calc(4.5rem + env(safe-area-inset-bottom)) !important;
   }
+}
+
+/*
+ * Scroll-reveal (the animation-on-scroll pattern). `.animate-on-scroll` holds
+ * the reveal paused until the element enters `<main>`'s viewport, when the
+ * `ScrollReveal` component flips `in-view` on. Keyframes live here rather than
+ * in the Tailwind config so the class can own `animation-play-state` directly.
+ */
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-on-scroll {
+  animation: reveal-in 0.65s cubic-bezier(0.2, 0, 0, 1) both;
+  animation-play-state: paused;
+}
+
+.animate-on-scroll.in-view {
+  animation-play-state: running;
 }
