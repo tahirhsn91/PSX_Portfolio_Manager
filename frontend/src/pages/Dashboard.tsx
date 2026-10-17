@@ -13,6 +13,7 @@ import { ROUTES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
 import { formatCurrency, formatPercent } from '@/utils';
 import { cn } from '@/lib/utils';
 import { ScrollReveal } from '@/components/animations';
+import { motion, useReducedMotion } from 'framer-motion';
 import { useState } from 'react';
 
 /** One row of the movers list. */
@@ -31,6 +32,7 @@ export function Dashboard() {
   const { data: kse100, isLoading: kseLoading } = useKSE100();
   const { data: sectorData = [] } = useSectorPerformance();
   const [range, setRange] = useState<ComparisonRange>('3M');
+  const reduced = useReducedMotion();
 
   // The portfolio side of the "vs benchmark" comparison, priced from real history.
   const allHoldings = portfolios.flatMap((p) => p.holdings);
@@ -186,8 +188,13 @@ export function Dashboard() {
                 <p className="py-2 text-sm text-muted-foreground">{column.empty}</p>
               ) : (
                 <ul className="divide-y">
-                  {column.rows.map((m) => (
-                    <li key={`${m.portfolioId}-${m.symbol}`}>
+                  {column.rows.map((m, i) => (
+                    <motion.li
+                      key={`${m.portfolioId}-${m.symbol}`}
+                      initial={reduced ? false : { opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: reduced ? 0 : 0.28, delay: reduced ? 0 : i * 0.06, ease: [0.2, 0, 0, 1] }}
+                    >
                       <Link
                         to={ROUTES.STOCK_DETAIL_PATH(m.portfolioId, m.symbol)}
                         className="flex min-h-11 items-center gap-3 rounded-md py-2 transition-colors duration-base ease-standard hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -205,7 +212,7 @@ export function Dashboard() {
                         <PLValue value={m.returnPercent} />
                         <ArrowUpRight aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground" />
                       </Link>
-                    </li>
+                    </motion.li>
                   ))}
                 </ul>
               )}

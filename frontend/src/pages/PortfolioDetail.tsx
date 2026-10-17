@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, MetricBand, PLValue, PageHeader, CompanySearch } from '@/components/shared';
+import { ScrollReveal } from '@/components/animations';
 import type { BandStat } from '@/components/shared';
 import { HoldingsTable } from '@/features/portfolio/HoldingsTable';
 import { HoldingForm } from '@/features/portfolio/HoldingForm';
@@ -327,6 +328,7 @@ export function PortfolioDetail() {
           </Button>
         }
       />
+      <ScrollReveal className="space-y-6">
 
       {/* Answer first, then the supporting figures — the same band as the Dashboard. */}
       <MetricBand
@@ -555,6 +557,7 @@ export function PortfolioDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </ScrollReveal>
     </div>
   );
 }
