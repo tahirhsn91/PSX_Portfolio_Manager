@@ -44,6 +44,8 @@ export interface Holding {
    * (normalised to `[]` on rehydrate).
    */
   sells?: SellRecord[];
+  /** Declared (upcoming, not yet received) dividends. Absent on rows predating the feature. */
+  declaredDividends?: DeclaredDividend[];
 }
 
 /** One entry in a holding's buy log. */
@@ -86,6 +88,21 @@ export interface SellRecord {
   shares: number; // quantity sold
   pricePerShare: number; // PKR received per share
   fees: number; // PKR fees/taxes charged on this sale
+}
+
+/**
+ * A declared (announced) dividend that has not yet been received. Dates are
+ * optional — a source may publish only some of them — and a declared dividend
+ * is never a received one until it is separately recorded in `dividendsReceived`.
+ */
+export interface DeclaredDividend {
+  id: string;
+  holdingId: string;
+  amountPerShare: number; // PKR per share
+  announcementDate?: string; // ISO date
+  exDividendDate?: string; // ISO date
+  bookClosureDate?: string; // ISO date
+  paymentDate?: string; // ISO date
 }
 
 /** A cash movement into or out of a portfolio (deposit/withdrawal). */
@@ -189,4 +206,14 @@ export interface SellInput {
   pricePerShare: number;
   date: string; // ISO date string
   fees: number; // PKR
+}
+
+/** A declared (upcoming) dividend entered against a holding. Dates are optional. */
+export interface DeclaredDividendInput {
+  holdingId: string;
+  amountPerShare: number;
+  announcementDate?: string;
+  exDividendDate?: string;
+  bookClosureDate?: string;
+  paymentDate?: string;
 }

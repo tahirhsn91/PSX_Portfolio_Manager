@@ -25,6 +25,9 @@ const api = vi.hoisted(() => ({
   removeBuy: vi.fn(),
   addDividend: vi.fn(),
   removeDividend: vi.fn(),
+  addDeclaredDividend: vi.fn(),
+  updateDeclaredDividend: vi.fn(),
+  removeDeclaredDividend: vi.fn(),
   exportAll: vi.fn(),
   importAll: vi.fn(),
 }));
@@ -108,7 +111,26 @@ describe('the portfolio store, on the API', () => {
     expect(usePortfolioStore.getState().portfolios[0].holdings[0].shares).toBe(130);
   });
 
-  it('surfaces the log\'s 409 so the page can explain it, and keeps the old position', async () => {
+  it('takes the server\u0027s portfolio as truth after declaring a dividend', async () => {
+    const declared = { id: 'd1', holdingId: 'h1', amountPerShare: 12.5, exDividendDate: '2026-04-10' };
+    const after = portfolio({
+      holdings: [holding({ declaredDividends: [declared] }) as never],
+    });
+    api.addDeclaredDividend.mockResolvedValue(after);
+    usePortfolioStore.setState({ portfolios: [portfolio({ holdings: [holding() as never] })] });
+
+    await usePortfolioStore
+      .getState()
+      .addDeclaredDividend('p1', 'h1', { amountPerShare: 12.5, exDividendDate: '2026-04-10' });
+
+    expect(api.addDeclaredDividend).toHaveBeenCalledWith('p1', 'h1', {
+      amountPerShare: 12.5,
+      exDividendDate: '2026-04-10',
+    });
+    expect(usePortfolioStore.getState().portfolios[0].holdings[0].declaredDividends).toEqual([declared]);
+  });
+
+  it('surfaces the log\u0027s 409 so the page can explain it, and keeps the old position', async () => {
     api.updateHolding.mockRejectedValue(
       new ApiError(409, 'LOG_CONFLICT', 'This holding already logs 10 shares of real purchases.')
     );
