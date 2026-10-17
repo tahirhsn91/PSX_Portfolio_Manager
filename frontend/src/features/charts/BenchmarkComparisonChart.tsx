@@ -3,6 +3,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { formatPercent } from '@/utils';
 import { useReducedMotion } from '@/hooks';
 import { cn } from '@/lib/utils';
@@ -10,18 +11,34 @@ import type { HistoricalDataPoint } from '@/types';
 import { ChartSummary, type ChartSummaryItem } from './ChartSummary';
 import { useChartTokens } from './useChartTokens';
 
-/** Selectable comparison periods. `days` sizes the history fetch, `sessions` the plot. */
+/**
+ * Selectable comparison periods. `days` sizes the history fetch, `sessions` the plot.
+ * YTD and ALL are the two ranges the brief asked for on top of the originals; YTD's
+ * fetch window is measured from 1 January (see `rangeDays`), not a fixed count.
+ */
 export const COMPARISON_RANGES = [
   { key: '1M', label: '1M', sessions: 22, days: 60 },
   { key: '3M', label: '3M', sessions: 65, days: 130 },
   { key: '6M', label: '6M', sessions: 130, days: 220 },
   { key: '1Y', label: '1Y', sessions: 252, days: 420 },
+  { key: 'YTD', label: 'YTD', sessions: 252, days: 366 },
+  { key: 'ALL', label: 'ALL', sessions: 2520, days: 3650 },
 ] as const;
 
 export type ComparisonRange = (typeof COMPARISON_RANGES)[number]['key'];
 
 export function rangeConfig(range: ComparisonRange) {
   return COMPARISON_RANGES.find((r) => r.key === range) ?? COMPARISON_RANGES[1];
+}
+
+/** The fetch window in days. YTD is calendar-year-to-date, so it cannot be a fixed constant. */
+export function rangeDays(range: ComparisonRange): number {
+  if (range === 'YTD') {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), 0, 1);
+    return Math.max(1, Math.ceil((now.getTime() - start.getTime()) / 86_400_000));
+  }
+  return rangeConfig(range).days;
 }
 
 /** Whatever the portfolio is measured against: an index, or another stock. */
@@ -320,7 +337,11 @@ export function BenchmarkComparisonChart({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">Loading comparison…</p>
+          <div className="space-y-3 py-4" aria-busy="true">
+            <Skeleton className="h-4 w-48" />
+            <Skeleton className="h-[240px] w-full" />
+            <Skeleton className="h-3 w-64" />
+          </div>
         ) : hasData ? (
           <>
             <div
@@ -332,10 +353,13 @@ export function BenchmarkComparisonChart({
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="date" tick={{ fontSize: 12, fill: tokens.axis }} tickLine={false} interval="preserveStartEnd" className="fill-muted-foreground" />
                   <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 12, fill: tokens.axis }} tickLine={false} axisLine={false} className="fill-muted-foreground" />
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip
+                    content={<CustomTooltip />}
+                    cursor={{ stroke: tokens.axis, strokeOpacity: 0.5, strokeDasharray: '3 3' }}
+                  />
                   <Legend />
-                  <Line type="monotone" dataKey="portfolio" name={portfolioLabel} stroke={tokens.neutral} strokeWidth={2} dot={false} isAnimationActive={!reduced} />
-                  <Line type="monotone" dataKey="benchmark" name={benchmark.label} stroke={tokens.benchmark} strokeWidth={2} dot={false} strokeDasharray="5 3" isAnimationActive={!reduced} />
+                  <Line type="monotone" dataKey="portfolio" name={portfolioLabel} stroke={tokens.neutral} strokeWidth={2} dot={false} activeDot={{ r: 4 }} isAnimationActive={!reduced} />
+                  <Line type="monotone" dataKey="benchmark" name={benchmark.label} stroke={tokens.benchmark} strokeWidth={2} dot={false} activeDot={{ r: 4 }} strokeDasharray="5 3" isAnimationActive={!reduced} />
                 </LineChart>
               </ResponsiveContainer>
             </div>

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, MetricBand, PLValue, PageHeader } from '@/components/shared';
 import type { BandStat } from '@/components/shared';
-import { AllocationPieChart, SectorBarChart, BenchmarkComparisonChart, rangeConfig } from '@/features/charts';
+import { AllocationPieChart, SectorBarChart, BenchmarkComparisonChart, rangeDays } from '@/features/charts';
 import type { ComparisonBenchmark, ComparisonRange } from '@/features/charts';
 import { useAllPortfoliosMetrics } from '@/hooks';
 import { useKSE100, usePortfolioHistory, useSectorPerformance } from '@/hooks';
@@ -37,7 +37,7 @@ export function Dashboard() {
   // The portfolio side of the "vs benchmark" comparison, priced from real history.
   const allHoldings = portfolios.flatMap((p) => p.holdings);
   const { series: portfolioSeries, isLoading: portfolioHistoryLoading } = usePortfolioHistory(
-    allHoldings, rangeConfig(range).days,
+    allHoldings, rangeDays(range),
   );
 
   // The dashboard aggregates every portfolio, so its benchmark is the index.
@@ -136,11 +136,23 @@ export function Dashboard() {
     { label: 'Holdings', value: String(allHoldings.length), hint: `${portfolios.length} portfolio${portfolios.length === 1 ? '' : 's'}` },
   ];
 
+  // The exchange's own clock, not the viewer's — data is stamped in PKT.
+  const pktUpdated = kse100?.lastUpdated
+    ? new Intl.DateTimeFormat('en-PK', {
+        hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Karachi',
+      }).format(new Date(kse100.lastUpdated))
+    : null;
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Dashboard"
         description={`${portfolios.length} portfolio${portfolios.length === 1 ? '' : 's'} · ${allHoldings.length} holdings, valued from live PSX prices`}
+        meta={
+          pktUpdated ? (
+            <p className="text-xs text-muted-foreground">Market data updated {pktUpdated} PKT</p>
+          ) : undefined
+        }
         actions={
           <Button variant="outline" onClick={() => navigate(ROUTES.PORTFOLIOS)}>
             Manage portfolios
@@ -152,6 +164,8 @@ export function Dashboard() {
       <MetricBand
         label="Current value"
         value={formatCurrency(aggregate.currentValue)}
+        animateValue={aggregate.currentValue}
+        animateFormat={(n) => formatCurrency(n)}
         change={{
           amount: formatCurrency(aggregate.totalPL),
           percent: plPercent !== undefined ? formatPercent(plPercent) : undefined,

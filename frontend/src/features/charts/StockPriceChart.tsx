@@ -1,6 +1,7 @@
 import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency, formatVolume } from '@/utils';
 import { useReducedMotion } from '@/hooks';
 import type { HistoricalDataPoint, SupportResistanceLevel } from '@/types';
@@ -84,9 +85,11 @@ export function StockPriceChart({ data, symbol, supportLevels = [], resistanceLe
       </CardHeader>
       <CardContent>
         {isLoading && !hasData ? (
-          <p className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
-            Loading {symbol} price history…
-          </p>
+          <div className="space-y-3 py-4" aria-busy="true">
+            <Skeleton className="h-4 w-48" />
+            <Skeleton className="h-[300px] w-full" />
+            <Skeleton className="h-3 w-64" />
+          </div>
         ) : !hasData ? (
           <p className="flex h-[300px] items-center justify-center px-4 text-center text-sm text-muted-foreground">
             {emptyReason}
@@ -120,7 +123,10 @@ export function StockPriceChart({ data, symbol, supportLevels = [], resistanceLe
                     className="fill-muted-foreground"
                     width={54}
                   />
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip
+                    content={<CustomTooltip />}
+                    cursor={{ stroke: tokens.axis, strokeOpacity: 0.5, strokeDasharray: '3 3' }}
+                  />
 
                   {/* Support levels */}
                   {supportLevels.map((s) => (
@@ -147,7 +153,7 @@ export function StockPriceChart({ data, symbol, supportLevels = [], resistanceLe
                   )}
 
                   <Bar yAxisId="volume" dataKey="Volume" name="Volume" fill={tokens.volume} fillOpacity={0.2} radius={[2, 2, 0, 0]} isAnimationActive={!reduced} />
-                  <Line yAxisId="price" type="monotone" dataKey="Close" name="Close" stroke={tokens.neutral} strokeWidth={2} dot={false} isAnimationActive={!reduced} />
+                  <Line yAxisId="price" type="monotone" dataKey="Close" name="Close" stroke={tokens.neutral} strokeWidth={2} dot={false} activeDot={{ r: 4 }} isAnimationActive={!reduced} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>

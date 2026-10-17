@@ -1,5 +1,6 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useReducedMotion } from '@/hooks';
 import { ChartSummary, type ChartSummaryItem } from './ChartSummary';
 import { useChartTokens } from './useChartTokens';
@@ -180,9 +181,11 @@ export function SectorBarChart({ data, title = 'Sector Performance', isLoading =
       </CardHeader>
       <CardContent>
         {isLoading && !hasData ? (
-          <p className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
-            Loading sector performance…
-          </p>
+          <div className="space-y-3 py-4" aria-busy="true">
+            <Skeleton className="h-4 w-48" />
+            <Skeleton className="h-[300px] w-full" />
+            <Skeleton className="h-3 w-64" />
+          </div>
         ) : !hasData ? (
           <p className="flex h-[300px] items-center justify-center px-4 text-center text-sm text-muted-foreground">
             {emptyReason}
