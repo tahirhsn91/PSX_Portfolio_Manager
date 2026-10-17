@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, TrendingUp, DollarSign, Award, TriangleAlert } from 'lucide-react';
+import { Plus, TrendingUp, DollarSign, Award, TriangleAlert, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -21,7 +23,7 @@ import { buildSectorAllocation, buildHoldingAllocation } from '@/utils';
 import { ROUTES, PSX_INDICES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
 import { format, parseISO, subDays, addDays } from 'date-fns';
 import type { Holding, PSXCompany } from '@/types';
-import { formatCurrency, formatPercent, type HoldingFormValues, type BuyFormValues } from '@/utils';
+import { formatCurrency, formatPercent, type HoldingFormValues, type BuyFormValues, type SellFormValues } from '@/utils';
 
 /**
  * Every PSX index, offered in the picker as a pseudo-company so indices and stocks
@@ -63,7 +65,7 @@ export function PortfolioDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const portfolio = usePortfolioStore((s) => s.portfolios.find((p) => p.id === id));
-  const { addHolding, updateHolding, buyInto, updateBuy, deleteBuy, deleteHolding } = usePortfolioStore();
+  const { addHolding, updateHolding, buyInto, updateBuy, deleteBuy, deleteHolding, sell, updateSell, deleteSell, addCash, deleteCash } = usePortfolioStore();
   const addNotification = useUIStore((s) => s.addNotification);
   const { metrics, isLoading } = usePortfolioMetrics(id);
   const [range, setRange] = useState<ComparisonRange>('3M');
@@ -100,6 +102,12 @@ export function PortfolioDetail() {
   // Removal is confirmed in a dialog rather than `window.confirm`, so the warning
   // names the holding, states what else goes with it, and can be styled.
   const [holdingToDelete, setHoldingToDelete] = useState<Holding | null>(null);
+  // Cash movements (deposits/withdrawals) — a small inline form, not a dialog.
+  const [cashOpen, setCashOpen] = useState(false);
+  const [cashType, setCashType] = useState<'deposit' | 'withdrawal'>('deposit');
+  const [cashAmount, setCashAmount] = useState('');
+  const [cashDate, setCashDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [cashNotes, setCashNotes] = useState('');
 
   if (!portfolio || !id) {
     return (
@@ -259,6 +267,107 @@ export function PortfolioDetail() {
     }
   };
 
+  /**
+   * A sale of part of a held stock. The store replays buys + sells to derive the
+   * position and realized P/L; an oversell is refused with a 409, which the error
+   * notification reports in the server's own words.
+   */
+  const handleSell = async (values: SellFormValues) => {
+    if (!editingHolding) return;
+    const before = `${editingHolding.shares.toLocaleString()} @ ${formatCurrency(editingHolding.averagePurchasePrice)}`;
+    try {
+      const updated = await sell(id, {
+        holdingId: editingHolding.id,
+        shares: values.shares,
+        pricePerShare: values.pricePerShare,
+        fees: values.fees,
+        date: values.date,
+      });
+      if (!updated) return;
+      addNotification({
+        type: 'success',
+        title: `Sold ${values.shares.toLocaleString()} ${updated.symbol}`,
+        message: `Now ${updated.shares.toLocaleString()} shares at ${formatCurrency(updated.averagePurchasePrice)} average (was ${before}).`,
+      });
+      setEditingHolding(null);
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: `Could not log the sale of ${values.shares.toLocaleString()} shares`,
+        message: (err as Error).message,
+      });
+    }
+  };
+
+  /** Correcting a logged sale: the position re-derives from the whole ledger. */
+  const handleUpdateSell = async (sellId: string, patch: { shares: number; pricePerShare: number; fees: number }) => {
+    if (!editingHolding) return;
+    const existing = (editingHolding.sells ?? []).find((s) => s.id === sellId);
+    if (!existing) return;
+    try {
+      const updated = await updateSell(id, editingHolding.id, sellId, { ...patch, date: existing.date });
+      if (!updated) return;
+      addNotification({
+        type: 'success',
+        title: 'Sale updated',
+        message: `${updated.symbol} is now ${updated.shares.toLocaleString()} shares at ${formatCurrency(updated.averagePurchasePrice)} average.`,
+      });
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: 'Could not update the sale',
+        message: (err as Error).message,
+      });
+    }
+  };
+
+  /** Removing a logged sale: the position gains those shares back. */
+  const handleDeleteSell = async (sellId: string) => {
+    if (!editingHolding) return;
+    const removed = (editingHolding.sells ?? []).find((s) => s.id === sellId);
+    try {
+      await deleteSell(id, editingHolding.id, sellId);
+      addNotification({
+        type: 'success',
+        title: removed
+          ? `Removed sale of ${removed.shares.toLocaleString()} ${editingHolding.symbol}`
+          : 'Sale removed',
+      });
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: 'Could not remove the sale',
+        message: (err as Error).message,
+      });
+    }
+  };
+
+  /** Record a cash movement. The amount must be a positive number; type signs it. */
+  const handleAddCash = async () => {
+    const amount = Number(cashAmount);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    try {
+      await addCash(id, { date: cashDate, type: cashType, amount, notes: cashNotes.trim() || undefined });
+      addNotification({
+        type: 'success',
+        title: `${cashType === 'deposit' ? 'Deposit' : 'Withdrawal'} of ${formatCurrency(amount)} recorded`,
+      });
+      setCashOpen(false);
+      setCashAmount('');
+      setCashNotes('');
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Could not record the cash entry', message: (err as Error).message });
+    }
+  };
+
+  const handleDeleteCash = async (cashId: string) => {
+    try {
+      await deleteCash(id, cashId);
+    } catch (err) {
+      addNotification({ type: 'error', title: 'Could not remove the cash entry', message: (err as Error).message });
+    }
+  };
+
   const confirmDeleteHolding = async () => {
     const holding = holdingToDelete;
     if (!holding) return;
@@ -286,6 +395,13 @@ export function PortfolioDetail() {
     )
     .sort((a, b) => b.date.localeCompare(a.date));
 
+  // Net cash = deposits − withdrawals, over every entry the account has logged.
+  const cashTransactions = portfolio.cashTransactions ?? [];
+  const cashBalance = cashTransactions.reduce(
+    (sum, c) => sum + (c.type === 'deposit' ? c.amount : -c.amount),
+    0,
+  );
+
   // One card, two breakdowns: whichever the switch has selected is the pie that
   // is mounted, so the row spends a single slot on the question either way.
   // `gain` rides along so the pie can colour a slice green or red by whether the
@@ -310,6 +426,7 @@ export function PortfolioDetail() {
       tone: todayTone,
     },
     { label: 'Dividends', value: formatCurrency(metrics?.totalDividendIncome ?? 0), hint: 'Total received' },
+    { label: 'Realized P/L', value: formatCurrency(metrics?.totalRealizedPL ?? 0), hint: 'Booked on sales' },
     { label: 'Holdings', value: String(portfolio.holdings.length), hint: `${holdingAlloc.length} priced` },
   ];
 
@@ -483,6 +600,124 @@ export function PortfolioDetail() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Cash movements: a balance, the entries behind it, and an inline
+                  form to add one. Net cash = deposits − withdrawals. */}
+              <Card className="mt-4">
+                <CardHeader className="pb-2">
+                  <CardTitle>Cash</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 pb-3">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="text-sm text-muted-foreground">Net cash (deposits − withdrawals)</p>
+                    <p className="font-mono text-sm font-semibold tabular-nums">{formatCurrency(cashBalance)}</p>
+                  </div>
+
+                  {cashTransactions.length > 0 && (
+                    <ul className="divide-y">
+                      {cashTransactions.map((c) => (
+                        <li key={c.id} className="flex items-center justify-between gap-3 py-2">
+                          <div className="min-w-0">
+                            <p className="text-sm">
+                              <span className="font-medium">{c.type === 'deposit' ? 'Deposit' : 'Withdrawal'}</span>
+                              {c.notes && <span className="ml-2 text-xs text-muted-foreground">{c.notes}</span>}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{format(parseISO(c.date), 'dd MMM yyyy')}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`font-mono text-sm tabular-nums ${c.type === 'deposit' ? 'text-profit' : 'text-loss'}`}>
+                              {c.type === 'deposit' ? '+' : '−'}{formatCurrency(c.amount)}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Remove ${c.type}`}
+                              onClick={() => handleDeleteCash(c.id)}
+                            >
+                              <Trash2 aria-hidden="true" className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {cashOpen ? (
+                    <div className="space-y-3 rounded-lg border border-border p-3">
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={cashType === 'deposit' ? 'default' : 'outline'}
+                          onClick={() => setCashType('deposit')}
+                        >
+                          Deposit
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={cashType === 'withdrawal' ? 'default' : 'outline'}
+                          onClick={() => setCashType('withdrawal')}
+                        >
+                          Withdrawal
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="cashAmount">Amount (PKR) *</Label>
+                          <Input
+                            id="cashAmount"
+                            type="number"
+                            step="0.01"
+                            className="h-11 tabular-nums"
+                            placeholder="0"
+                            value={cashAmount}
+                            onChange={(e) => setCashAmount(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="cashDate">Date *</Label>
+                          <Input
+                            id="cashDate"
+                            type="date"
+                            className="h-11"
+                            value={cashDate}
+                            onChange={(e) => setCashDate(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="cashNotes">Notes</Label>
+                        <Input
+                          id="cashNotes"
+                          className="h-11"
+                          placeholder="Optional"
+                          value={cashNotes}
+                          onChange={(e) => setCashNotes(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button type="button" variant="ghost" onClick={() => setCashOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={handleAddCash}
+                          disabled={!Number(cashAmount) || Number(cashAmount) <= 0}
+                        >
+                          Record {cashType}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button type="button" variant="outline" onClick={() => setCashOpen(true)}>
+                      <Plus aria-hidden="true" className="h-4 w-4" />
+                      Add cash
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
             </>
           )}
         </TabsContent>
@@ -565,6 +800,10 @@ export function PortfolioDetail() {
               buys={liveEditingHolding.buys ?? []}
               onUpdateBuy={handleUpdateBuy}
               onDeleteBuy={handleDeleteBuy}
+              sells={liveEditingHolding.sells ?? []}
+              onSell={handleSell}
+              onUpdateSell={handleUpdateSell}
+              onDeleteSell={handleDeleteSell}
             />
           )}
         </DialogContent>

@@ -24,6 +24,7 @@ import type {
   UpdateHoldingInput,
   DividendRecord,
   BuyInput,
+  SellInput,
   DeleteBuyResult,
 } from '@/types';
 import { PORTFOLIO_COLORS, STORAGE_KEYS } from '@/constants';
@@ -88,7 +89,28 @@ interface PortfolioState {
     holdingId: string,
     buyId: string
   ) => Promise<DeleteBuyResult | undefined>;
+  /**
+   * Sell part of a held stock. The server replays buys + sells to derive the
+   * position and realized P/L; an oversell is refused with a 409.
+   */
+  sell: (portfolioId: string, input: SellInput) => Promise<Holding | undefined>;
+  /** Correct one logged sale, then re-derive the position from the whole ledger. */
+  updateSell: (
+    portfolioId: string,
+    holdingId: string,
+    sellId: string,
+    patch: { date: string; shares: number; pricePerShare: number; fees: number }
+  ) => Promise<Holding | undefined>;
+  /** Remove a logged sale and re-derive the position from what is left. */
+  deleteSell: (portfolioId: string, holdingId: string, sellId: string) => Promise<void>;
   deleteHolding: (portfolioId: string, holdingId: string) => Promise<void>;
+
+  // Cash
+  addCash: (
+    portfolioId: string,
+    input: { date: string; type: 'deposit' | 'withdrawal'; amount: number; notes?: string }
+  ) => Promise<void>;
+  deleteCash: (portfolioId: string, cashId: string) => Promise<void>;
 
   // Dividend
   addDividend: (
@@ -148,7 +170,11 @@ function readBrowserPortfolios(): Portfolio[] {
     if (!Array.isArray(portfolios)) return [];
     return portfolios.map((portfolio) => ({
       ...portfolio,
-      holdings: (portfolio.holdings ?? []).map((holding) => ({ ...holding, buys: holding.buys ?? [] })),
+      holdings: (portfolio.holdings ?? []).map((holding) => ({
+        ...holding,
+        buys: holding.buys ?? [],
+        sells: holding.sells ?? [],
+      })),
     }));
   } catch {
     return [];
@@ -306,6 +332,60 @@ export const usePortfolioStore = create<PortfolioState>()((set, get) => ({
       if (holdingRemoved) return { kind: 'holding-removed' };
       const holding = portfolio.holdings.find((h) => h.id === holdingId);
       return holding ? { kind: 'updated', holding } : { kind: 'holding-removed' };
+    } catch (err) {
+      set({ error: messageFor(err) });
+      throw err;
+    }
+  },
+
+  sell: async (portfolioId, input) => {
+    try {
+      const portfolio = await portfoliosApi.addSell(portfolioId, input.holdingId, {
+        date: input.date,
+        shares: input.shares,
+        pricePerShare: input.pricePerShare,
+        fees: input.fees,
+      });
+      get().put(portfolio);
+      return portfolio.holdings.find((h) => h.id === input.holdingId);
+    } catch (err) {
+      set({ error: messageFor(err) });
+      throw err;
+    }
+  },
+
+  updateSell: async (portfolioId, holdingId, sellId, patch) => {
+    try {
+      const portfolio = await portfoliosApi.updateSell(portfolioId, holdingId, sellId, patch);
+      get().put(portfolio);
+      return portfolio.holdings.find((h) => h.id === holdingId);
+    } catch (err) {
+      set({ error: messageFor(err) });
+      throw err;
+    }
+  },
+
+  deleteSell: async (portfolioId, holdingId, sellId) => {
+    try {
+      get().put(await portfoliosApi.removeSell(portfolioId, holdingId, sellId));
+    } catch (err) {
+      set({ error: messageFor(err) });
+      throw err;
+    }
+  },
+
+  addCash: async (portfolioId, input) => {
+    try {
+      get().put(await portfoliosApi.addCash(portfolioId, input));
+    } catch (err) {
+      set({ error: messageFor(err) });
+      throw err;
+    }
+  },
+
+  deleteCash: async (portfolioId, cashId) => {
+    try {
+      get().put(await portfoliosApi.removeCash(portfolioId, cashId));
     } catch (err) {
       set({ error: messageFor(err) });
       throw err;
