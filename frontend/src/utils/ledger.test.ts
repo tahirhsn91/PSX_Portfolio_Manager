@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { replayLedger } from './calculations';
+import { replayLedger, calculateHoldingMetrics } from './calculations';
+import type { Holding, StockQuote } from '@/types';
 
 describe('replayLedger (weighted-average perpetual)', () => {
   it('a buy-only ledger holds its position with zero realized P/L', () => {
@@ -70,5 +71,58 @@ describe('replayLedger (weighted-average perpetual)', () => {
     );
     expect(pos.shares).toBe(0);
     expect(pos.realizedPL).toBe(1000); // only the 100 owned were sold
+  });
+});
+
+describe('calculateHoldingMetrics flows realized P/L into the total return', () => {
+  const quote: StockQuote = {
+    symbol: 'TEST',
+    companyName: 'Test Co',
+    currentPrice: 90,
+    change: 1,
+    changePercent: 1.12,
+    open: null,
+    high: null,
+    low: null,
+    previousClose: null,
+    volume: null,
+    marketCap: null,
+    sector: 'Tech',
+    lastUpdated: '2026-03-01T00:00:00.000Z',
+    priceAvailable: true,
+  };
+
+  // 200 bought at a 60 average, then 100 sold at 80 → realized (80-60)*100 = 2000.
+  // 100 remain, now priced at 90 → unrealized 100*(90-60) = 3000.
+  const holding: Holding = {
+    id: 'h1',
+    portfolioId: 'p1',
+    companyName: 'Test Co',
+    symbol: 'TEST',
+    sector: 'Tech',
+    shares: 100,
+    averagePurchasePrice: 60,
+    purchaseDate: '2026-01-01',
+    dividendsReceived: [],
+    buys: [
+      { id: 'b1', holdingId: 'h1', date: '2026-01-01', shares: 100, pricePerShare: 50, totalCost: 5000, kind: 'opening' },
+      { id: 'b2', holdingId: 'h1', date: '2026-01-15', shares: 100, pricePerShare: 70, totalCost: 7000, kind: 'buy' },
+    ],
+    sells: [
+      { id: 's1', holdingId: 'h1', date: '2026-02-01', shares: 100, pricePerShare: 80, fees: 0 },
+    ],
+  };
+
+  it('reports realized P/L separately and inside the total return', () => {
+    const m = calculateHoldingMetrics(holding, quote, 9000);
+    expect(m.realizedPL).toBe(2000);
+    expect(m.unrealizedPL).toBe(3000);
+    expect(m.totalReturn).toBe(5000); // realized + unrealized + 0 dividends
+  });
+
+  it('keeps realized P/L even when the quote is unavailable', () => {
+    const m = calculateHoldingMetrics(holding, { ...quote, priceAvailable: false }, 0);
+    expect(m.realizedPL).toBe(2000);
+    expect(m.priceAvailable).toBe(false);
   });
 });

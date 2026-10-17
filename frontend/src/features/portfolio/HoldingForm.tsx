@@ -10,15 +10,15 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CompanySearch } from '@/components/shared';
-import { Pencil, ShoppingCart, Trash2 } from 'lucide-react';
+import { Pencil, ShoppingCart, Trash2, TrendingDown } from 'lucide-react';
 import {
-  holdingSchema, buySchema, tradeSchema, normalizeSector, sectorForSymbol, isCanonicalSector, displaySector,
+  holdingSchema, buySchema, sellSchema, tradeSchema, normalizeSector, sectorForSymbol, isCanonicalSector, displaySector,
   mostRecentTradingDay, blendPurchase, positionFromBuys, formatCurrency,
-  type HoldingFormValues, type BuyFormValues,
+  type HoldingFormValues, type BuyFormValues, type SellFormValues,
 } from '@/utils';
 import { PSX_SECTORS, EARLIEST_PURCHASE_DATE } from '@/constants';
 import { useCompanySearch, useStockQuote } from '@/hooks';
-import type { PSXCompany, BuyRecord } from '@/types';
+import type { PSXCompany, BuyRecord, SellRecord } from '@/types';
 
 /** The position a buy would be blended into. */
 export interface PositionSnapshot {
@@ -54,6 +54,14 @@ interface HoldingFormProps {
   onUpdateBuy?: (buyId: string, patch: { shares: number; pricePerShare: number }) => void;
   /** Edit dialog only: remove a logged purchase. */
   onDeleteBuy?: (buyId: string) => void;
+  /** Edit dialog only: the position's sales, oldest first. */
+  sells?: SellRecord[];
+  /** Edit dialog only: record a sale of part of the position. */
+  onSell?: (values: SellFormValues) => void;
+  /** Edit dialog only: correct a logged sale's quantity, price and fees (date is fixed). */
+  onUpdateSell?: (sellId: string, patch: { shares: number; pricePerShare: number; fees: number }) => void;
+  /** Edit dialog only: remove a logged sale. */
+  onDeleteSell?: (sellId: string) => void;
 }
 
 /**
@@ -327,6 +335,230 @@ function BuyHistory({
 }
 
 /**
+ * Every sale behind a position, oldest first, as the transactions that reduced
+ * it — each correctable and removable. A sale's own realized P/L is not shown on
+ * its row: it depends on the running average at the moment of the sale, which is
+ * the whole ledger's arithmetic (surfaced on the holdings table), not a row's.
+ */
+function SellHistory({
+  symbol, sells, onSave, onDelete,
+}: {
+  symbol: string;
+  sells: SellRecord[];
+  onSave: (sellId: string, patch: { shares: number; pricePerShare: number; fees: number }) => void;
+  onDelete: (sellId: string) => void;
+}) {
+  const [editing, setEditing] = useState<{ id: string; shares: string; price: string; fees: string } | null>(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const totalShares = sells.reduce((sum, s) => sum + s.shares, 0);
+  const label = (s: SellRecord) => `${format(parseISO(s.date), 'dd MMM yyyy')} of ${s.shares.toLocaleString()} shares`;
+
+  const startEdit = (s: SellRecord) => {
+    setConfirming(null);
+    setEditing({ id: s.id, shares: String(s.shares), price: String(s.pricePerShare), fees: String(s.fees ?? 0) });
+    setError(null);
+  };
+
+  const save = () => {
+    if (!editing) return;
+    const shares = Number(editing.shares);
+    const price = Number(editing.price);
+    const fees = editing.fees.trim() === '' ? 0 : Number(editing.fees);
+    if (editing.shares.trim() === '' || !Number.isFinite(shares)) {
+      setError('Quantity must be a number, e.g. 100');
+      return;
+    }
+    if (editing.price.trim() === '' || !Number.isFinite(price)) {
+      setError('Price must be a number, e.g. 250.50');
+      return;
+    }
+    if (!Number.isFinite(fees)) {
+      setError('Fees must be a number');
+      return;
+    }
+    const parsed = sellSchema.omit({ date: true }).safeParse({ shares, pricePerShare: price, fees });
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? 'Check the quantity, price and fees');
+      return;
+    }
+    onSave(editing.id, parsed.data);
+    setEditing(null);
+    setError(null);
+  };
+
+  const actions = (s: SellRecord) => (
+    <div className="flex items-center justify-end gap-1">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label={`Edit sale ${label(s)}`}
+        onClick={() => startEdit(s)}
+      >
+        <Pencil aria-hidden="true" className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="text-destructive hover:text-destructive"
+        aria-label={`Delete sale ${label(s)}`}
+        onClick={() => { setEditing(null); setConfirming(s.id); }}
+      >
+        <Trash2 aria-hidden="true" className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+
+  const editor = (s: SellRecord, scope: 'table' | 'card') => (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="space-y-1.5">
+          <Label htmlFor={`sell-shares-${s.id}-${scope}`}>Quantity</Label>
+          <Input
+            id={`sell-shares-${s.id}-${scope}`}
+            type="number"
+            step="1"
+            className="h-11 tabular-nums"
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? `sell-error-${s.id}-${scope}` : undefined}
+            value={editing?.shares ?? ''}
+            onChange={(e) => setEditing(editing ? { ...editing, shares: e.target.value } : editing)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`sell-price-${s.id}-${scope}`}>Price (PKR)</Label>
+          <Input
+            id={`sell-price-${s.id}-${scope}`}
+            type="number"
+            step="0.01"
+            className="h-11 tabular-nums"
+            aria-invalid={error ? true : undefined}
+            value={editing?.price ?? ''}
+            onChange={(e) => setEditing(editing ? { ...editing, price: e.target.value } : editing)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`sell-fees-${s.id}-${scope}`}>Fees (PKR)</Label>
+          <Input
+            id={`sell-fees-${s.id}-${scope}`}
+            type="number"
+            step="0.01"
+            className="h-11 tabular-nums"
+            value={editing?.fees ?? ''}
+            onChange={(e) => setEditing(editing ? { ...editing, fees: e.target.value } : editing)}
+          />
+        </div>
+      </div>
+      {error && <p id={`sell-error-${s.id}-${scope}`} className="text-xs text-destructive">{error}</p>}
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={() => { setEditing(null); setError(null); }}>
+          Cancel
+        </Button>
+        <Button type="button" onClick={save}>
+          Save sale
+        </Button>
+      </div>
+    </div>
+  );
+
+  const confirmDelete = (s: SellRecord) => (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <p className="text-sm">
+        Delete this sale?{' '}
+        <span className="text-muted-foreground">
+          {format(parseISO(s.date), 'dd MMM yyyy')} · {s.shares.toLocaleString()} @ {formatCurrency(s.pricePerShare)}
+          {' '}— {symbol} will gain these shares back.
+        </span>
+      </p>
+      <div className="flex gap-2">
+        <Button type="button" variant="ghost" onClick={() => setConfirming(null)}>
+          Keep
+        </Button>
+        <Button type="button" variant="destructive" onClick={() => { onDelete(s.id); setConfirming(null); }}>
+          Delete
+        </Button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex items-start gap-2">
+          <TrendingDown className="mt-0.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          <div>
+            <p className="text-sm font-medium">Sell transactions</p>
+            <p className="text-xs text-muted-foreground">
+              {sells.length} {sells.length === 1 ? 'sale' : 'sales'} · {totalShares.toLocaleString()} shares sold
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="hidden overflow-hidden rounded-lg border border-border sm:block">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/40">
+            <tr>
+              <th scope="col" className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Date</th>
+              <th scope="col" className="px-3 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">Shares</th>
+              <th scope="col" className="px-3 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">Sell price</th>
+              <th scope="col" className="px-3 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">Fees</th>
+              <th scope="col" className="px-3 py-2 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">Proceeds</th>
+              <th scope="col" className="w-[104px] px-3 py-2"><span className="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {sells.map((s) => (
+              <tr key={s.id} className={editing?.id === s.id || confirming === s.id ? 'bg-muted/40' : undefined}>
+                {editing?.id === s.id ? (
+                  <td colSpan={6} className="px-3 py-3">{editor(s, 'table')}</td>
+                ) : confirming === s.id ? (
+                  <td colSpan={6} className="px-3 py-3">{confirmDelete(s)}</td>
+                ) : (
+                  <>
+                    <td className="whitespace-nowrap px-3 py-2.5">{format(parseISO(s.date), 'dd MMM yyyy')}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{s.shares.toLocaleString()}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{formatCurrency(s.pricePerShare)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{formatCurrency(s.fees ?? 0)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{formatCurrency(s.shares * s.pricePerShare)}</td>
+                    <td className="px-3 py-2.5">{actions(s)}</td>
+                  </>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <ul className="space-y-2 sm:hidden">
+        {sells.map((s) => (
+          <li key={s.id} className="rounded-lg border border-border">
+            {editing?.id === s.id ? (
+              <div className="p-3">{editor(s, 'card')}</div>
+            ) : confirming === s.id ? (
+              <div className="p-3">{confirmDelete(s)}</div>
+            ) : (
+              <div className="flex items-center justify-between gap-3 p-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm">{format(parseISO(s.date), 'dd MMM yyyy')}</p>
+                  <p className="text-xs text-muted-foreground tabular-nums">
+                    {s.shares.toLocaleString()} @ {formatCurrency(s.pricePerShare)}
+                    {' '}· fees {formatCurrency(s.fees ?? 0)} · {formatCurrency(s.shares * s.pricePerShare)}
+                  </p>
+                </div>
+                {actions(s)}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
  * The date field, shared by both modes.
  *
  * A holding can't have been bought in the future, and PSX does not trade at the
@@ -410,11 +642,13 @@ function TradingDateField({
 
 export function HoldingForm({
   defaultValues, onSubmit, onCancel, isEditing, position, onBuy, buys, onUpdateBuy, onDeleteBuy,
+  sells, onSell, onUpdateSell, onDeleteSell,
 }: HoldingFormProps) {
   // 'edit' is the form as it was; 'buy' records a second purchase of the same
-  // stock and blends it into the position.
-  const [mode, setMode] = useState<'edit' | 'buy'>('edit');
+  // stock and blends it into the position; 'sell' records a sale against it.
+  const [mode, setMode] = useState<'edit' | 'buy' | 'sell'>('edit');
   const buyOpen = mode === 'buy';
+  const sellOpen = mode === 'sell';
 
   const { register, handleSubmit, control, setValue, watch, formState: { errors, isSubmitting } } = useForm<HoldingFormValues>({
     resolver: zodResolver(holdingSchema),
@@ -450,7 +684,7 @@ export function HoldingForm({
   // fetched only while buy mode is open (one cached request for the symbol the
   // page already quotes). The hint below and the field read this same value in
   // the same render, so the price they state is the price that lands.
-  const { data: quote } = useStockQuote(buyOpen ? position?.symbol : undefined);
+  const { data: quote } = useStockQuote(buyOpen || sellOpen ? position?.symbol : undefined);
   const livePrice =
     quote && quote.priceAvailable !== false && Number.isFinite(quote.currentPrice) && quote.currentPrice > 0
       ? quote.currentPrice
@@ -462,6 +696,22 @@ export function HoldingForm({
     if (!buyOpen || livePrice == null || priceTouched) return;
     buyForm.setValue('pricePerShare', livePrice);
   }, [buyOpen, livePrice, priceTouched, buyForm]);
+
+  const sellForm = useForm<SellFormValues>({
+    resolver: zodResolver(sellSchema),
+    defaultValues: {
+      date: format(mostRecentTradingDay(), 'yyyy-MM-dd'),
+      fees: 0,
+    },
+  });
+
+  // Same pre-fill as the buy price: the live quote is the price this sale most
+  // plausibly happened at, and it must not overwrite a price the user typed.
+  const sellPriceTouched = sellForm.formState.dirtyFields.pricePerShare;
+  useEffect(() => {
+    if (!sellOpen || livePrice == null || sellPriceTouched) return;
+    sellForm.setValue('pricePerShare', livePrice);
+  }, [sellOpen, livePrice, sellPriceTouched, sellForm]);
 
   const handleCompanySelect = (company: PSXCompany) => {
     setValue('companyName', company.name);
@@ -506,6 +756,24 @@ export function HoldingForm({
       : null;
 
   const submitBuy = buyForm.handleSubmit((values) => onBuy?.(values));
+
+  const submitSell = sellForm.handleSubmit((values) => onSell?.(values));
+
+  // What this sale realizes if confirmed — the same arithmetic the ledger replay
+  // uses: proceeds above (or below) the weighted cost of the shares sold, less
+  // fees. Shown as a live preview so the number is the one that will land.
+  const sellShares = sellForm.watch('shares');
+  const sellPrice = sellForm.watch('pricePerShare');
+  const sellFees = sellForm.watch('fees') ?? 0;
+  const sellPreview =
+    position && Number.isFinite(sellShares) && sellShares > 0 && Number.isFinite(sellPrice) && sellPrice >= 0
+      ? {
+          remaining: position.shares - sellShares,
+          realized: (sellPrice - position.averagePurchasePrice) * sellShares - (Number.isFinite(sellFees) ? sellFees : 0),
+          proceeds: sellShares * sellPrice,
+        }
+      : null;
+
   /** The read-only restatement of a position's identity while buying. */
   const positionSummary = position && (
     <div className="space-y-1 rounded-lg border border-border bg-muted/40 p-3">
@@ -521,7 +789,7 @@ export function HoldingForm({
   );
 
   return (
-    <form onSubmit={buyOpen ? submitBuy : handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={buyOpen ? submitBuy : sellOpen ? submitSell : handleSubmit(onSubmit)} className="space-y-4">
       {/* Every control is a full 44px on phones and the desktop 40px from sm up:
           a thumb needs the height, a mouse does not. */}
       {buyOpen ? (
@@ -597,6 +865,99 @@ export function HoldingForm({
               <span className="font-semibold">{formatCurrency(preview.averagePurchasePrice)}</span> average — was{' '}
               {position.shares.toLocaleString()} at {formatCurrency(position.averagePurchasePrice)}.
             </p>
+          )}
+        </>
+      ) : sellOpen ? (
+        <>
+          {positionSummary}
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="sellShares">Quantity to sell *</Label>
+              <Input
+                id="sellShares"
+                type="number"
+                step="1"
+                placeholder="How many shares"
+                className="h-11 tabular-nums"
+                aria-invalid={sellForm.formState.errors.shares ? true : undefined}
+                aria-describedby={sellForm.formState.errors.shares ? 'sellShares-error' : undefined}
+                {...sellForm.register('shares', asNumber)}
+              />
+              {sellForm.formState.errors.shares && (
+                <p id="sellShares-error" className="text-xs text-destructive">{sellForm.formState.errors.shares.message}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sellPrice">Sell price (PKR) *</Label>
+              <Input
+                id="sellPrice"
+                type="number"
+                step="0.01"
+                placeholder="Price you sold at"
+                className="h-11 tabular-nums"
+                aria-invalid={sellForm.formState.errors.pricePerShare ? true : undefined}
+                aria-describedby={sellForm.formState.errors.pricePerShare ? 'sellPrice-error' : 'sellPrice-hint'}
+                {...sellForm.register('pricePerShare', asNumber)}
+              />
+              {sellForm.formState.errors.pricePerShare ? (
+                <p id="sellPrice-error" className="text-xs text-destructive">{sellForm.formState.errors.pricePerShare.message}</p>
+              ) : (
+                <p id="sellPrice-hint" className="text-xs text-muted-foreground">
+                  {livePrice != null
+                    ? `Filled from the live quote (${formatCurrency(livePrice)}) — edit it if you sold elsewhere.`
+                    : `No live price for ${position?.symbol ?? 'this symbol'} — enter the price you sold at.`}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="sellFees">Fees (PKR)</Label>
+            <Input
+              id="sellFees"
+              type="number"
+              step="0.01"
+              placeholder="0"
+              className="h-11 tabular-nums"
+              aria-invalid={sellForm.formState.errors.fees ? true : undefined}
+              aria-describedby={sellForm.formState.errors.fees ? 'sellFees-error' : undefined}
+              {...sellForm.register('fees', asNumber)}
+            />
+            {sellForm.formState.errors.fees && (
+              <p id="sellFees-error" className="text-xs text-destructive">{sellForm.formState.errors.fees.message}</p>
+            )}
+          </div>
+
+          <TradingDateField
+            id="sellDate"
+            label="Sell date *"
+            value={sellForm.watch('date') ?? ''}
+            error={sellForm.formState.errors.date?.message}
+            hint="PSX trades Monday to Friday — weekends can't be selected."
+            onChange={(iso) => sellForm.setValue('date', iso, { shouldValidate: true })}
+          />
+
+          {sellPreview && position && (
+            <div className="space-y-2">
+              <p className="rounded-lg border bg-surface p-3 text-sm tabular-nums">
+                <span className="text-muted-foreground">Proceeds: </span>
+                <span className="font-semibold">
+                  {sellShares.toLocaleString()} × {formatCurrency(sellPrice)} = {formatCurrency(sellPreview.proceeds)}
+                </span>
+              </p>
+              {sellPreview.remaining < 0 ? (
+                <p className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive">
+                  You are selling <span className="font-semibold">{(-sellPreview.remaining).toLocaleString()}</span>{' '}
+                  more {sellPreview.remaining === -1 ? 'share' : 'shares'} than owned — the server will refuse this sale.
+                </p>
+              ) : (
+                <p className={`rounded-lg border p-3 text-xs ${sellPreview.realized >= 0 ? 'border-profit/30 bg-profit/5' : 'border-loss/30 bg-loss/5'}`}>
+                  Realized P/L: <span className="font-semibold">{formatCurrency(sellPreview.realized)}</span> —{' '}
+                  {sellPreview.remaining.toLocaleString()} {sellPreview.remaining === 1 ? 'share' : 'shares'} remain.
+                </p>
+              )}
+            </div>
           )}
         </>
       ) : (
@@ -733,6 +1094,15 @@ export function HoldingForm({
               onDelete={onDeleteBuy ?? (() => {})}
             />
           )}
+
+          {sells && sells.length > 0 && onUpdateSell && (
+            <SellHistory
+              symbol={defaultValues?.symbol ?? ''}
+              sells={sells}
+              onSave={onUpdateSell}
+              onDelete={onDeleteSell ?? (() => {})}
+            />
+          )}
         </>
       )}
 
@@ -740,13 +1110,13 @@ export function HoldingForm({
           it shows the Button's own loading state while it validates and saves. */}
       <div className="flex flex-wrap justify-end gap-2 pt-2">
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-        {buyOpen ? (
+        {buyOpen || sellOpen ? (
           <>
             <Button type="button" variant="ghost" onClick={() => setMode('edit')}>
               Back
             </Button>
-            <Button type="submit" loading={buyForm.formState.isSubmitting}>
-              Confirm buy
+            <Button type="submit" loading={buyOpen ? buyForm.formState.isSubmitting : sellForm.formState.isSubmitting}>
+              {buyOpen ? 'Confirm buy' : 'Confirm sell'}
             </Button>
           </>
         ) : (
@@ -761,6 +1131,15 @@ export function HoldingForm({
                 onClick={() => setMode('buy')}
               >
                 Buy more
+              </Button>
+            )}
+            {onSell && position && position.shares > 0 && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setMode('sell')}
+              >
+                Sell shares
               </Button>
             )}
             <Button type="submit" loading={isSubmitting}>
