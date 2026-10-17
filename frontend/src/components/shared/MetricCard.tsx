@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatPercent } from '@/utils';
+import { AnimatedNumber } from '@/components/animations';
 
 interface MetricCardProps {
   title: string;
@@ -71,13 +72,16 @@ export function MetricCard({
     );
   }
 
-  const displayValue = typeof value === 'number'
-    ? isCurrency
-      ? formatCurrency(value, compact)
-      : isPercent
-      ? formatPercent(value)
-      : value.toLocaleString()
-    : value;
+  const displayValue = typeof value === 'number' ? (
+    <AnimatedNumber
+      value={value}
+      format={(n) =>
+        isCurrency ? formatCurrency(n, compact) : isPercent ? formatPercent(n) : n.toLocaleString()
+      }
+    />
+  ) : (
+    value
+  );
 
   // The reading this tile is about: the amount moved when one was passed, else the
   // percentage, else the value itself. A card stating "+30.99%" must not show the

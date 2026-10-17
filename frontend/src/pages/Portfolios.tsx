@@ -9,6 +9,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { EmptyState, ErrorState, PageHeader } from '@/components/shared';
+import { ScrollReveal } from '@/components/animations';
 import { PortfolioCard } from '@/features/portfolio/PortfolioCard';
 import { PortfolioForm } from '@/features/portfolio/PortfolioForm';
 import { usePortfolioStore } from '@/store';
@@ -348,6 +349,7 @@ export function Portfolios() {
           }
         />
       ) : view === 'grid' ? (
+        <ScrollReveal>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {visible.map((portfolio) => (
             <PortfolioCardWithMetrics
@@ -359,7 +361,9 @@ export function Portfolios() {
             />
           ))}
         </div>
+        </ScrollReveal>
       ) : (
+        <ScrollReveal>
         <div className="flex flex-col gap-4">
           {visible.map((portfolio) => (
             <PortfolioCardWithMetrics
@@ -371,6 +375,7 @@ export function Portfolios() {
             />
           ))}
         </div>
+        </ScrollReveal>
       )}
 
       {/* Create dialog */}
