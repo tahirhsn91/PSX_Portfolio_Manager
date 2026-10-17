@@ -497,6 +497,14 @@ export function HoldingForm({
       ? blendPurchase(position, { shares: buyShares, pricePerShare: buyPrice })
       : null;
 
+  // The transaction's own outlay, live as the two fields are typed — the total
+  // that will leave the account if this buy is confirmed. No fee field exists in
+  // the data model, so this is Qty × Price; a fee is not silently invented.
+  const buyTotal =
+    Number.isFinite(buyShares) && buyShares > 0 && Number.isFinite(buyPrice) && buyPrice > 0
+      ? buyShares * buyPrice
+      : null;
+
   const submitBuy = buyForm.handleSubmit((values) => onBuy?.(values));
   /** The read-only restatement of a position's identity while buying. */
   const positionSummary = position && (
@@ -564,6 +572,15 @@ export function HoldingForm({
               )}
             </div>
           </div>
+
+          {buyTotal != null && (
+            <p className="rounded-lg border bg-surface p-3 text-sm tabular-nums">
+              <span className="text-muted-foreground">Total investment: </span>
+              <span className="font-semibold">
+                {buyShares.toLocaleString()} × {formatCurrency(buyPrice)} = {formatCurrency(buyTotal)}
+              </span>
+            </p>
+          )}
 
           <TradingDateField
             id="buyDate"

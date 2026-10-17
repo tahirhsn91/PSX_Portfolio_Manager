@@ -12,7 +12,7 @@ import { ScrollReveal } from '@/components/animations';
 import type { BandStat } from '@/components/shared';
 import { HoldingsTable } from '@/features/portfolio/HoldingsTable';
 import { HoldingForm } from '@/features/portfolio/HoldingForm';
-import { AllocationPieChart, PortfolioValueChart, BenchmarkComparisonChart, rangeConfig } from '@/features/charts';
+import { AllocationPieChart, PortfolioValueChart, BenchmarkComparisonChart, rangeDays } from '@/features/charts';
 import type { ComparisonBenchmark, ComparisonRange } from '@/features/charts';
 import { usePortfolioStore, useUIStore } from '@/store';
 import { ApiError } from '@/services/http';
@@ -72,9 +72,9 @@ export function PortfolioDetail() {
   // What to compare against: a PSX index code, or any listed stock's symbol.
   const [benchmark, setBenchmark] = useState<Benchmark>(DEFAULT_BENCHMARK);
 
-  const rangeDays = rangeConfig(range).days;
+  const rangeDaysValue = rangeDays(range);
   const { series: portfolioSeries, isLoading: portfolioHistoryLoading } = usePortfolioHistory(
-    portfolio?.holdings, rangeDays,
+    portfolio?.holdings, rangeDaysValue,
   );
 
   // Whichever the benchmark is, fetch its own series for the selected period from the
@@ -83,7 +83,7 @@ export function PortfolioDetail() {
   const { data: benchmarkStockHistory = [], isLoading: benchmarkStockLoading } = useCandles(
     benchmark.kind === 'stock' ? benchmark.code : undefined,
     {
-      from: format(subDays(new Date(), rangeDays), 'yyyy-MM-dd'),
+      from: format(subDays(new Date(), rangeDaysValue), 'yyyy-MM-dd'),
       to: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
     },
   );
@@ -278,6 +278,14 @@ export function PortfolioDetail() {
   const sectorAlloc = buildSectorAllocation(portfolio, metrics?.holdingMetrics ?? []);
   const holdingAlloc = buildHoldingAllocation(portfolio, metrics?.holdingMetrics ?? []);
 
+  // Every dividend recorded on any holding, newest first — the detail behind the
+  // "Dividends — Total received" figure in the band.
+  const dividends = portfolio.holdings
+    .flatMap((h) =>
+      (h.dividendsReceived ?? []).map((d) => ({ ...d, symbol: h.symbol, companyName: h.companyName })),
+    )
+    .sort((a, b) => b.date.localeCompare(a.date));
+
   // One card, two breakdowns: whichever the switch has selected is the pie that
   // is mounted, so the row spends a single slot on the question either way.
   // `gain` rides along so the pie can colour a slice green or red by whether the
@@ -334,6 +342,8 @@ export function PortfolioDetail() {
       <MetricBand
         label="Current value"
         value={formatCurrency(metrics?.currentValue ?? 0)}
+        animateValue={metrics?.currentValue}
+        animateFormat={(n) => formatCurrency(n)}
         change={{
           amount: formatCurrency(totalPL),
           percent: metrics?.totalPLPercent !== undefined ? formatPercent(metrics.totalPLPercent) : undefined,
@@ -432,16 +442,48 @@ export function PortfolioDetail() {
               }
             />
           ) : (
-            <HoldingsTable
-              holdings={portfolio.holdings}
-              metrics={metrics?.holdingMetrics ?? []}
-              portfolioId={id}
-              isLoading={isLoading}
-              onEdit={setEditingHolding}
-              onDelete={(holdingId) =>
-                setHoldingToDelete(portfolio.holdings.find((h) => h.id === holdingId) ?? null)
-              }
-            />
+            <>
+              <HoldingsTable
+                holdings={portfolio.holdings}
+                metrics={metrics?.holdingMetrics ?? []}
+                portfolioId={id}
+                isLoading={isLoading}
+                onEdit={setEditingHolding}
+                onDelete={(holdingId) =>
+                  setHoldingToDelete(portfolio.holdings.find((h) => h.id === holdingId) ?? null)
+                }
+              />
+
+              {/* The detail behind "Dividends — Total received": one row per payout,
+                  newest first, with the per-share rate and the cash it paid. */}
+              {dividends.length > 0 && (
+                <Card className="mt-4">
+                  <CardHeader className="pb-2">
+                    <CardTitle>Dividends</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pb-3">
+                    <ul className="divide-y">
+                      {dividends.map((d) => (
+                        <li key={d.id} className="flex items-baseline justify-between gap-3 py-2">
+                          <div className="min-w-0">
+                            <p className="font-mono text-sm font-semibold">
+                              {d.symbol}
+                              <span className="ml-2 text-xs font-normal text-muted-foreground">{d.companyName}</span>
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {format(parseISO(d.date), 'dd MMM yyyy')} · {formatCurrency(d.amountPerShare)} per share · {d.type}
+                            </p>
+                          </div>
+                          <span className="shrink-0 font-mono text-sm font-medium tabular-nums">
+                            {formatCurrency(d.totalAmount)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+            </>
           )}
         </TabsContent>
 
@@ -467,7 +509,7 @@ export function PortfolioDetail() {
                 }
               />
             )}
-            <PortfolioValueChart series={portfolioSeries} title="Portfolio Value" rangeDays={rangeDays} />
+            <PortfolioValueChart series={portfolioSeries} title="Portfolio Value" rangeDays={rangeDaysValue} />
           </div>
         </TabsContent>
 

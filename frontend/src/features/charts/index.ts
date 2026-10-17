@@ -5,6 +5,7 @@ export {
   BenchmarkComparisonChart,
   COMPARISON_RANGES,
   rangeConfig,
+  rangeDays,
   alignReturnsByDate,
 } from './BenchmarkComparisonChart';
 export type { ComparisonBenchmark, ComparisonRange, ComparisonPoint } from './BenchmarkComparisonChart';

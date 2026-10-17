@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency, formatPercent } from '@/utils';
 import { useReducedMotion } from '@/hooks';
 import { assignTones, categoryTone, FAMILY_TEXT, FLAT_TONE, type ChartTone, type ToneFamily } from './chartTones';
@@ -162,9 +163,11 @@ export function AllocationPieChart({ data, title = 'Portfolio Allocation', heade
       </CardHeader>
       <CardContent>
         {isLoading && !hasData ? (
-          <p className="flex h-[320px] items-center justify-center text-sm text-muted-foreground">
-            Loading allocation…
-          </p>
+          <div className="space-y-3 py-4" aria-busy="true">
+            <Skeleton className="h-4 w-44" />
+            <Skeleton className="h-[320px] w-full" />
+            <Skeleton className="h-3 w-60" />
+          </div>
         ) : !hasData ? (
           <p className="flex h-[320px] items-center justify-center px-4 text-center text-sm text-muted-foreground">
             {emptyReason}
