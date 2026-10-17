@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Briefcase, Plus } from 'lucide-react';
+import { Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Briefcase, Plus, Rows2, Rows3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -119,11 +119,30 @@ export function HoldingsTable({
   const navigate = useNavigate();
   const [sortKey, setSortKey] = useState<SortKey>('currentValue');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  // Compact squashes the table's row padding so more holdings fit at once; the
+  // card layout is already compact, so it only tightens card padding a touch.
+  const [dense, setDense] = useState(false);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     else { setSortKey(key); setSortDir('desc'); }
   };
+
+  // One control on both surfaces; the icon states what the next click does.
+  const densityToggle = (
+    <Button
+      variant="outline"
+      size="icon"
+      type="button"
+      aria-label={dense ? 'Use comfortable spacing' : 'Use compact spacing'}
+      aria-pressed={dense}
+      title={dense ? 'Comfortable spacing' : 'Compact spacing'}
+      className="h-11 w-11 shrink-0"
+      onClick={() => setDense((d) => !d)}
+    >
+      {dense ? <Rows3 aria-hidden="true" className="h-4 w-4" /> : <Rows2 aria-hidden="true" className="h-4 w-4" />}
+    </Button>
+  );
 
   const sorted = [...holdings].sort((a, b) => {
     const ma = metrics.find((m) => m.holdingId === a.id);
@@ -215,6 +234,7 @@ export function HoldingsTable({
           >
             {sortDir === 'desc' ? <ArrowDown aria-hidden="true" className="h-4 w-4" /> : <ArrowUp aria-hidden="true" className="h-4 w-4" />}
           </Button>
+          {densityToggle}
         </div>
 
         {isLoading ? (
@@ -245,7 +265,7 @@ export function HoldingsTable({
               return (
                 <li
                   key={holding.id}
-                  className="cursor-pointer rounded-lg border bg-card p-4 active:bg-muted/30"
+                  className={cn('cursor-pointer rounded-lg border bg-card active:bg-muted/30', dense ? 'p-3' : 'p-4')}
                   onClick={() => navigate(ROUTES.STOCK_DETAIL_PATH(portfolioId, holding.symbol))}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -302,12 +322,19 @@ export function HoldingsTable({
       <div
         className={cn(
           'hidden rounded-lg border xl:block',
+          dense && '[&_td]:py-1.5',
           className,
         )}
         role="region"
         aria-label="Holdings"
         aria-busy={isLoading || undefined}
       >
+        <div className="flex items-center justify-between border-b px-2 py-1.5">
+          <span className="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {isLoading ? 'Holdings' : `${sorted.length} holding${sorted.length !== 1 ? 's' : ''}`}
+          </span>
+          {densityToggle}
+        </div>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/40">

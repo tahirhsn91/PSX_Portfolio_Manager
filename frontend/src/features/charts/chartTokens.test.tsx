@@ -20,7 +20,7 @@ import {
  *  - The tone/ink wiring. A slice's fill and the ink drawn on it are two classes
  *    from the same tone object; pairing them wrongly is exactly the defect that
  *    shipped (white 11px labels on `CHART_COLORS`, measured 3.19:1 and 3.68:1).
- *  - The card shell: loading copy, per-cause empty copy, and the text summary of
+ *  - The card shell: loading skeleton, per-cause empty copy, and the text summary of
  *    a chart's own figures. Those are the parts a tooltip-only chart never gave a
  *    keyboard or screen-reader user. The SVG itself needs a laid-out container, so
  *    it is out of scope here — it is verified against the running app instead.
@@ -130,7 +130,9 @@ describe('chart empty, loading and summary states', () => {
     expect(noHistory).not.toContain('aria-label="ENGRO close price');
 
     const loading = renderToStaticMarkup(<StockPriceChart data={[]} symbol="ABL" isLoading />);
-    expect(loading).toContain('Loading ABL price history');
+    expect(loading).toContain('animate-shimmer');
+    expect(loading).toContain('aria-busy="true"');
+    expect(loading).not.toContain('No price history');
   });
 
   it('puts a price chart&apos;s figures in the DOM as text, signed and labelled', () => {
@@ -151,7 +153,7 @@ describe('chart empty, loading and summary states', () => {
 
   it('reports a sector session it cannot plot, and signs its summary values', () => {
     expect(renderToStaticMarkup(<SectorBarChart data={[]} />)).toContain('No sector performance for this session yet');
-    expect(renderToStaticMarkup(<SectorBarChart data={[]} isLoading />)).toContain('Loading sector performance');
+    expect(renderToStaticMarkup(<SectorBarChart data={[]} isLoading />)).toContain('animate-shimmer');
 
     const html = renderToStaticMarkup(
       <SectorBarChart data={[{ sector: 'REFINERY', changePercent: 2.5 }, { sector: 'CEMENT', changePercent: -1.25 }]} />,
@@ -163,7 +165,7 @@ describe('chart empty, loading and summary states', () => {
 
   it('separates a portfolio value chart with no history from one the feed never priced', () => {
     expect(renderToStaticMarkup(<PortfolioValueChart series={[]} />)).toContain('No portfolio value history yet');
-    expect(renderToStaticMarkup(<PortfolioValueChart series={[]} isLoading />)).toContain('Loading portfolio value');
+    expect(renderToStaticMarkup(<PortfolioValueChart series={[]} isLoading />)).toContain('animate-shimmer');
     expect(
       renderToStaticMarkup(<PortfolioValueChart series={[{ date: '2026-09-01', close: Number.NaN, volume: 0, open: 0, high: 0, low: 0 }]} />),
     ).toContain('has not published a close');
@@ -184,7 +186,7 @@ describe('chart empty, loading and summary states', () => {
 
   it('names the cause when an allocation has nothing to draw', () => {
     expect(renderToStaticMarkup(<AllocationPieChart data={[]} />)).toContain('No allocation to show yet');
-    expect(renderToStaticMarkup(<AllocationPieChart data={[]} isLoading />)).toContain('Loading allocation');
+    expect(renderToStaticMarkup(<AllocationPieChart data={[]} isLoading />)).toContain('animate-shimmer');
   });
 
   it('summarises the slices it drew, with the signed return where there is one', () => {

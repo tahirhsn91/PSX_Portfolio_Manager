@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { Reveal } from '@/components/animations';
+import { Reveal, AnimatedNumber } from '@/components/animations';
 
 export interface BandStat {
   label: string;
@@ -16,6 +16,10 @@ interface MetricBandProps {
   /** What the headline number is ("Current value"). */
   label: string;
   value: string;
+  /** The same headline as a raw number — when given, it counts to the value and flashes on change. */
+  animateValue?: number;
+  /** Formats the animated headline; defaults to a locale string. */
+  animateFormat?: (n: number) => string;
   /** The change since purchase, shown beside the headline. */
   change?: { amount?: string; percent?: string; tone: 'neutral' | 'profit' | 'loss' };
   /** Supporting figures, given equal weight and no card of their own. */
@@ -40,7 +44,7 @@ const TONE_CLASS = {
  * all five to find the one that mattered, and at 2xl five tiles squeezed each
  * value onto a second line.
  */
-export function MetricBand({ label, value, change, stats, notice, isLoading }: MetricBandProps) {
+export function MetricBand({ label, value, animateValue, animateFormat, change, stats, notice, isLoading }: MetricBandProps) {
   if (isLoading) {
     return (
       <Card aria-busy="true">
@@ -69,7 +73,13 @@ export function MetricBand({ label, value, change, stats, notice, isLoading }: M
         <Reveal className="min-w-0" delay={0.02} y={12}>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
           {/* The one figure on the page that is allowed to be large. */}
-          <p className="mt-1 text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl">{value}</p>
+          <p className="mt-1 text-3xl font-semibold tabular-nums tracking-tight sm:text-4xl">
+            {animateValue !== undefined ? (
+              <AnimatedNumber value={animateValue} format={animateFormat} highlight />
+            ) : (
+              value
+            )}
+          </p>
           {change && (
             <p className={cn('mt-2 flex flex-wrap items-center gap-x-2 text-sm font-medium', TONE_CLASS[change.tone])}>
               {change.amount && <span className="tabular-nums">{change.amount}</span>}

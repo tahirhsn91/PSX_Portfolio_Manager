@@ -1,6 +1,7 @@
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format, subDays } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency, formatCompactNumber } from '@/utils';
 import { useReducedMotion } from '@/hooks';
 import type { HistoricalDataPoint } from '@/types';
@@ -101,9 +102,11 @@ export function PortfolioValueChart({ series, title = 'Portfolio Value', rangeDa
       </CardHeader>
       <CardContent>
         {isLoading && !hasData ? (
-          <p className="flex h-[240px] items-center justify-center text-sm text-muted-foreground">
-            Loading portfolio value…
-          </p>
+          <div className="space-y-3 py-4" aria-busy="true">
+            <Skeleton className="h-4 w-44" />
+            <Skeleton className="h-[240px] w-full" />
+            <Skeleton className="h-3 w-60" />
+          </div>
         ) : !hasData ? (
           <p className="flex h-[240px] items-center justify-center px-4 text-center text-sm text-muted-foreground">
             {emptyReason}
@@ -137,13 +140,17 @@ export function PortfolioValueChart({ series, title = 'Portfolio Value', rangeDa
                     domain={[minVal * 0.95, maxVal * 1.05]}
                     className="fill-muted-foreground"
                   />
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip
+                    content={<CustomTooltip />}
+                    cursor={{ stroke: tokens.axis, strokeOpacity: 0.5, strokeDasharray: '3 3' }}
+                  />
                   <Area
                     type="monotone"
                     dataKey="value"
                     stroke={isPositive ? tokens.up : tokens.down}
                     strokeWidth={2}
                     fill="url(#colorValue)"
+                    activeDot={{ r: 4 }}
                     isAnimationActive={!reduced}
                   />
                 </AreaChart>
