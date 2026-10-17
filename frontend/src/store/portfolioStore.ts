@@ -25,6 +25,7 @@ import type {
   DividendRecord,
   BuyInput,
   SellInput,
+  DeclaredDividendInput,
   DeleteBuyResult,
 } from '@/types';
 import { PORTFOLIO_COLORS, STORAGE_KEYS } from '@/constants';
@@ -119,6 +120,18 @@ interface PortfolioState {
     record: Omit<DividendRecord, 'id' | 'holdingId'>
   ) => Promise<void>;
   deleteDividend: (portfolioId: string, holdingId: string, dividendId: string) => Promise<void>;
+  addDeclaredDividend: (
+    portfolioId: string,
+    holdingId: string,
+    input: Omit<DeclaredDividendInput, 'holdingId'>
+  ) => Promise<void>;
+  updateDeclaredDividend: (
+    portfolioId: string,
+    holdingId: string,
+    dividendId: string,
+    patch: Omit<DeclaredDividendInput, 'holdingId'>
+  ) => Promise<void>;
+  deleteDeclaredDividend: (portfolioId: string, holdingId: string, dividendId: string) => Promise<void>;
 
   // Selectors — read from the cache, never the network
   getPortfolioById: (id: string) => Portfolio | undefined;
@@ -174,6 +187,7 @@ function readBrowserPortfolios(): Portfolio[] {
         ...holding,
         buys: holding.buys ?? [],
         sells: holding.sells ?? [],
+        declaredDividends: holding.declaredDividends ?? [],
       })),
     }));
   } catch {
@@ -414,6 +428,37 @@ export const usePortfolioStore = create<PortfolioState>()((set, get) => ({
   deleteDividend: async (portfolioId, holdingId, dividendId) => {
     try {
       get().put(await portfoliosApi.removeDividend(portfolioId, holdingId, dividendId));
+    } catch (err) {
+      set({ error: messageFor(err) });
+      throw err;
+    }
+  },
+
+  addDeclaredDividend: async (portfolioId, holdingId, input) => {
+    try {
+      get().put(await portfoliosApi.addDeclaredDividend(portfolioId, holdingId, input));
+    } catch (err) {
+      set({ error: messageFor(err) });
+      throw err;
+    }
+  },
+
+  updateDeclaredDividend: async (portfolioId, holdingId, dividendId, patch) => {
+    try {
+      get().put(
+        await portfoliosApi.updateDeclaredDividend(portfolioId, holdingId, dividendId, patch),
+      );
+    } catch (err) {
+      set({ error: messageFor(err) });
+      throw err;
+    }
+  },
+
+  deleteDeclaredDividend: async (portfolioId, holdingId, dividendId) => {
+    try {
+      get().put(
+        await portfoliosApi.removeDeclaredDividend(portfolioId, holdingId, dividendId),
+      );
     } catch (err) {
       set({ error: messageFor(err) });
       throw err;

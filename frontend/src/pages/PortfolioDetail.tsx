@@ -14,6 +14,7 @@ import { ScrollReveal } from '@/components/animations';
 import type { BandStat } from '@/components/shared';
 import { HoldingsTable } from '@/features/portfolio/HoldingsTable';
 import { HoldingForm } from '@/features/portfolio/HoldingForm';
+import { DividendCalendar } from '@/features/portfolio/DividendCalendar';
 import { AllocationPieChart, PortfolioValueChart, BenchmarkComparisonChart, rangeDays } from '@/features/charts';
 import type { ComparisonBenchmark, ComparisonRange } from '@/features/charts';
 import { usePortfolioStore, useUIStore } from '@/store';
@@ -22,7 +23,7 @@ import { usePortfolioMetrics, useIndex, usePortfolioHistory, useCandles } from '
 import { buildSectorAllocation, buildHoldingAllocation } from '@/utils';
 import { ROUTES, PSX_INDICES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
 import { format, parseISO, subDays, addDays } from 'date-fns';
-import type { Holding, PSXCompany } from '@/types';
+import type { Holding, PSXCompany, DeclaredDividendInput } from '@/types';
 import { formatCurrency, formatPercent, type HoldingFormValues, type BuyFormValues, type SellFormValues } from '@/utils';
 
 /**
@@ -65,7 +66,7 @@ export function PortfolioDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const portfolio = usePortfolioStore((s) => s.portfolios.find((p) => p.id === id));
-  const { addHolding, updateHolding, buyInto, updateBuy, deleteBuy, deleteHolding, sell, updateSell, deleteSell, addCash, deleteCash } = usePortfolioStore();
+  const { addHolding, updateHolding, buyInto, updateBuy, deleteBuy, deleteHolding, sell, updateSell, deleteSell, addCash, deleteCash, addDeclaredDividend, deleteDeclaredDividend } = usePortfolioStore();
   const addNotification = useUIStore((s) => s.addNotification);
   const { metrics, isLoading } = usePortfolioMetrics(id);
   const [range, setRange] = useState<ComparisonRange>('3M');
@@ -368,6 +369,33 @@ export function PortfolioDetail() {
     }
   };
 
+  const handleAddDeclaredDividend = async (
+    holdingId: string,
+    input: Omit<DeclaredDividendInput, 'holdingId'>
+  ) => {
+    try {
+      await addDeclaredDividend(id, holdingId, input);
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: 'Could not save the declared dividend',
+        message: (err as Error).message,
+      });
+    }
+  };
+
+  const handleDeleteDeclaredDividend = async (holdingId: string, dividendId: string) => {
+    try {
+      await deleteDeclaredDividend(id, holdingId, dividendId);
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: 'Could not remove the declared dividend',
+        message: (err as Error).message,
+      });
+    }
+  };
+
   const confirmDeleteHolding = async () => {
     const holding = holdingToDelete;
     if (!holding) return;
@@ -600,6 +628,13 @@ export function PortfolioDetail() {
                   </CardContent>
                 </Card>
               )}
+
+              <DividendCalendar
+                portfolio={portfolio}
+                holdingMetrics={metrics?.holdingMetrics ?? []}
+                onAdd={handleAddDeclaredDividend}
+                onDelete={handleDeleteDeclaredDividend}
+              />
 
               {/* Cash movements: a balance, the entries behind it, and an inline
                   form to add one. Net cash = deposits − withdrawals. */}
