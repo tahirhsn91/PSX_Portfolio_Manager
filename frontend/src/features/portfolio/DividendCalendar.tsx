@@ -79,6 +79,8 @@ function DayCell({
   const key = dayKey(date);
   const isToday = key === todayKey();
   const has = events.length > 0;
+  const hasDeclared = events.some((e) => e.kind === 'declared');
+  const hasReceived = events.some((e) => e.kind === 'received');
 
   const label = has
     ? `${date.getDate()} — ${events.length} dividend${events.length === 1 ? '' : 's'}: ${events
@@ -95,10 +97,21 @@ function DayCell({
         'flex h-10 w-full flex-col items-center justify-center gap-0.5 rounded-md text-sm transition-colors',
         'hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
         !inMonth && 'text-muted-foreground/50',
-        isToday && 'bg-accent font-semibold text-accent-foreground',
+        // A day with a dividend is highlighted by its whole cell, not just a dot.
+        // Today keeps its accent; otherwise declared (upcoming) gets a primary
+        // tint and received-only (paid) a muted tint, each with an inset ring.
+        isToday
+          ? 'bg-accent font-semibold text-accent-foreground'
+          : hasDeclared
+            ? 'bg-primary/15 ring-1 ring-inset ring-primary/50'
+            : hasReceived
+              ? 'bg-muted ring-1 ring-inset ring-border'
+              : '',
       )}
     >
-      <span className={cn('leading-none', isToday && 'font-semibold')}>{date.getDate()}</span>
+      <span className={cn('leading-none', (isToday || hasDeclared) && 'font-semibold')}>
+        {date.getDate()}
+      </span>
       {has ? (
         <span className="flex items-center gap-0.5" aria-hidden="true">
           {events.slice(0, 3).map((e, i) => (
