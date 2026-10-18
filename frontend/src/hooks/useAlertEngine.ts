@@ -6,6 +6,9 @@
  * alert's condition becomes true, then stays quiet until the condition resets
  * — edge-triggered, not level-triggered, so a held level doesn't spam.
  *
+ * Notifications are gated on the PSX session (Mon–Fri 09:30–15:30 PKT): alerts
+ * are only sent while the market is open.
+ *
  * First release: in-app only. No background/email/push, and a trigger is a
  * notification condition, never an executed order.
  */
@@ -13,7 +16,7 @@
 import { useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { alertsApi } from '@/services';
-import { useStockQuotes } from './useMarketData';
+import { useMarketStatus, useStockQuotes } from './useMarketData';
 import { useMarketStore, useUIStore } from '@/store';
 import { formatCurrency } from '@/utils';
 import type { Alert, StockQuote } from '@/types';
@@ -42,6 +45,12 @@ export function useAlertEngine() {
   const symbols = [...new Set(active.map((a) => a.symbol))];
   useStockQuotes(symbols);
 
+  // Price alerts only matter while the exchange is trading. Gate sending on the
+  // PSX session (Mon–Fri 09:30–15:30 PKT) so a stale after-hours quote can't fire
+  // a notification. The engine still evaluates (so edge state stays tracked).
+  const { data: marketStatus } = useMarketStatus();
+  const marketOpen = marketStatus?.isOpen ?? false;
+
   const quotes = useMarketStore((s) => s.quotes);
   const addNotification = useUIStore((s) => s.addNotification);
   const lastState = useRef<Record<string, boolean>>({});
@@ -52,7 +61,7 @@ export function useAlertEngine() {
       const triggered = isTriggered(alert, quote);
       const was = lastState.current[alert.id] ?? false;
 
-      if (triggered && !was && quote && quote.priceAvailable !== false) {
+      if (triggered && !was && marketOpen && quote && quote.priceAvailable !== false) {
         const level =
           alert.kind === 'price' ? formatCurrency(alert.threshold) : `${alert.threshold}%`;
         const verb = alert.direction === 'above' ? 'reached' : 'fell to';
@@ -65,5 +74,5 @@ export function useAlertEngine() {
 
       lastState.current[alert.id] = triggered;
     }
-  }, [active, quotes, addNotification]);
+  }, [active, quotes, addNotification, marketOpen]);
 }
