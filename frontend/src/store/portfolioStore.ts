@@ -55,6 +55,8 @@ interface PortfolioState {
   updatePortfolio: (input: UpdatePortfolioInput) => Promise<void>;
   deletePortfolio: (id: string) => Promise<void>;
   duplicatePortfolio: (id: string) => Promise<Portfolio>;
+  archivePortfolio: (id: string) => Promise<void>;
+  restorePortfolio: (id: string) => Promise<void>;
   setActivePortfolio: (id: string | null) => void;
 
   // Holding CRUD
@@ -285,6 +287,26 @@ export const usePortfolioStore = create<PortfolioState>()((set, get) => ({
       const duplicate = await portfoliosApi.duplicate(id);
       set((state) => ({ portfolios: [...state.portfolios, duplicate], error: null }));
       return duplicate;
+    } catch (err) {
+      set({ error: messageFor(err) });
+      throw err;
+    }
+  },
+
+  archivePortfolio: async (id) => {
+    try {
+      const portfolio = await portfoliosApi.archive(id);
+      get().put(portfolio);
+    } catch (err) {
+      set({ error: messageFor(err) });
+      throw err;
+    }
+  },
+
+  restorePortfolio: async (id) => {
+    try {
+      const portfolio = await portfoliosApi.restore(id);
+      get().put(portfolio);
     } catch (err) {
       set({ error: messageFor(err) });
       throw err;
