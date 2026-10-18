@@ -17,6 +17,7 @@ import { HoldingForm } from '@/features/portfolio/HoldingForm';
 import { DividendCalendar } from '@/features/portfolio/DividendCalendar';
 import { RiskAnalytics } from '@/features/portfolio/RiskAnalytics';
 import { ScenarioAnalysis } from '@/features/portfolio/ScenarioAnalysis';
+import { TargetAllocation } from '@/features/portfolio/TargetAllocation';
 import { AllocationPieChart, PortfolioValueChart, BenchmarkComparisonChart, rangeDays } from '@/features/charts';
 import type { ComparisonBenchmark, ComparisonRange } from '@/features/charts';
 import { usePortfolioStore, useUIStore } from '@/store';
@@ -674,6 +675,10 @@ export function PortfolioDetail() {
 
               <div className="mt-4">
                 <ScenarioAnalysis holdingMetrics={metrics?.holdingMetrics ?? []} />
+              </div>
+
+              <div className="mt-4">
+                <TargetAllocation portfolio={portfolio} holdingMetrics={metrics?.holdingMetrics ?? []} />
               </div>
 
               {/* Cash movements: a balance, the entries behind it, and an inline
