@@ -154,6 +154,7 @@ function serializePortfolio(row, holdings, cashTransactions = []) {
     ...(row.description ? { description: row.description } : {}),
     color: row.color,
     concentrationThreshold: Number(row.concentration_threshold),
+    archivedAt: row.archived_at ? isoStamp(row.archived_at) : null,
     createdAt: isoStamp(row.created_at),
     updatedAt: isoStamp(row.updated_at),
     holdings,
@@ -1435,6 +1436,29 @@ router.put(
       [portfolio.id],
     );
     return res.json({ targets: rows.map(serializeTarget), concentrationThreshold: threshold });
+  }),
+);
+
+// ── Archive / restore (issue #98) ──────────────────────────────────────────────
+router.post(
+  '/:id/archive',
+  wrap(async (req, res) => {
+    const portfolio = await findOwnedPortfolio(req.user.id, req.params.id);
+    if (!portfolio) return notFound(res);
+
+    await query('UPDATE portfolios SET archived_at = NOW() WHERE id = $1', [portfolio.id]);
+    return res.json({ portfolio: await loadPortfolio(req.user.id, portfolio.id) });
+  }),
+);
+
+router.post(
+  '/:id/restore',
+  wrap(async (req, res) => {
+    const portfolio = await findOwnedPortfolio(req.user.id, req.params.id);
+    if (!portfolio) return notFound(res);
+
+    await query('UPDATE portfolios SET archived_at = NULL WHERE id = $1', [portfolio.id]);
+    return res.json({ portfolio: await loadPortfolio(req.user.id, portfolio.id) });
   }),
 );
 
