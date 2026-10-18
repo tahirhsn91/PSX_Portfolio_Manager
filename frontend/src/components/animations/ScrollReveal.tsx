@@ -32,6 +32,26 @@ export function ScrollReveal({ children, className, delay = 0, repeat = false }:
       return;
     }
 
+    const root = rootRef?.current ?? null;
+
+    // Reveal-once: if the element is already inside the scroll container's
+    // viewport on mount, reveal it synchronously. The observer's callback is
+    // asynchronous and, on a client-side navigation, can land after the route
+    // transition — leaving the content stuck at its hidden (paused) state until
+    // a refresh. A tall page also never reaches the old 12% threshold (12% of a
+    // 6000px page is more than a viewport), so "any part visible" is the signal.
+    if (!repeat) {
+      const rootRect = root ? root.getBoundingClientRect() : null;
+      const elRect = el.getBoundingClientRect();
+      const inView = rootRect
+        ? elRect.top < rootRect.bottom && elRect.bottom > rootRect.top
+        : elRect.top < window.innerHeight && elRect.bottom > 0;
+      if (inView) {
+        el.classList.add('in-view');
+        return;
+      }
+    }
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -43,7 +63,7 @@ export function ScrollReveal({ children, className, delay = 0, repeat = false }:
           }
         });
       },
-      { root: rootRef?.current ?? null, threshold: 0.12, rootMargin: '0px 0px -8% 0px' },
+      { root, threshold: 0, rootMargin: '0px 0px -8% 0px' },
     );
 
     observer.observe(el);
