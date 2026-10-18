@@ -7,7 +7,6 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
 import { Star, Trash2 } from 'lucide-react';
 import { PageHeader, CompanySearch, EmptyState } from '@/components/shared';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,7 +14,6 @@ import { Button } from '@/components/ui/button';
 import { watchlistApi } from '@/services';
 import { useStockQuotes } from '@/hooks';
 import { useMarketStore, useUIStore } from '@/store';
-import { ROUTES } from '@/constants';
 import { formatCurrency, formatPercent } from '@/utils';
 import type { PSXCompany, StockQuote } from '@/types';
 
@@ -100,12 +98,9 @@ export function Watchlist() {
                     className="flex items-center justify-between gap-3 py-3"
                   >
                     <div className="min-w-0">
-                      <Link
-                        to={ROUTES.MARKET_STOCK_PATH(item.symbol)}
-                        className="font-mono text-sm font-semibold hover:underline"
-                      >
+                      <span className="font-mono text-sm font-semibold">
                         {item.symbol}
-                      </Link>
+                      </span>
                       {quote && !unavailable && (
                         <p className="truncate text-xs text-muted-foreground">{quote.companyName}</p>
                       )}

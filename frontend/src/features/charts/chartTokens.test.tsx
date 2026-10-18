@@ -2,7 +2,6 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { AllocationPieChart } from './AllocationPieChart';
 import { PortfolioValueChart } from './PortfolioValueChart';
-import { SectorBarChart } from './SectorBarChart';
 import { StockPriceChart } from './StockPriceChart';
 import {
   CATEGORY_TONES,
@@ -146,18 +145,6 @@ describe('chart empty, loading and summary states', () => {
     expect(html).toContain('Last close (ABL)');
     expect(html).toContain('+10.00%');
     expect(html).toContain('Purchase price');
-  });
-
-  it('reports a sector session it cannot plot, and signs its summary values', () => {
-    expect(renderToStaticMarkup(<SectorBarChart data={[]} />)).toContain('No sector performance for this session yet');
-    expect(renderToStaticMarkup(<SectorBarChart data={[]} isLoading />)).toContain('animate-shimmer');
-
-    const html = renderToStaticMarkup(
-      <SectorBarChart data={[{ sector: 'REFINERY', changePercent: 2.5 }, { sector: 'CEMENT', changePercent: -1.25 }]} />,
-    );
-    expect(html).toContain('+2.50%');
-    expect(html).toContain('-1.25%');
-    expect(html).toContain('Sectors plotted');
   });
 
   it('separates a portfolio value chart with no history from one the feed never priced', () => {

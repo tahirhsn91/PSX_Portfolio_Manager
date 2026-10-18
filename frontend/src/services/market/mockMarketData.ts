@@ -12,7 +12,6 @@ import type {
   KSE100Data,
   IndexData,
   CandleQuery,
-  SectorPerformance,
   MarketStatus,
   PSXCompany,
   IMarketDataProvider,
@@ -187,23 +186,6 @@ export class MockMarketDataProvider implements IMarketDataProvider {
     };
   }
 
-  async getSectorPerformance(): Promise<SectorPerformance[]> {
-    await this.simulateLatency();
-    const sectors = [...new Set(PSX_COMPANIES.map((c) => c.sector))];
-    return sectors.map((sector) => {
-      const r = seededRandom(sector + format(new Date(), 'yyyyMMdd'));
-      const companies = PSX_COMPANIES.filter((c) => c.sector === sector);
-      return {
-        sector,
-        changePercent: +((r - 0.5) * 6).toFixed(2),
-        marketCap: companies.reduce((sum, c) => sum + c.marketCap, 0),
-        stockCount: companies.length,
-        topGainer: companies[0]?.symbol ?? '',
-        topLoser: companies[companies.length - 1]?.symbol ?? '',
-      };
-    });
-  }
-
   async getMarketStatus(): Promise<MarketStatus> {
     const now = new Date();
     const hour = now.getHours();
@@ -211,12 +193,6 @@ export class MockMarketDataProvider implements IMarketDataProvider {
     const isWeekday = day >= 1 && day <= 5;
     const isOpen = isWeekday && hour >= 9 && hour < 16;
     return { isOpen, nextOpen: null, nextClose: null, timezone: 'PKT' };
-  }
-
-  /** The mock's own universe; it has no traded volume to rank by, so the declared
-   *  order is returned rather than an invented ranking. */
-  async getTopSymbols(limit = 20): Promise<string[]> {
-    return Object.keys(BASE_PRICES).slice(0, limit);
   }
 
   async searchCompanies(query: string): Promise<PSXCompany[]> {

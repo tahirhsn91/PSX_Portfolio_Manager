@@ -1,13 +1,13 @@
 import { Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Compass, LayoutDashboard } from 'lucide-react';
+import { LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ROUTES } from '@/constants';
 
 /**
  * The 404 is routed inside MainLayout, so it is a page, not a dead end: the same
- * h1 scale as every other screen, one sentence saying what happened, and the two
- * places a lost reader actually wants to be. No text-6xl number filling the
+ * h1 scale as every other screen, one sentence saying what happened, and the
+ * place a lost reader actually wants to be. No text-6xl number filling the
  * viewport, and no single low-contrast link out.
  */
 export function NotFound() {
@@ -36,12 +36,6 @@ export function NotFound() {
             <Link to={ROUTES.DASHBOARD}>
               <LayoutDashboard aria-hidden="true" />
               Go to dashboard
-            </Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link to={ROUTES.MARKET}>
-              <Compass aria-hidden="true" />
-              Browse market
             </Link>
           </Button>
         </div>

@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, TrendingUp, TrendingDown, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,8 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyState, ErrorState, MetricCard, PageHeader, RangeBar } from '@/components/shared';
 import { ScrollReveal } from '@/components/animations';
 import { StockPriceChart } from '@/features/charts';
-import { PredictionPanel } from '@/features/prediction/PredictionPanel';
-import { useStockDetail, useHistoricalData, useStockPrediction } from '@/hooks';
+import { useStockDetail, useHistoricalData } from '@/hooks';
 import { usePortfolioStore } from '@/store';
 import {
   formatCurrency,
@@ -17,6 +17,7 @@ import {
   formatVolume,
   formatCompactNumber,
   deriveDayRange,
+  deriveSupportResistance,
   feedSessionDay,
   activeSessionDate,
 } from '@/utils';
@@ -24,16 +25,6 @@ import type { StockDetail as StockDetailData } from '@/types';
 import { ROUTES } from '@/constants';
 import { format, subYears, subDays, addDays } from 'date-fns';
 import { cn } from '@/lib/utils';
-
-export interface StockDetailProps {
-  /**
-   * Which reading context the page is in. The portfolio route carries a
-   * `portfolioId` and the market route does not, so the page derives it from the
-   * params; `MarketStockDetail` states it outright for the route that has no
-   * portfolio to name.
-   */
-  variant?: 'portfolio' | 'market';
-}
 
 /** One label/value pair in the figures card. */
 interface Figure {
@@ -88,7 +79,7 @@ function figures(detail: StockDetailData): Figure[] {
   ];
 }
 
-export function StockDetail({ variant }: StockDetailProps = {}) {
+export function StockDetail() {
   const { portfolioId = '', symbol = '' } = useParams<{ portfolioId: string; symbol: string }>();
   const navigate = useNavigate();
 
@@ -106,10 +97,9 @@ export function StockDetail({ variant }: StockDetailProps = {}) {
     format(subYears(new Date(), 1), 'yyyy-MM-dd'),
     format(new Date(), 'yyyy-MM-dd')
   );
-  const { data: prediction, isLoading: predLoading } = useStockPrediction(
-    symbol,
-    detail?.currentPrice,
-    holding?.dividendsReceived ?? []
+  const { supportLevels, resistanceLevels } = useMemo(
+    () => deriveSupportResistance(historicalData, detail?.currentPrice ?? 0),
+    [historicalData, detail?.currentPrice],
   );
 
   // The day range needs the *current* session's rows, and the scraper treats
@@ -142,16 +132,12 @@ export function StockDetail({ variant }: StockDetailProps = {}) {
     upstreamHigh: detail?.high,
   });
 
-  const goBack = () => navigate(portfolioId ? ROUTES.PORTFOLIO_DETAIL_PATH(portfolioId) : ROUTES.MARKET);
+  const goBack = () => navigate(ROUTES.PORTFOLIO_DETAIL_PATH(portfolioId));
 
-  // `/market/:symbol` has no portfolio in its params. The page says where "back"
-  // goes instead of leaving the reader to guess which of the two it is.
-  //
   // There is deliberately no breadcrumb strip: `PageHeader`'s crumb link renders at
   // 37x16px, under the 44px touch minimum this revamp is held to, and that link lives
   // in the shared component rather than here. The named Back control carries the same
   // navigation at 44px, which is what this page had before the crumb.
-  const isMarket = variant === 'market' || !portfolioId;
 
   /** The feed could not price this symbol: every price-derived figure is left out. */
   const priceUnavailable = detail?.priceAvailable === false;
@@ -166,7 +152,7 @@ export function StockDetail({ variant }: StockDetailProps = {}) {
         actions={
           <Button variant="outline" onClick={goBack}>
             <ArrowLeft aria-hidden="true" />
-            {isMarket ? 'Back to market' : 'Back to portfolio'}
+            Back to portfolio
           </Button>
         }
         meta={
@@ -309,13 +295,11 @@ export function StockDetail({ variant }: StockDetailProps = {}) {
         </Card>
       )}
 
-      {/* Underline tabs: these are three views of one record — its price, its figures
-          and its projection — not three modes of the app. */}
+      {/* Underline tabs: two views of one record — its price and its figures. */}
       <Tabs defaultValue="chart">
         <TabsList variant="underline">
           <TabsTrigger value="chart">Price chart</TabsTrigger>
           <TabsTrigger value="fundamentals">Fundamentals</TabsTrigger>
-          <TabsTrigger value="prediction">Prediction</TabsTrigger>
         </TabsList>
 
         <TabsContent value="chart">
@@ -339,8 +323,8 @@ export function StockDetail({ variant }: StockDetailProps = {}) {
             <StockPriceChart
               data={historicalData}
               symbol={symbol}
-              supportLevels={prediction?.supportLevels}
-              resistanceLevels={prediction?.resistanceLevels}
+              supportLevels={supportLevels}
+              resistanceLevels={resistanceLevels}
               purchasePrice={holding?.averagePurchasePrice}
               isLoading={histLoading}
             />
@@ -397,12 +381,6 @@ export function StockDetail({ variant }: StockDetailProps = {}) {
               description="The feed answered with nothing for this symbol — it may be newly listed or not covered."
             />
           )}
-        </TabsContent>
-
-        <TabsContent value="prediction">
-          <div className="max-w-2xl">
-            <PredictionPanel prediction={prediction} isLoading={predLoading} />
-          </div>
         </TabsContent>
       </Tabs>
       </ScrollReveal>

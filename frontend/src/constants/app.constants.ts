@@ -91,7 +91,6 @@ export const CACHE_TTL = {
   DETAIL: 300_000, // 5 minutes
   HISTORICAL: 3_600_000, // 1 hour
   KSE100: 60_000, // 1 minute
-  SECTOR: 300_000, // 5 minutes
 } as const;
 
 // Pagination
@@ -106,13 +105,7 @@ export const PAGE_SIZE = 20;
  */
 export const EARLIEST_PURCHASE_DATE = new Date(2000, 0, 1);
 
-// Technical analysis parameters
+// Technical analysis parameters — only support/resistance remains (issue #89 split).
 export const TECHNICAL = {
-  RSI_PERIOD: 14,
-  RSI_OVERBOUGHT: 70,
-  RSI_OVERSOLD: 30,
-  SMA_SHORT: 20,
-  SMA_MEDIUM: 50,
-  SMA_LONG: 200,
   SUPPORT_RESISTANCE_LOOKBACK: 90, // days
 } as const;

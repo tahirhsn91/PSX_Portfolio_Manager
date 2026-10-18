@@ -1,6 +1,5 @@
 export { AllocationPieChart } from './AllocationPieChart';
 export { PortfolioValueChart } from './PortfolioValueChart';
-export { SectorBarChart } from './SectorBarChart';
 export {
   BenchmarkComparisonChart,
   COMPARISON_RANGES,

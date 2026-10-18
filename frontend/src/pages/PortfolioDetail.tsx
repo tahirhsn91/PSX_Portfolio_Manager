@@ -664,7 +664,6 @@ export function PortfolioDetail() {
 
               <DividendCalendar
                 portfolio={portfolio}
-                holdingMetrics={metrics?.holdingMetrics ?? []}
                 onAdd={handleAddDeclaredDividend}
                 onDelete={handleDeleteDeclaredDividend}
               />

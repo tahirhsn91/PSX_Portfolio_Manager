@@ -11,9 +11,6 @@ export const ROUTES = {
   STOCK_DETAIL: '/portfolios/:portfolioId/stocks/:symbol',
   STOCK_DETAIL_PATH: (portfolioId: string, symbol: string) =>
     `/portfolios/${portfolioId}/stocks/${symbol}`,
-  MARKET: '/market',
-  MARKET_STOCK: '/market/:symbol',
-  MARKET_STOCK_PATH: (symbol: string) => `/market/${symbol}`,
   WATCHLIST: '/watchlist',
   ALERTS: '/alerts',
   SETTINGS: '/settings',

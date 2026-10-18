@@ -59,6 +59,16 @@ export interface WatchlistItem {
   addedAt: string; // ISO timestamp
 }
 
+/** How often price has bounced off a level. 'strong' | 'moderate' | 'weak'. */
+export type SupportResistanceStrength = 'strong' | 'moderate' | 'weak';
+
+/** A support or resistance level derived from a symbol's own price history (§12). */
+export interface SupportResistanceLevel {
+  price: number;
+  strength: SupportResistanceStrength;
+  type: 'support' | 'resistance';
+}
+
 export interface HistoricalDataPoint {
   date: string; // YYYY-MM-DD
   open: number;
@@ -100,17 +110,6 @@ export interface CandleQuery {
   to?: string;
 }
 
-export interface SectorPerformance {
-  sector: string;
-  changePercent: number;
-  /** Null when no member of the sector has a published market cap — the feed sends
-   *  none for any symbol, so this is null rather than a measured-looking 0. */
-  marketCap: number | null;
-  stockCount: number;
-  topGainer: string;
-  topLoser: string;
-}
-
 export interface MarketStatus {
   isOpen: boolean;
   nextOpen: string | null;
@@ -138,85 +137,6 @@ export interface IMarketDataProvider {
   getIndex(symbol: string): Promise<IndexData | null>;
   /** The headline index. Convenience wrapper over `getIndex('KSE100')`. */
   getKSE100(): Promise<KSE100Data | null>;
-  getSectorPerformance(): Promise<SectorPerformance[]>;
-  /**
-   * The provider's most-active tracked symbols, in the provider's own order — the
-   * Market overview's list. A provider with no activity data returns its declared
-   * universe rather than a fabricated ranking.
-   */
-  getTopSymbols(limit?: number): Promise<string[]>;
   getMarketStatus(): Promise<MarketStatus>;
   searchCompanies(query: string): Promise<PSXCompany[]>;
-}
-
-// ── sarmaaya.pk (a second source, for the Market page's lists) ────────────────
-
-/**
- * One row of sarmaaya.pk's PSX tape — price, change, volume and market capitalisation,
- * for the session the source names.
- */
-export interface SarmaayaRow {
-  symbol: string;
-  name: string;
-  price: number | null;
-  change: number | null;
-  changePercent: number | null;
-  volume: number | null;
-  isShariah: boolean | null;
-  /** PKR, as the source publishes it. Null when the row has none — never 0. */
-  marketCap: number | null;
-}
-
-/** Where a snapshot came from, and which session its numbers belong to. */
-export interface SarmaayaSource {
-  name: string;
-  url: string;
-  apiHost: string;
-  fetchedAt: string;
-  /** The exchange session the numbers are from — not the clock: a Saturday read is Friday's. */
-  sessionDate: string | null;
-  /** True when an upstream refresh failed and an older snapshot is being served. */
-  stale?: boolean;
-  staleReason?: string;
-}
-
-/**
- * The headline index's session levels, as sarmaaya publishes them.
- *
- * `close` is the level the page shows as the index value. There is deliberately **no
- * `open`**: sarmaaya publishes an index's high, low, volume and previous close, and no
- * opening level — so the banner takes its open from the feed's own index reading, which captures
- * the session's first reading, and only when that reading belongs to the same session.
- */
-export interface SarmaayaIndexRow {
-  code: string;
-  name: string;
-  close: number | null;
-  change: number | null;
-  /** Percent units, like every other row here: 0.16 is +0.16%. */
-  changePercent: number | null;
-  high: number | null;
-  low: number | null;
-  volume: number | null;
-  previousClose: number | null;
-  updatedAt: string | null;
-  sessionDate: string | null;
-}
-
-export interface SarmaayaMarketSnapshot {
-  source: SarmaayaSource;
-  counts: {
-    listed: number;
-    traded: number;
-    gainers: number;
-    losers: number;
-    flat: number;
-    returned: number;
-  };
-  gainers: SarmaayaRow[];
-  losers: SarmaayaRow[];
-  /** Every symbol with a traded volume, most-traded first. */
-  active: SarmaayaRow[];
-  /** The KSE-100 banner's levels; null when the source did not answer for them. */
-  index: SarmaayaIndexRow | null;
 }

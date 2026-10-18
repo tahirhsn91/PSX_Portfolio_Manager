@@ -21,7 +21,6 @@ import type {
   KSE100Data,
   IndexData,
   CandleQuery,
-  SectorPerformance,
   MarketStatus,
   PSXCompany,
 } from '@/types';
@@ -117,19 +116,6 @@ function mapMeta(psxSymbol: string, meta: Record<string, unknown>): StockQuote {
     lastUpdated:   ts,
   };
 }
-
-// ── PSX blue-chips for sector aggregation ─────────────────────────────────────
-
-const SECTORS: Array<{ sector: string; symbols: string[] }> = [
-  { sector: 'Commercial Banks',      symbols: ['HBL', 'UBL', 'MCB', 'ABL', 'BAFL'] },
-  { sector: 'Oil & Gas Exploration', symbols: ['OGDC', 'PPL', 'POL', 'MARI'] },
-  { sector: 'Fertilizer',            symbols: ['ENGRO', 'FFC', 'FFBL', 'FATIMA'] },
-  { sector: 'Cement',                symbols: ['LUCK', 'DGKC', 'CHCC', 'FCCL'] },
-  { sector: 'Power Generation',      symbols: ['HUBC', 'KAPCO', 'KEL', 'NCPL'] },
-  { sector: 'Oil & Gas Marketing',   symbols: ['PSO', 'APL', 'SHEL'] },
-  { sector: 'Technology',            symbols: ['SYS', 'TRG', 'NETSOL'] },
-  { sector: 'Textile',               symbols: ['NML', 'NCL', 'GATM'] },
-];
 
 // ── Provider class ────────────────────────────────────────────────────────────
 
@@ -261,45 +247,6 @@ export class YahooFinanceProvider implements IMarketDataProvider {
         }))
         .filter(d => d.close > 0),
     };
-  }
-
-  async getSectorPerformance(): Promise<SectorPerformance[]> {
-    const results: SectorPerformance[] = [];
-
-    for (const { sector, symbols } of SECTORS) {
-      try {
-        const quotes = await this.getQuotes(symbols);
-        if (!quotes.length) continue;
-
-        const avgChange = quotes.reduce((s, q) => s + q.changePercent, 0) / quotes.length;
-        // A quote whose market cap is unknown contributes nothing to the total
-        // rather than being counted as zero (the field is nullable on StockQuote).
-        const totalCap  = quotes.reduce((s, q) => s + (q.marketCap ?? 0), 0);
-        const sorted    = [...quotes].sort((a, b) => b.changePercent - a.changePercent);
-
-        results.push({
-          sector,
-          changePercent: avgChange,
-          marketCap:     totalCap,
-          stockCount:    quotes.length,
-          topGainer:     sorted[0]?.symbol ?? '',
-          topLoser:      sorted[sorted.length - 1]?.symbol ?? '',
-        });
-      } catch {
-        // skip sector on error
-      }
-    }
-
-    return results;
-  }
-
-  /**
-   * The provider's declared sector universes, flattened and de-duplicated. Yahoo's
-   * quote endpoint carries volume, but ranking would mean a request per symbol here;
-   * the declared order is returned instead of a ranking this provider hasn't made.
-   */
-  async getTopSymbols(limit = 20): Promise<string[]> {
-    return [...new Set(SECTORS.flatMap((s) => s.symbols))].slice(0, limit);
   }
 
   async searchCompanies(query: string): Promise<PSXCompany[]> {
