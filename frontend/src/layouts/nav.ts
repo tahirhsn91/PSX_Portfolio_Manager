@@ -20,6 +20,9 @@ export interface NavItem {
   group: 'Workspace' | 'Configuration' | 'Administration';
   /** Destinations only an admin may see. The server gates them regardless. */
   adminOnly?: boolean;
+  /** False keeps a destination out of the thumb-reachable bottom bar (it stays in
+   *  the sidebar and drawer). Defaults to included. */
+  inBottomNav?: boolean;
 }
 
 /**
@@ -69,6 +72,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     to: ROUTES.PROFILE,
     description: 'Your account and password',
     group: 'Configuration',
+    inBottomNav: false,
   },
   {
     label: 'Users',
