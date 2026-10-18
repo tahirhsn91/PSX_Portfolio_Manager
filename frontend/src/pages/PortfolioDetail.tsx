@@ -15,6 +15,7 @@ import type { BandStat } from '@/components/shared';
 import { HoldingsTable } from '@/features/portfolio/HoldingsTable';
 import { HoldingForm } from '@/features/portfolio/HoldingForm';
 import { DividendCalendar } from '@/features/portfolio/DividendCalendar';
+import { RiskAnalytics } from '@/features/portfolio/RiskAnalytics';
 import { AllocationPieChart, PortfolioValueChart, BenchmarkComparisonChart, rangeDays } from '@/features/charts';
 import type { ComparisonBenchmark, ComparisonRange } from '@/features/charts';
 import { usePortfolioStore, useUIStore } from '@/store';
@@ -665,6 +666,10 @@ export function PortfolioDetail() {
                 onAdd={handleAddDeclaredDividend}
                 onDelete={handleDeleteDeclaredDividend}
               />
+
+              <div className="mt-4">
+                <RiskAnalytics holdings={portfolio.holdings} />
+              </div>
 
               {/* Cash movements: a balance, the entries behind it, and an inline
                   form to add one. Net cash = deposits − withdrawals. */}
