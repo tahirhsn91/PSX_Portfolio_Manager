@@ -46,6 +46,8 @@ export interface Holding {
   sells?: SellRecord[];
   /** Declared (upcoming, not yet received) dividends. Absent on rows predating the feature. */
   declaredDividends?: DeclaredDividend[];
+  /** Corporate actions (splits/bonus/rights) logged against this holding. */
+  corporateActions?: CorporateAction[];
 }
 
 /** One entry in a holding's buy log. */
@@ -103,6 +105,23 @@ export interface DeclaredDividend {
   exDividendDate?: string; // ISO date
   bookClosureDate?: string; // ISO date
   paymentDate?: string; // ISO date
+}
+
+export type CorporateActionType = 'split' | 'bonus' | 'rights';
+
+/**
+ * A corporate action logged against a holding. `ratio` is the replay multiplier:
+ * split — new shares per old share (2 = a 2:1 split); bonus — bonus shares per
+ * held share (0.10 = a 10% bonus); rights — entitlement new shares per held share
+ * (0.25 = 1 new per 4 held), with the subscription `price` paid per new share.
+ */
+export interface CorporateAction {
+  id: string;
+  holdingId: string;
+  type: CorporateActionType;
+  date: string; // ISO date
+  ratio: number;
+  price?: number; // subscription price, rights only
 }
 
 /** A cash movement into or out of a portfolio (deposit/withdrawal). */
@@ -216,4 +235,13 @@ export interface DeclaredDividendInput {
   exDividendDate?: string;
   bookClosureDate?: string;
   paymentDate?: string;
+}
+
+/** A corporate action entered against a holding. */
+export interface CorporateActionInput {
+  holdingId: string;
+  type: CorporateActionType;
+  date: string;
+  ratio: number;
+  price?: number; // subscription price, rights only
 }

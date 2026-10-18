@@ -10,7 +10,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CompanySearch } from '@/components/shared';
-import { Pencil, ShoppingCart, Trash2, TrendingDown } from 'lucide-react';
+import { Pencil, ShoppingCart, Trash2, TrendingDown, Layers } from 'lucide-react';
 import {
   holdingSchema, buySchema, sellSchema, tradeSchema, normalizeSector, sectorForSymbol, isCanonicalSector, displaySector,
   mostRecentTradingDay, blendPurchase, positionFromBuys, formatCurrency,
@@ -18,7 +18,7 @@ import {
 } from '@/utils';
 import { PSX_SECTORS, EARLIEST_PURCHASE_DATE } from '@/constants';
 import { useCompanySearch, useStockQuote } from '@/hooks';
-import type { PSXCompany, BuyRecord, SellRecord } from '@/types';
+import type { PSXCompany, BuyRecord, SellRecord, CorporateAction, CorporateActionInput, CorporateActionType } from '@/types';
 
 /** The position a buy would be blended into. */
 export interface PositionSnapshot {
@@ -62,6 +62,12 @@ interface HoldingFormProps {
   onUpdateSell?: (sellId: string, patch: { shares: number; pricePerShare: number; fees: number }) => void;
   /** Edit dialog only: remove a logged sale. */
   onDeleteSell?: (sellId: string) => void;
+  /** Edit dialog only: the position's corporate actions, oldest first. */
+  actions?: CorporateAction[];
+  /** Edit dialog only: apply a corporate action (split/bonus/rights). */
+  onAddAction?: (input: Omit<CorporateActionInput, 'holdingId'>) => void;
+  /** Edit dialog only: undo a corporate action. */
+  onDeleteAction?: (actionId: string) => void;
 }
 
 /**
@@ -559,6 +565,232 @@ function SellHistory({
 }
 
 /**
+ * Corporate actions (splits, bonus shares, rights) applied to a position.
+ *
+ * An action adjusts quantity and cost basis at its date and is folded into the
+ * ledger replay; deleting it undoes the adjustment (the whole position is
+ * re-derived from the log). The ratio is entered as a "new : old" pair so the
+ * arithmetic stays transparent, and the helper text states the invariant each
+ * action must preserve.
+ */
+function CorporateActionsHistory({
+  actions,
+  onAdd,
+  onDelete,
+}: {
+  actions: CorporateAction[];
+  onAdd: (input: Omit<CorporateActionInput, 'holdingId'>) => void;
+  onDelete: (actionId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [type, setType] = useState<CorporateActionType>('split');
+  const [date, setDate] = useState(format(mostRecentTradingDay(), 'yyyy-MM-dd'));
+  const [numerator, setNumerator] = useState('');
+  const [denominator, setDenominator] = useState('');
+  const [price, setPrice] = useState('');
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const describe = (a: CorporateAction): string => {
+    if (a.type === 'split') return `${a.ratio}× split`;
+    if (a.type === 'bonus') return `${Math.round(a.ratio * 100)}% bonus`;
+    return `${a.ratio} new per held @ ${formatCurrency(a.price ?? 0)}`;
+  };
+
+  const labels: Record<CorporateActionType, { n: string; d: string }> = {
+    split: { n: 'Shares after', d: 'Shares before' },
+    bonus: { n: 'Bonus shares', d: 'per shares held' },
+    rights: { n: 'New shares', d: 'per shares held' },
+  };
+
+  const submit = () => {
+    const n = Number(numerator);
+    const d = Number(denominator);
+    if (!date) return setError('Choose a date');
+    if (numerator.trim() === '' || !Number.isFinite(n) || n <= 0) {
+      return setError('Enter a whole number greater than 0');
+    }
+    if (denominator.trim() === '' || !Number.isFinite(d) || d <= 0) {
+      return setError('Enter a whole number greater than 0');
+    }
+    const ratio = n / d;
+    let priceValue: number | undefined;
+    if (type === 'rights') {
+      const p = Number(price);
+      if (price.trim() === '' || !Number.isFinite(p) || p < 0) {
+        return setError('Subscription price must be 0 or more');
+      }
+      priceValue = p;
+    }
+    setError(null);
+    onAdd({ type, date, ratio, ...(priceValue !== undefined ? { price: priceValue } : {}) });
+    setOpen(false);
+    setNumerator('');
+    setDenominator('');
+    setPrice('');
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex items-start gap-2">
+          <Layers className="mt-0.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          <div>
+            <p className="text-sm font-medium">Corporate actions</p>
+            <p className="text-xs text-muted-foreground">
+              {actions.length} {actions.length === 1 ? 'action' : 'actions'} · splits, bonus, rights
+            </p>
+          </div>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setOpen((v) => !v);
+            setError(null);
+          }}
+        >
+          {open ? 'Close' : 'Add action'}
+        </Button>
+      </div>
+
+      {open && (
+        <form
+          className="space-y-3 rounded-lg border border-border p-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+        >
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="actionType">Type</Label>
+              <select
+                id="actionType"
+                className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={type}
+                onChange={(e) => setType(e.target.value as CorporateActionType)}
+              >
+                <option value="split">Stock split</option>
+                <option value="bonus">Bonus shares</option>
+                <option value="rights">Rights issue</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="actionDate">Date</Label>
+              <Input
+                id="actionDate"
+                type="date"
+                className="h-11"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="actionNum">{labels[type].n}</Label>
+              <Input
+                id="actionNum"
+                type="number"
+                step="1"
+                className="h-11 tabular-nums"
+                value={numerator}
+                onChange={(e) => setNumerator(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="actionDen">{labels[type].d}</Label>
+              <Input
+                id="actionDen"
+                type="number"
+                step="1"
+                className="h-11 tabular-nums"
+                value={denominator}
+                onChange={(e) => setDenominator(e.target.value)}
+              />
+            </div>
+            {type === 'rights' && (
+              <div className="space-y-1.5">
+                <Label htmlFor="actionPrice">Subscription price (PKR)</Label>
+                <Input
+                  id="actionPrice"
+                  type="number"
+                  step="0.01"
+                  className="h-11 tabular-nums"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {type === 'split' && 'A 2:1 split doubles shares and halves the average cost — totals stay the same.'}
+            {type === 'bonus' && 'Bonus shares raise the quantity and lower the average, leaving cost basis unchanged.'}
+            {type === 'rights' && 'Rights add shares at the subscription price you paid.'}
+          </p>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit">Apply action</Button>
+          </div>
+        </form>
+      )}
+
+      {actions.length > 0 && (
+        <ul className="divide-y">
+          {actions.map((a) => (
+            <li key={a.id} className="flex items-center justify-between gap-3 py-2">
+              {confirming === a.id ? (
+                <div className="flex flex-1 flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm">Undo this {describe(a)}?</p>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setConfirming(null)}>
+                      Keep
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        onDelete(a.id);
+                        setConfirming(null);
+                      }}
+                    >
+                      Undo
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium capitalize">{a.type}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {format(parseISO(a.date), 'dd MMM yyyy')} · {describe(a)}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive hover:text-destructive"
+                    aria-label={`Undo ${describe(a)}`}
+                    onClick={() => setConfirming(a.id)}
+                  >
+                    <Trash2 aria-hidden="true" className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
  * The date field, shared by both modes.
  *
  * A holding can't have been bought in the future, and PSX does not trade at the
@@ -643,6 +875,7 @@ function TradingDateField({
 export function HoldingForm({
   defaultValues, onSubmit, onCancel, isEditing, position, onBuy, buys, onUpdateBuy, onDeleteBuy,
   sells, onSell, onUpdateSell, onDeleteSell,
+  actions, onAddAction, onDeleteAction,
 }: HoldingFormProps) {
   // 'edit' is the form as it was; 'buy' records a second purchase of the same
   // stock and blends it into the position; 'sell' records a sale against it.
@@ -1101,6 +1334,14 @@ export function HoldingForm({
               sells={sells}
               onSave={onUpdateSell}
               onDelete={onDeleteSell ?? (() => {})}
+            />
+          )}
+
+          {actions && onAddAction && (
+            <CorporateActionsHistory
+              actions={actions}
+              onAdd={onAddAction}
+              onDelete={onDeleteAction ?? (() => {})}
             />
           )}
         </>

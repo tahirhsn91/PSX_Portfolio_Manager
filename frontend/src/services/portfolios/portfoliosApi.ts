@@ -23,6 +23,7 @@ import type {
   BuyInput,
   SellInput,
   DeclaredDividendInput,
+  CorporateActionInput,
 } from '@/types';
 
 const BASE = '/api/portfolios';
@@ -269,6 +270,31 @@ export const portfoliosApi = {
   ): Promise<Portfolio> => {
     const { portfolio } = await request<PortfolioEnvelope>(
       `${BASE}/${portfolioId}/holdings/${holdingId}/declared-dividends/${dividendId}`,
+      { method: 'DELETE' }
+    );
+    return portfolio;
+  },
+
+  // ─── Corporate actions ──────────────────────────────────────────────────────
+  addCorporateAction: async (
+    portfolioId: string,
+    holdingId: string,
+    input: Omit<CorporateActionInput, 'holdingId'>
+  ): Promise<Portfolio> => {
+    const { portfolio } = await request<PortfolioEnvelope>(
+      `${BASE}/${portfolioId}/holdings/${holdingId}/corporate-actions`,
+      { method: 'POST', body: body(input) }
+    );
+    return portfolio;
+  },
+
+  removeCorporateAction: async (
+    portfolioId: string,
+    holdingId: string,
+    actionId: string
+  ): Promise<Portfolio> => {
+    const { portfolio } = await request<PortfolioEnvelope>(
+      `${BASE}/${portfolioId}/holdings/${holdingId}/corporate-actions/${actionId}`,
       { method: 'DELETE' }
     );
     return portfolio;
