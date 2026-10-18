@@ -380,6 +380,29 @@ export function Settings() {
                     />
                   </label>
 
+                  <label
+                    htmlFor="privacy-mode"
+                    className="flex min-h-14 cursor-pointer items-center justify-between gap-4 rounded-md px-1 py-2 transition-colors duration-base ease-standard hover:bg-accent/60"
+                  >
+                    <span className="min-w-0">
+                      <span id="privacy-mode-label" className="block text-sm font-medium">
+                        Privacy mode
+                      </span>
+                      <span id="privacy-mode-hint" className="block text-xs text-muted-foreground">
+                        Hide monetary amounts — balances, P/L and prices — everywhere. Symbols,
+                        weights and layout stay visible.
+                      </span>
+                    </span>
+                    <Switch
+                      id="privacy-mode"
+                      aria-labelledby="privacy-mode-label"
+                      aria-describedby="privacy-mode-hint"
+                      checked={settings.privacyMode}
+                      onCheckedChange={(v) => updateSettings({ privacyMode: v })}
+                      className="h-11 w-20 shrink-0 [&>span]:h-9 [&>span]:w-9 [&>span]:data-[state=checked]:translate-x-10"
+                    />
+                  </label>
+
                   <Separator />
 
                   <div className="space-y-2 py-2">

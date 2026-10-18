@@ -3,11 +3,25 @@
  * Keep formatting logic out of components.
  */
 
+// ── Privacy mode (issue #99) ──────────────────────────────────────────────────
+// A module-level flag kept in sync by the uiStore. formatCurrency/formatPrice read
+// it, so every monetary amount masks without a prop threaded through the app.
+let privacyMode = false;
+
+/** Flip the flag the formatters read. Called by the uiStore on load and change. */
+export function setPrivacyMode(on: boolean): void {
+  privacyMode = on;
+}
+
+/** What a masked amount renders as — structure stays, the figure does not. */
+const PRIVACY_MASK = '••••••';
+
 /**
  * Format a number as PKR currency
  * e.g. 1234567 → "PKR 12,34,567.00" or "₨ 1,234,567"
  */
 export function formatCurrency(value: number | null | undefined, compact = false): string {
+  if (privacyMode) return PRIVACY_MASK;
   // `value == null` catches null and undefined together: the feed omits fields
   // (market cap, volume) as null, and `isNaN(null)` is false — so without this a
   // missing figure printed as a real-looking PKR 0.00 / 0.
@@ -125,6 +139,7 @@ export function formatVolume(value: number | null | undefined): string {
  * Format a stock price (always 2 decimal places in PKR)
  */
 export function formatPrice(value: number): string {
+  if (privacyMode) return PRIVACY_MASK;
   if (isNaN(value)) return '—';
   return `PKR ${value.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }

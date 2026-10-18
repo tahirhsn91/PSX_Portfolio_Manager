@@ -17,6 +17,7 @@ export interface AppSettings {
   decimalPlaces: 2 | 4;
   showPercentages: boolean;
   autoRefreshInterval: 0 | 30 | 60 | 300; // seconds; 0 = disabled
+  privacyMode: boolean;
 }
 
 export interface Notification {
