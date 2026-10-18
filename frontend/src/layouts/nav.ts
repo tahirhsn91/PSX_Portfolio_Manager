@@ -5,6 +5,7 @@ import {
   Settings,
   UserRound,
   Users,
+  Star,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -46,6 +47,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: BarChart2,
     to: ROUTES.MARKET,
     description: 'Prices, movers and sectors',
+    group: 'Workspace',
+  },
+  {
+    label: 'Watchlist',
+    icon: Star,
+    to: ROUTES.WATCHLIST,
+    description: 'Symbols you track but do not own',
     group: 'Workspace',
   },
   {

@@ -52,6 +52,13 @@ export interface StockDetail extends StockQuote {
   description: string;
 }
 
+/** One row of the account's personal watchlist — a symbol tracked, not owned. */
+export interface WatchlistItem {
+  id: string;
+  symbol: string;
+  addedAt: string; // ISO timestamp
+}
+
 export interface HistoricalDataPoint {
   date: string; // YYYY-MM-DD
   open: number;
