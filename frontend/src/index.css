@@ -136,28 +136,28 @@
        The second step of each ladder is the shared palette's own trend colour
        (up.main / down.main), so a slice in the chart is the same green the scraper
        paints a rising figure with. */
-    --chart-profit-1: #003A21;
-    --chart-profit-2: #007A42; /* = up.main */
+    --chart-profit-1: #003a21;
+    --chart-profit-2: #007a42; /* = up.main */
     --chart-profit-3: #067843;
-    --chart-profit-4: #1B9E5B;
-    --chart-profit-5: #3AB772;
+    --chart-profit-4: #1b9e5b;
+    --chart-profit-5: #3ab772;
     --chart-profit-1-ink: #ffffff;
     --chart-profit-2-ink: #ffffff;
     --chart-profit-3-ink: #ffffff;
     --chart-profit-4-ink: #0f1110;
     --chart-profit-5-ink: #0f1110;
-    --chart-loss-1: #8E151A;
-    --chart-loss-2: #D62F35; /* = down.main */
-    --chart-loss-3: #DF4A50;
-    --chart-loss-4: #E9686D;
-    --chart-loss-5: #F28589;
+    --chart-loss-1: #8e151a;
+    --chart-loss-2: #d62f35; /* = down.main */
+    --chart-loss-3: #df4a50;
+    --chart-loss-4: #e9686d;
+    --chart-loss-5: #f28589;
     --chart-loss-1-ink: #ffffff;
     --chart-loss-2-ink: #ffffff;
     --chart-loss-3-ink: #0f1110;
     --chart-loss-4-ink: #0f1110;
     --chart-loss-5-ink: #0f1110;
     /* Neither a profit nor a loss: a priced holding at exactly break-even. */
-    --chart-flat: #6B6B6B; /* = textMuted */
+    --chart-flat: #6b6b6b; /* = textMuted */
     --chart-flat-ink: #ffffff;
 
     /* The category ladder — for a breakdown that carries no P&L at all (the
@@ -167,12 +167,12 @@
        money. The scraper reserves grey for exactly this neutral-information role.
        Six steps, then it wraps; every step carries the ink that clears 4.5:1 on it,
        and each fill clears 3:1 against the card. */
-    --chart-cat-1: #3F3F3F;
+    --chart-cat-1: #3f3f3f;
     --chart-cat-2: #666666; /* = info.main, the palette's grey */
-    --chart-cat-3: #6E6E6E;
+    --chart-cat-3: #6e6e6e;
     --chart-cat-4: #737373;
-    --chart-cat-5: #8A8A8A;
-    --chart-cat-6: #9A9A9A;
+    --chart-cat-5: #8a8a8a;
+    --chart-cat-6: #9a9a9a;
     --chart-cat-1-ink: #ffffff;
     --chart-cat-2-ink: #ffffff;
     --chart-cat-3-ink: #ffffff;
@@ -185,10 +185,10 @@
        (= textMuted), buy 7.72 (= warning), support 5.44 (= up), resistance 4.86
        (= down), neutral 5.74 (= textSecondary). */
     --chart-benchmark: #666666;
-    --chart-volume: #6B6B6B;
-    --chart-buy: #6B4E0A;
-    --chart-support: #007A42;
-    --chart-resistance: #D62F35;
+    --chart-volume: #6b6b6b;
+    --chart-buy: #6b4e0a;
+    --chart-support: #007a42;
+    --chart-resistance: #d62f35;
     --chart-neutral: #666666;
 
     /* Shape. One radius scale: sm 8 / md 10 / lg 12 / xl 16. */
@@ -251,36 +251,36 @@
        the background to read as shapes. Measured the same way against the dark card —
        ink/fill first, fill/card second, minimum 4.5 and 3.0. The fifth profit rung and
        the fourth loss rung are the palette's own up.main / down.main. */
-    --chart-profit-1: #0B2E1F;
-    --chart-profit-2: #123F2A;
-    --chart-profit-3: #1A5337;
+    --chart-profit-1: #0b2e1f;
+    --chart-profit-2: #123f2a;
+    --chart-profit-3: #1a5337;
     --chart-profit-4: #236846;
-    --chart-profit-5: #32CE8A; /* = up.main */
+    --chart-profit-5: #32ce8a; /* = up.main */
     --chart-profit-1-ink: #ffffff;
     --chart-profit-2-ink: #ffffff;
     --chart-profit-3-ink: #ffffff;
     --chart-profit-4-ink: #ffffff;
     --chart-profit-5-ink: #0f1110;
-    --chart-loss-1: #3A1619;
-    --chart-loss-2: #4E1B1F;
+    --chart-loss-1: #3a1619;
+    --chart-loss-2: #4e1b1f;
     --chart-loss-3: #662327;
-    --chart-loss-4: #F4747A; /* = down.main */
-    --chart-loss-5: #F99A9E;
+    --chart-loss-4: #f4747a; /* = down.main */
+    --chart-loss-5: #f99a9e;
     --chart-loss-1-ink: #ffffff;
     --chart-loss-2-ink: #ffffff;
     --chart-loss-3-ink: #ffffff;
     --chart-loss-4-ink: #0f1110;
     --chart-loss-5-ink: #0f1110;
-    --chart-flat: #A8ADAB; /* = textMuted */
+    --chart-flat: #a8adab; /* = textMuted */
     --chart-flat-ink: #0f1110;
     /* Same category ladder, lifted for the dark card — the light-theme steps are too
        close to the background there to read as shapes. Grey stays the neutral family. */
     --chart-cat-1: #838885;
-    --chart-cat-2: #A8ADAB; /* = info.main */
-    --chart-cat-3: #B9BDBC;
-    --chart-cat-4: #C9CCCB;
-    --chart-cat-5: #D8DBDA;
-    --chart-cat-6: #E5E7E6;
+    --chart-cat-2: #a8adab; /* = info.main */
+    --chart-cat-3: #b9bdbc;
+    --chart-cat-4: #c9cccb;
+    --chart-cat-5: #d8dbda;
+    --chart-cat-6: #e5e7e6;
     --chart-cat-1-ink: #0f1110;
     --chart-cat-2-ink: #0f1110;
     --chart-cat-3-ink: #0f1110;
@@ -290,12 +290,12 @@
     /* Measured against the dark card: benchmark 6.80 (= info), volume 6.80
        (= textMuted), buy 8.29 (= warning), support 7.61 (= up), resistance 5.61
        (= down), neutral 9.56 (= textSecondary). */
-    --chart-benchmark: #A8ADAB;
-    --chart-volume: #A8ADAB;
-    --chart-buy: #E0B95C;
-    --chart-support: #32CE8A;
-    --chart-resistance: #F4747A;
-    --chart-neutral: #C9CCCB;
+    --chart-benchmark: #a8adab;
+    --chart-volume: #a8adab;
+    --chart-buy: #e0b95c;
+    --chart-support: #32ce8a;
+    --chart-resistance: #f4747a;
+    --chart-neutral: #c9cccb;
   }
 
   /*
@@ -319,7 +319,9 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
   }
 }
 
@@ -377,6 +379,17 @@
    a scrollable strip (the tab strips are `overflow-x-auto`). */
 ::-webkit-scrollbar-corner {
   @apply bg-transparent;
+}
+
+/* Hide scrollbars while keeping an element scrollable (the portfolio-detail tab
+   strip on small screens). Scoped to `.no-scrollbar` rather than a global rule so
+   the rest of the app keeps its styled scrollbars. */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* Chart tooltip */
