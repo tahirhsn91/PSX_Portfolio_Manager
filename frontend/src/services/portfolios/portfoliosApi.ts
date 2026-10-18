@@ -24,6 +24,8 @@ import type {
   SellInput,
   DeclaredDividendInput,
   CorporateActionInput,
+  AllocationTarget,
+  AllocationTargetInput,
 } from '@/types';
 
 const BASE = '/api/portfolios';
@@ -298,6 +300,25 @@ export const portfoliosApi = {
       { method: 'DELETE' }
     );
     return portfolio;
+  },
+
+  // ─── Target allocation (issue #97) ──────────────────────────────────────────
+  getTargets: async (
+    portfolioId: string
+  ): Promise<{ targets: AllocationTarget[]; concentrationThreshold: number }> => {
+    return request<{ targets: AllocationTarget[]; concentrationThreshold: number }>(
+      `${BASE}/${portfolioId}/targets`
+    );
+  },
+
+  setTargets: async (
+    portfolioId: string,
+    input: { targets: AllocationTargetInput[]; concentrationThreshold: number }
+  ): Promise<{ targets: AllocationTarget[]; concentrationThreshold: number }> => {
+    return request<{ targets: AllocationTarget[]; concentrationThreshold: number }>(
+      `${BASE}/${portfolioId}/targets`,
+      { method: 'PUT', body: body(input) }
+    );
   },
 
   // ─── Backup ────────────────────────────────────────────────────────────────

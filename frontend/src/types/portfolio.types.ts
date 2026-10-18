@@ -13,6 +13,26 @@ export interface Portfolio {
   holdings: Holding[];
   /** Cash movements into/out of the portfolio (deposits/withdrawals). Absent on rows predating the feature. */
   cashTransactions?: CashTransaction[];
+  /** Concentration threshold as a percentage (a holding/sector above it is flagged). */
+  concentrationThreshold?: number;
+}
+
+/** The scope of an allocation target — per holding (symbol) or per sector. */
+export type TargetScope = 'holding' | 'sector';
+
+/** A user-defined target allocation percentage. `key` is the symbol or sector name. */
+export interface AllocationTarget {
+  id: string;
+  scope: TargetScope;
+  key: string;
+  targetPercent: number;
+}
+
+/** A target as submitted (no server-assigned id yet). */
+export interface AllocationTargetInput {
+  scope: TargetScope;
+  key: string;
+  targetPercent: number;
 }
 
 export interface Holding {
