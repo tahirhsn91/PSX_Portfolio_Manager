@@ -4,3 +4,4 @@ export * from './admin';
 export * from './market';
 export * from './storage';
 export * from './prediction';
+export * from './watchlist';

@@ -40,7 +40,7 @@ router.post('/', async (req, res, next) => {
   try {
     const symbol = String(req.body.symbol ?? '').trim().toUpperCase();
     if (!SYMBOL_RE.test(symbol)) {
-      return res.status(400).json({ error: 'Enter a valid ticker symbol' });
+      return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'Enter a valid ticker symbol' } });
     }
     const { rows } = await query(
       `INSERT INTO watchlist_items (user_id, symbol) VALUES ($1, $2)
@@ -61,7 +61,9 @@ router.delete('/:symbol', async (req, res, next) => {
       'DELETE FROM watchlist_items WHERE user_id = $1 AND symbol = $2',
       [req.user.id, symbol],
     );
-    if (!rowCount) return res.status(404).json({ error: 'That symbol is not on your watchlist' });
+    if (!rowCount) {
+      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'That symbol is not on your watchlist' } });
+    }
     res.status(204).end();
   } catch (err) {
     next(err);

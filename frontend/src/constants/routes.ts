@@ -14,6 +14,7 @@ export const ROUTES = {
   MARKET: '/market',
   MARKET_STOCK: '/market/:symbol',
   MARKET_STOCK_PATH: (symbol: string) => `/market/${symbol}`,
+  WATCHLIST: '/watchlist',
   SETTINGS: '/settings',
   PROFILE: '/profile',
   ADMIN_USERS: '/admin/users',
