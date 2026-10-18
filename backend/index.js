@@ -52,6 +52,7 @@ const { ping: pingDb }    = require('./db/pool');
 const authRoutes          = require('./routes/auth');
 const portfolioRoutes     = require('./routes/portfolios');
 const userRoutes          = require('./routes/users');
+const watchlistRoutes     = require('./routes/watchlist');
 const { seedAdmin, reportOutcome } = require('./services/seedAdmin');
 
 // Flips true once migrations + a connectivity check succeed (see boot() below).
@@ -315,6 +316,7 @@ app.use(['/api/auth', '/api/portfolios', '/api/users'], (_req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/portfolios', portfolioRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/watchlist', watchlistRoutes);
 
 // ── Error handler ─────────────────────────────────────────────────────────────
 
