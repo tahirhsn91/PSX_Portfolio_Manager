@@ -7,12 +7,16 @@ import { BottomNav } from './BottomNav';
 import { EnvBanner, ErrorBoundary } from '@/components/shared';
 import { ScrollRootContext, ScrollProgress, PageTransition } from '@/components/animations';
 import { Toaster } from '@/components/ui/toaster';
+import { useAlertEngine } from '@/hooks/useAlertEngine';
 
 export function MainLayout() {
   const [navOpen, setNavOpen] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
   const location = useLocation();
   const outlet = useOutlet();
+
+  // Price alerts evaluate while the app is open (issue #94).
+  useAlertEngine();
 
   // The app's only scroll container must return to the top on navigation —
   // otherwise a page change inherits the previous page's scroll depth.
