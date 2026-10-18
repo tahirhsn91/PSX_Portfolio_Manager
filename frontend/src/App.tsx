@@ -13,6 +13,7 @@ import { Portfolios } from '@/pages/Portfolios';
 import { PortfolioDetail } from '@/pages/PortfolioDetail';
 import { StockDetail } from '@/pages/StockDetail';
 import { Market } from '@/pages/Market';
+import { Watchlist } from '@/pages/Watchlist';
 import { Settings } from '@/pages/Settings';
 import { NotFound } from '@/pages/NotFound';
 import { ROUTES } from '@/constants';
@@ -56,6 +57,7 @@ function AppRoutes() {
           <Route path={ROUTES.STOCK_DETAIL} element={<StockDetail />} />
           <Route path={ROUTES.MARKET} element={<Market />} />
           <Route path={ROUTES.MARKET_STOCK} element={<StockDetail />} />
+          <Route path={ROUTES.WATCHLIST} element={<Watchlist />} />
           <Route path={ROUTES.SETTINGS} element={<Settings />} />
           <Route path={ROUTES.PROFILE} element={<Profile />} />
           <Route path={ROUTES.ADMIN_USERS} element={<AdminUsers />} />
