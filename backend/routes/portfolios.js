@@ -153,10 +153,21 @@ function serializePortfolio(row, holdings, cashTransactions = []) {
     name: row.name,
     ...(row.description ? { description: row.description } : {}),
     color: row.color,
+    concentrationThreshold: Number(row.concentration_threshold),
     createdAt: isoStamp(row.created_at),
     updatedAt: isoStamp(row.updated_at),
     holdings,
     cashTransactions,
+  };
+}
+
+/** A single target-allocation row (issue #97). */
+function serializeTarget(row) {
+  return {
+    id: row.id,
+    scope: row.scope,
+    key: row.target_key,
+    targetPercent: Number(row.target_percent),
   };
 }
 
@@ -1328,6 +1339,102 @@ router.get(
     const portfolio = await loadPortfolio(req.user.id, req.params.id);
     if (!portfolio) return notFound(res);
     return res.json({ portfolio });
+  }),
+);
+
+// ── Target allocation (issue #97) ──────────────────────────────────────────────
+router.get(
+  '/:id/targets',
+  wrap(async (req, res) => {
+    const portfolio = await findOwnedPortfolio(req.user.id, req.params.id);
+    if (!portfolio) return notFound(res);
+
+    const { rows } = await query(
+      'SELECT * FROM allocation_targets WHERE portfolio_id = $1 ORDER BY scope, target_key',
+      [portfolio.id],
+    );
+    return res.json({
+      targets: rows.map(serializeTarget),
+      concentrationThreshold: Number(portfolio.concentration_threshold),
+    });
+  }),
+);
+
+router.put(
+  '/:id/targets',
+  wrap(async (req, res) => {
+    const portfolio = await findOwnedPortfolio(req.user.id, req.params.id);
+    if (!portfolio) return notFound(res);
+
+    const body = req.body ?? {};
+    const incoming = Array.isArray(body.targets) ? body.targets : null;
+    const errors = [];
+    const normalized = [];
+
+    if (incoming === null) {
+      errors.push('targets must be an array');
+    } else {
+      const seen = new Set();
+      incoming.forEach((t, i) => {
+        const scope = t?.scope;
+        const raw = String(t?.key ?? '').trim();
+        const key = scope === 'holding' ? raw.toUpperCase() : raw;
+        const targetPercent = Number(t?.targetPercent);
+
+        if (scope !== 'holding' && scope !== 'sector') {
+          errors.push(`targets[${i}].scope must be holding or sector`);
+        }
+        if (!raw) errors.push(`targets[${i}].key is required`);
+        if (!Number.isFinite(targetPercent) || targetPercent < 0 || targetPercent > 100) {
+          errors.push(`targets[${i}].targetPercent must be between 0 and 100`);
+        }
+
+        const dedupe = `${scope}|${key}`;
+        if (seen.has(dedupe)) errors.push(`duplicate target for ${scope} ${key}`);
+        seen.add(dedupe);
+
+        normalized.push({ scope, key, targetPercent });
+      });
+    }
+
+    const threshold =
+      body.concentrationThreshold === undefined
+        ? Number(portfolio.concentration_threshold)
+        : Number(body.concentrationThreshold);
+    if (!Number.isFinite(threshold) || threshold < 0 || threshold > 100) {
+      errors.push('concentrationThreshold must be between 0 and 100');
+    }
+
+    if (errors.length) return invalid(res, errors.join('; '));
+
+    const client = await getPool().connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM allocation_targets WHERE portfolio_id = $1', [portfolio.id]);
+      for (const t of normalized) {
+        await client.query(
+          `INSERT INTO allocation_targets (portfolio_id, scope, target_key, target_percent)
+           VALUES ($1, $2, $3, $4)`,
+          [portfolio.id, t.scope, t.key, t.targetPercent],
+        );
+      }
+      await client.query('UPDATE portfolios SET concentration_threshold = $1 WHERE id = $2', [
+        threshold,
+        portfolio.id,
+      ]);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    const { rows } = await query(
+      'SELECT * FROM allocation_targets WHERE portfolio_id = $1 ORDER BY scope, target_key',
+      [portfolio.id],
+    );
+    return res.json({ targets: rows.map(serializeTarget), concentrationThreshold: threshold });
   }),
 );
 
