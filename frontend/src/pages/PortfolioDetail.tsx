@@ -23,7 +23,7 @@ import { usePortfolioMetrics, useIndex, usePortfolioHistory, useCandles } from '
 import { buildSectorAllocation, buildHoldingAllocation } from '@/utils';
 import { ROUTES, PSX_INDICES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
 import { format, parseISO, subDays, addDays } from 'date-fns';
-import type { Holding, PSXCompany, DeclaredDividendInput } from '@/types';
+import type { Holding, PSXCompany, DeclaredDividendInput, CorporateActionInput } from '@/types';
 import { formatCurrency, formatPercent, type HoldingFormValues, type BuyFormValues, type SellFormValues } from '@/utils';
 
 /**
@@ -66,7 +66,7 @@ export function PortfolioDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const portfolio = usePortfolioStore((s) => s.portfolios.find((p) => p.id === id));
-  const { addHolding, updateHolding, buyInto, updateBuy, deleteBuy, deleteHolding, sell, updateSell, deleteSell, addCash, deleteCash, addDeclaredDividend, deleteDeclaredDividend } = usePortfolioStore();
+  const { addHolding, updateHolding, buyInto, updateBuy, deleteBuy, deleteHolding, sell, updateSell, deleteSell, addCash, deleteCash, addDeclaredDividend, deleteDeclaredDividend, addCorporateAction, deleteCorporateAction } = usePortfolioStore();
   const addNotification = useUIStore((s) => s.addNotification);
   const { metrics, isLoading } = usePortfolioMetrics(id);
   const [range, setRange] = useState<ComparisonRange>('3M');
@@ -338,6 +338,36 @@ export function PortfolioDetail() {
       addNotification({
         type: 'error',
         title: 'Could not remove the sale',
+        message: (err as Error).message,
+      });
+    }
+  };
+
+  /** Apply a corporate action; the position is re-derived from the ledger. */
+  const handleAddCorporateAction = async (input: Omit<CorporateActionInput, 'holdingId'>) => {
+    if (!editingHolding) return;
+    try {
+      await addCorporateAction(id, editingHolding.id, input);
+      addNotification({ type: 'success', title: `${input.type} applied to ${editingHolding.symbol}` });
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: 'Could not apply the corporate action',
+        message: (err as Error).message,
+      });
+    }
+  };
+
+  /** Undo a corporate action; the position is re-derived from the ledger. */
+  const handleDeleteCorporateAction = async (actionId: string) => {
+    if (!editingHolding) return;
+    try {
+      await deleteCorporateAction(id, editingHolding.id, actionId);
+      addNotification({ type: 'info', title: 'Corporate action undone' });
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: 'Could not undo the corporate action',
         message: (err as Error).message,
       });
     }
@@ -839,6 +869,9 @@ export function PortfolioDetail() {
               onSell={handleSell}
               onUpdateSell={handleUpdateSell}
               onDeleteSell={handleDeleteSell}
+              actions={liveEditingHolding.corporateActions ?? []}
+              onAddAction={handleAddCorporateAction}
+              onDeleteAction={handleDeleteCorporateAction}
             />
           )}
         </DialogContent>

@@ -26,6 +26,7 @@ import type {
   BuyInput,
   SellInput,
   DeclaredDividendInput,
+  CorporateActionInput,
   DeleteBuyResult,
 } from '@/types';
 import { PORTFOLIO_COLORS, STORAGE_KEYS } from '@/constants';
@@ -132,6 +133,12 @@ interface PortfolioState {
     patch: Omit<DeclaredDividendInput, 'holdingId'>
   ) => Promise<void>;
   deleteDeclaredDividend: (portfolioId: string, holdingId: string, dividendId: string) => Promise<void>;
+  addCorporateAction: (
+    portfolioId: string,
+    holdingId: string,
+    input: Omit<CorporateActionInput, 'holdingId'>
+  ) => Promise<void>;
+  deleteCorporateAction: (portfolioId: string, holdingId: string, actionId: string) => Promise<void>;
 
   // Selectors — read from the cache, never the network
   getPortfolioById: (id: string) => Portfolio | undefined;
@@ -188,6 +195,7 @@ function readBrowserPortfolios(): Portfolio[] {
         buys: holding.buys ?? [],
         sells: holding.sells ?? [],
         declaredDividends: holding.declaredDividends ?? [],
+        corporateActions: holding.corporateActions ?? [],
       })),
     }));
   } catch {
@@ -459,6 +467,24 @@ export const usePortfolioStore = create<PortfolioState>()((set, get) => ({
       get().put(
         await portfoliosApi.removeDeclaredDividend(portfolioId, holdingId, dividendId),
       );
+    } catch (err) {
+      set({ error: messageFor(err) });
+      throw err;
+    }
+  },
+
+  addCorporateAction: async (portfolioId, holdingId, input) => {
+    try {
+      get().put(await portfoliosApi.addCorporateAction(portfolioId, holdingId, input));
+    } catch (err) {
+      set({ error: messageFor(err) });
+      throw err;
+    }
+  },
+
+  deleteCorporateAction: async (portfolioId, holdingId, actionId) => {
+    try {
+      get().put(await portfoliosApi.removeCorporateAction(portfolioId, holdingId, actionId));
     } catch (err) {
       set({ error: messageFor(err) });
       throw err;
