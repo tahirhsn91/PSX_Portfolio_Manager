@@ -8,3 +8,4 @@ export * from './riskAnalytics';
 export * from './scenarioAnalysis';
 export * from './supportResistance';
 export * from './dividendForecast';
+export * from './dividendCalendar';
