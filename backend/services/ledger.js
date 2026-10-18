@@ -52,15 +52,30 @@ async function loadSells(client, holdingId) {
   return rows;
 }
 
+/** The corporate-action log for a holding, oldest first. */
+async function loadActions(client, holdingId) {
+  const { rows } = await client.query(
+    'SELECT * FROM corporate_actions WHERE holding_id = $1 ORDER BY date, created_at',
+    [holdingId],
+  );
+  return rows;
+}
+
 /**
- * The position a holding's full ledger (buys + sells) describes, under the
- * weighted-average (perpetual) method. Mirrors the frontend's `replayLedger`;
- * only the position is needed here — realized P/L is computed at read time.
+ * The position a holding's full ledger (buys + sells + corporate actions)
+ * describes, under the weighted-average (perpetual) method. Mirrors the
+ * frontend's `replayLedger`; only the position is needed here — realized P/L is
+ * computed at read time.
+ *
+ * A split scales shares by `ratio` (cost basis unchanged); a bonus adds
+ * `ratio × shares` at no cost; a rights issue adds `ratio × shares` at the
+ * subscription `price`. Fractional shares round to whole shares on both sides.
  */
-function replayPosition(buys, sells) {
+function replayPosition(buys, sells, actions = []) {
   const events = [
     ...buys.map((b) => ({ date: dayOf(b.date), shares: num(b.shares), pricePerShare: num(b.price_per_share), type: 'buy' })),
     ...sells.map((s) => ({ date: dayOf(s.date), shares: num(s.shares), pricePerShare: num(s.price_per_share), type: 'sell' })),
+    ...actions.map((a) => ({ date: dayOf(a.date), type: a.type, ratio: num(a.ratio), price: num(a.price) })),
   ].sort((a, b) => a.date.localeCompare(b.date));
 
   let shares = 0;
@@ -69,11 +84,19 @@ function replayPosition(buys, sells) {
     if (e.type === 'buy') {
       shares += e.shares;
       cost += e.shares * e.pricePerShare;
-    } else {
+    } else if (e.type === 'sell') {
       const average = shares > 0 ? cost / shares : 0;
       const qty = Math.max(0, Math.min(e.shares, shares));
       shares -= qty;
       cost -= average * qty;
+    } else if (e.type === 'split') {
+      shares = Math.round(shares * e.ratio);
+    } else if (e.type === 'bonus') {
+      shares = Math.round(shares * (1 + e.ratio));
+    } else if (e.type === 'rights') {
+      const added = Math.round(shares * e.ratio);
+      shares += added;
+      cost += added * e.price;
     }
   }
   return { shares, averagePurchasePrice: shares > 0 ? roundMoney(cost / shares) : 0 };
@@ -102,7 +125,8 @@ function ledgerGoesNegative(buys, sells) {
 async function deriveFromLog(client, holdingId) {
   const buys = await loadBuys(client, holdingId);
   const sells = await loadSells(client, holdingId);
-  const position = replayPosition(buys, sells);
+  const actions = await loadActions(client, holdingId);
+  const position = replayPosition(buys, sells, actions);
   const { rows } = await client.query(
     `UPDATE holdings SET shares = $2, avg_purchase_price = $3
       WHERE id = $1 RETURNING *`,
@@ -144,6 +168,13 @@ async function absorbEdit(client, holding, next) {
     return {
       ok: false,
       reason: 'This holding has sales — edit its position through the buy/sell ledger.',
+    };
+  }
+  const actions = await loadActions(client, holding.id);
+  if (actions.length > 0) {
+    return {
+      ok: false,
+      reason: 'This holding has corporate actions — edit its position through the ledger.',
     };
   }
   await ensureOpeningEntry(client, holding);
@@ -270,11 +301,35 @@ async function deleteSell(client, holdingId, sellId) {
   return { ok: true };
 }
 
+/** Log a corporate action and re-derive the position from the full ledger. */
+async function addAction(client, holding, input) {
+  await ensureOpeningEntry(client, holding);
+  const { rows } = await client.query(
+    `INSERT INTO corporate_actions (holding_id, type, date, ratio, price)
+     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [holding.id, input.type, input.date, input.ratio, input.price ?? null],
+  );
+  await deriveFromLog(client, holding.id);
+  return rows[0];
+}
+
+/** Undo a corporate action; the whole position is re-derived. */
+async function deleteAction(client, holdingId, actionId) {
+  const { rowCount } = await client.query(
+    'DELETE FROM corporate_actions WHERE id = $1 AND holding_id = $2',
+    [actionId, holdingId],
+  );
+  if (!rowCount) return { ok: false, reason: 'Corporate action not found.' };
+  await deriveFromLog(client, holdingId);
+  return { ok: true };
+}
+
 module.exports = {
   roundMoney,
   positionFromBuys,
   loadBuys,
   loadSells,
+  loadActions,
   replayPosition,
   ledgerGoesNegative,
   deriveFromLog,
@@ -286,4 +341,6 @@ module.exports = {
   addSell,
   updateSell,
   deleteSell,
+  addAction,
+  deleteAction,
 };

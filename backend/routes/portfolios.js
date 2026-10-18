@@ -114,7 +114,19 @@ function serializeDeclaredDividend(row) {
   };
 }
 
-function serializeHolding(row, dividends, buys = [], sells = [], declaredDividends = []) {
+/** One corporate action. `ratio` is the replay multiplier; `price` only for rights. */
+function serializeCorporateAction(row) {
+  return {
+    id: row.id,
+    holdingId: row.holding_id,
+    type: row.type,
+    date: isoDate(row.date),
+    ratio: num(row.ratio),
+    ...(row.price != null ? { price: num(row.price) } : {}),
+  };
+}
+
+function serializeHolding(row, dividends, buys = [], sells = [], declaredDividends = [], corporateActions = []) {
   return {
     id: row.id,
     portfolioId: row.portfolio_id,
@@ -131,6 +143,7 @@ function serializeHolding(row, dividends, buys = [], sells = [], declaredDividen
     buys,
     sells,
     declaredDividends,
+    corporateActions,
   };
 }
 
@@ -244,6 +257,22 @@ async function listPortfolios(userId) {
     declaredByHolding.set(d.holding_id, list);
   }
 
+  const actionRows = holdingIds.length
+    ? (
+        await query(
+          'SELECT * FROM corporate_actions WHERE holding_id = ANY($1::uuid[]) ORDER BY date, created_at',
+          [holdingIds],
+        )
+      ).rows
+    : [];
+
+  const actionsByHolding = new Map();
+  for (const a of actionRows) {
+    const list = actionsByHolding.get(a.holding_id) ?? [];
+    list.push(serializeCorporateAction(a));
+    actionsByHolding.set(a.holding_id, list);
+  }
+
   const holdingsByPortfolio = new Map();
   for (const h of holdingRows) {
     const list = holdingsByPortfolio.get(h.portfolio_id) ?? [];
@@ -254,6 +283,7 @@ async function listPortfolios(userId) {
         buysByHolding.get(h.id) ?? [],
         sellsByHolding.get(h.id) ?? [],
         declaredByHolding.get(h.id) ?? [],
+        actionsByHolding.get(h.id) ?? [],
       ),
     );
     holdingsByPortfolio.set(h.portfolio_id, list);
@@ -323,6 +353,19 @@ async function findOwnedDeclaredDividend(userId, portfolioId, holdingId, dividen
        JOIN portfolios p ON p.id = h.portfolio_id
       WHERE d.id = $1 AND d.holding_id = $2 AND h.portfolio_id = $3 AND p.user_id = $4`,
     [dividendId, holdingId, portfolioId, userId],
+  );
+  return rows[0] ?? null;
+}
+
+/** Ownership gate for a single corporate action. */
+async function findOwnedCorporateAction(userId, portfolioId, holdingId, actionId) {
+  if (!UUID_RE.test(actionId)) return null;
+  const { rows } = await query(
+    `SELECT a.* FROM corporate_actions a
+       JOIN holdings h ON h.id = a.holding_id
+       JOIN portfolios p ON p.id = h.portfolio_id
+      WHERE a.id = $1 AND a.holding_id = $2 AND h.portfolio_id = $3 AND p.user_id = $4`,
+    [actionId, holdingId, portfolioId, userId],
   );
   return rows[0] ?? null;
 }
@@ -494,6 +537,25 @@ function readDeclaredDividendInput(body = {}) {
   };
 
   return { values, errors };
+}
+
+/** A corporate action: split/bonus/rights with a ratio (and price for rights). */
+function readCorporateActionInput(body = {}) {
+  const errors = [];
+  const type = body.type;
+  if (type !== 'split' && type !== 'bonus' && type !== 'rights') {
+    errors.push('Type must be split, bonus or rights');
+  }
+  const date = String(body.date ?? '').slice(0, 10);
+  if (!isValidISODate(date)) errors.push('Date must be a real date (YYYY-MM-DD)');
+  const ratio = Number(body.ratio);
+  if (!Number.isFinite(ratio) || ratio <= 0) errors.push('Ratio must be greater than 0');
+  let price = null;
+  if (type === 'rights') {
+    price = Number(body.price);
+    if (!Number.isFinite(price) || price < 0) errors.push('Subscription price must be 0 or greater');
+  }
+  return { values: { type, date, ratio, price }, errors };
 }
 
 function readDividendInput(body = {}) {
@@ -1042,6 +1104,47 @@ router.delete(
 
     const outcome = await withTransaction(async (client) => {
       const result = await ledger.deleteSell(client, holding.id, sell.id);
+      if (result.ok) {
+        await client.query('UPDATE portfolios SET updated_at = NOW() WHERE id = $1', [holding.portfolio_id]);
+      }
+      return result;
+    });
+
+    if (!outcome.ok) return conflict(res, outcome.reason);
+    return res.json({ portfolio: await loadPortfolio(req.user.id, holding.portfolio_id) });
+  }),
+);
+
+// ── Corporate actions ──────────────────────────────────────────────────────────
+
+router.post(
+  '/:id/holdings/:holdingId/corporate-actions',
+  wrap(async (req, res) => {
+    const holding = await findOwnedHolding(req.user.id, req.params.id, req.params.holdingId);
+    if (!holding) return notFound(res);
+
+    const { values, errors } = readCorporateActionInput(req.body);
+    if (errors.length) return invalid(res, errors.join('; '));
+
+    await withTransaction(async (client) => {
+      await ledger.addAction(client, holding, values);
+      await client.query('UPDATE portfolios SET updated_at = NOW() WHERE id = $1', [holding.portfolio_id]);
+    });
+
+    return res.status(201).json({ portfolio: await loadPortfolio(req.user.id, holding.portfolio_id) });
+  }),
+);
+
+router.delete(
+  '/:id/holdings/:holdingId/corporate-actions/:actionId',
+  wrap(async (req, res) => {
+    const holding = await findOwnedHolding(req.user.id, req.params.id, req.params.holdingId);
+    if (!holding) return notFound(res);
+    const action = await findOwnedCorporateAction(req.user.id, req.params.id, holding.id, req.params.actionId);
+    if (!action) return notFound(res);
+
+    const outcome = await withTransaction(async (client) => {
+      const result = await ledger.deleteAction(client, holding.id, action.id);
       if (result.ok) {
         await client.query('UPDATE portfolios SET updated_at = NOW() WHERE id = $1', [holding.portfolio_id]);
       }
