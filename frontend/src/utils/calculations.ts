@@ -83,6 +83,14 @@ export interface SellLedgerEntry {
   fees: number; // PKR fees/taxes charged on this sale
 }
 
+/** A corporate action, as entered into a holding's ledger. */
+export interface CorporateActionLedgerEntry {
+  date: string; // ISO date — the day the action takes effect
+  type: 'split' | 'bonus' | 'rights';
+  ratio: number; // replay multiplier (2 = 2:1 split; 0.10 = 10% bonus)
+  price?: number; // subscription price, rights only
+}
+
 /** The position and realized P/L a holding's full ledger (buys + sells) describes. */
 export interface ReplayedPosition {
   shares: number;
@@ -93,15 +101,16 @@ export interface ReplayedPosition {
 }
 
 /**
- * Replay a holding's buys and sells in chronological order under the
- * weighted-average (perpetual) method, returning the position and the realized
- * P/L the ledger produced.
+ * Replay a holding's buys, sells and corporate actions in chronological order
+ * under the weighted-average (perpetual) method, returning the position and the
+ * realized P/L the ledger produced.
  *
  * A buy raises the running average; a sell realises
- * `(salePrice − average) × qty − fees` and leaves the average unchanged. The
- * running average is kept unrounded so realized P/L is exact to the paisa, and
- * only the returned figures are rounded (matching `positionFromBuys`, which
- * rounds once).
+ * `(salePrice − average) × qty − fees` and leaves the average unchanged. A split
+ * scales shares by `ratio` (cost basis unchanged); a bonus adds `ratio × shares`
+ * at no cost; a rights issue adds `ratio × shares` at the subscription `price`.
+ * The running average is kept unrounded so realized P/L is exact to the paisa,
+ * and only the returned figures are rounded (matching `positionFromBuys`).
  *
  * A sell larger than the shares owned at its date is clamped to what is owned —
  * the server rejects such a sell before this ever runs, so the clamp is a guard,
@@ -109,11 +118,13 @@ export interface ReplayedPosition {
  */
 export function replayLedger(
   buys: { date: string; shares: number; pricePerShare: number }[],
-  sells: SellLedgerEntry[]
+  sells: SellLedgerEntry[],
+  actions: CorporateActionLedgerEntry[] = [],
 ): ReplayedPosition {
   const events = [
     ...buys.map((b) => ({ date: b.date, shares: b.shares, pricePerShare: b.pricePerShare, type: 'buy' as const })),
     ...sells.map((s) => ({ date: s.date, shares: s.shares, pricePerShare: s.pricePerShare, fees: s.fees, type: 'sell' as const })),
+    ...actions.map((a) => ({ date: a.date, ratio: a.ratio, price: a.price ?? 0, type: a.type })),
   ].sort((a, b) => a.date.localeCompare(b.date));
 
   let shares = 0;
@@ -125,13 +136,22 @@ export function replayLedger(
     if (e.type === 'buy') {
       shares += e.shares;
       cost += e.shares * e.pricePerShare;
-    } else {
+    } else if (e.type === 'sell') {
       const average = shares > 0 ? cost / shares : 0;
       const qty = Math.max(0, Math.min(e.shares, shares));
       realizedPL += (e.pricePerShare - average) * qty - e.fees;
       totalFees += e.fees;
       shares -= qty;
       cost -= average * qty;
+    } else if (e.type === 'split') {
+      shares = Math.round(shares * e.ratio);
+    } else if (e.type === 'bonus') {
+      shares = Math.round(shares * (1 + e.ratio));
+    } else {
+      // rights
+      const added = Math.round(shares * e.ratio);
+      shares += added;
+      cost += added * e.price;
     }
   }
 
@@ -177,9 +197,11 @@ export function calculateHoldingMetrics(
   const costBasis = holding.shares * holding.averagePurchasePrice;
   const totalDividendIncome = holding.dividendsReceived.reduce((sum, d) => sum + d.totalAmount, 0);
   // Realized P/L is a fact of the ledger, not of the current quote, so it is
-  // replayed even when the feed cannot price the position.
+  // replayed even when the feed cannot price the position. Corporate actions
+  // join the replay because a split or bonus before a sale changes the average
+  // cost the sale books against.
   const realizedPL = holding.sells?.length
-    ? replayLedger(holding.buys ?? [], holding.sells).realizedPL
+    ? replayLedger(holding.buys ?? [], holding.sells, holding.corporateActions ?? []).realizedPL
     : 0;
 
   if (!isQuoteUsable(quote)) {

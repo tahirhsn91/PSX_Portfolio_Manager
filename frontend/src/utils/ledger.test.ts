@@ -126,3 +126,49 @@ describe('calculateHoldingMetrics flows realized P/L into the total return', () 
     expect(m.priceAvailable).toBe(false);
   });
 });
+
+describe('replayLedger with corporate actions', () => {
+  it('a 2:1 split doubles the quantity and halves the average, cost basis unchanged', () => {
+    const pos = replayLedger(
+      [{ date: '2026-01-01', shares: 100, pricePerShare: 50 }],
+      [],
+      [{ date: '2026-02-01', type: 'split', ratio: 2 }]
+    );
+    expect(pos.shares).toBe(200);
+    expect(pos.averagePurchasePrice).toBe(25);
+    expect(pos.totalCostBasis).toBe(5000);
+  });
+
+  it('bonus shares raise the quantity and lower the average, cost basis unchanged', () => {
+    const pos = replayLedger(
+      [{ date: '2026-01-01', shares: 100, pricePerShare: 40 }],
+      [],
+      [{ date: '2026-02-01', type: 'bonus', ratio: 0.25 }]
+    );
+    expect(pos.shares).toBe(125);
+    expect(pos.averagePurchasePrice).toBe(32);
+    expect(pos.totalCostBasis).toBe(4000);
+  });
+
+  it('a rights issue adds shares at the subscription price', () => {
+    const pos = replayLedger(
+      [{ date: '2026-01-01', shares: 100, pricePerShare: 50 }],
+      [],
+      [{ date: '2026-02-01', type: 'rights', ratio: 0.25, price: 20 }]
+    );
+    expect(pos.shares).toBe(125);
+    expect(pos.totalCostBasis).toBe(5500); // 5000 + 25×20
+    expect(pos.averagePurchasePrice).toBe(44);
+  });
+
+  it('a split before a sell books the sale against the split-adjusted average', () => {
+    const pos = replayLedger(
+      [{ date: '2026-01-01', shares: 100, pricePerShare: 50 }],
+      [{ date: '2026-03-01', shares: 100, pricePerShare: 30, fees: 0 }],
+      [{ date: '2026-02-01', type: 'split', ratio: 2 }]
+    );
+    // After the split: 200 shares at 25. Selling 100 at 30 realizes (30 - 25) × 100.
+    expect(pos.realizedPL).toBe(500);
+    expect(pos.shares).toBe(100);
+  });
+});
