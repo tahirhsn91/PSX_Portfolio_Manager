@@ -53,6 +53,7 @@ const authRoutes          = require('./routes/auth');
 const portfolioRoutes     = require('./routes/portfolios');
 const userRoutes          = require('./routes/users');
 const watchlistRoutes     = require('./routes/watchlist');
+const alertRoutes         = require('./routes/alerts');
 const { seedAdmin, reportOutcome } = require('./services/seedAdmin');
 
 // Flips true once migrations + a connectivity check succeed (see boot() below).
@@ -317,6 +318,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/portfolios', portfolioRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/watchlist', watchlistRoutes);
+app.use('/api/alerts', alertRoutes);
 
 // ── Error handler ─────────────────────────────────────────────────────────────
 
