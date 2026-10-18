@@ -5,3 +5,4 @@ export * from './market';
 export * from './storage';
 export * from './prediction';
 export * from './watchlist';
+export * from './alerts';
