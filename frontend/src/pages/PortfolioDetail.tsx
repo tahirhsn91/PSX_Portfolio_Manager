@@ -6,7 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, MetricBand, PLValue, PageHeader, CompanySearch } from '@/components/shared';
@@ -18,7 +23,12 @@ import { DividendCalendar } from '@/features/portfolio/DividendCalendar';
 import { RiskAnalytics } from '@/features/portfolio/RiskAnalytics';
 import { ScenarioAnalysis } from '@/features/portfolio/ScenarioAnalysis';
 import { TargetAllocation } from '@/features/portfolio/TargetAllocation';
-import { AllocationPieChart, PortfolioValueChart, BenchmarkComparisonChart, rangeDays } from '@/features/charts';
+import {
+  AllocationPieChart,
+  PortfolioValueChart,
+  BenchmarkComparisonChart,
+  rangeDays,
+} from '@/features/charts';
 import type { ComparisonBenchmark, ComparisonRange } from '@/features/charts';
 import { usePortfolioStore, useUIStore } from '@/store';
 import { ApiError } from '@/services/http';
@@ -27,7 +37,13 @@ import { buildSectorAllocation, buildHoldingAllocation } from '@/utils';
 import { ROUTES, PSX_INDICES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
 import { format, parseISO, subDays, addDays } from 'date-fns';
 import type { Holding, PSXCompany, DeclaredDividendInput, CorporateActionInput } from '@/types';
-import { formatCurrency, formatPercent, type HoldingFormValues, type BuyFormValues, type SellFormValues } from '@/utils';
+import {
+  formatCurrency,
+  formatPercent,
+  type HoldingFormValues,
+  type BuyFormValues,
+  type SellFormValues,
+} from '@/utils';
 
 /**
  * Every PSX index, offered in the picker as a pseudo-company so indices and stocks
@@ -69,7 +85,23 @@ export function PortfolioDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const portfolio = usePortfolioStore((s) => s.portfolios.find((p) => p.id === id));
-  const { addHolding, updateHolding, buyInto, updateBuy, deleteBuy, deleteHolding, sell, updateSell, deleteSell, addCash, deleteCash, addDeclaredDividend, deleteDeclaredDividend, addCorporateAction, deleteCorporateAction } = usePortfolioStore();
+  const {
+    addHolding,
+    updateHolding,
+    buyInto,
+    updateBuy,
+    deleteBuy,
+    deleteHolding,
+    sell,
+    updateSell,
+    deleteSell,
+    addCash,
+    deleteCash,
+    addDeclaredDividend,
+    deleteDeclaredDividend,
+    addCorporateAction,
+    deleteCorporateAction,
+  } = usePortfolioStore();
   const addNotification = useUIStore((s) => s.addNotification);
   const { metrics, isLoading } = usePortfolioMetrics(id);
   const [range, setRange] = useState<ComparisonRange>('3M');
@@ -80,7 +112,8 @@ export function PortfolioDetail() {
 
   const rangeDaysValue = rangeDays(range);
   const { series: portfolioSeries, isLoading: portfolioHistoryLoading } = usePortfolioHistory(
-    portfolio?.holdings, rangeDaysValue,
+    portfolio?.holdings,
+    rangeDaysValue
   );
 
   // Whichever the benchmark is, fetch its own series for the selected period from the
@@ -91,14 +124,15 @@ export function PortfolioDetail() {
     {
       from: format(subDays(new Date(), rangeDaysValue), 'yyyy-MM-dd'),
       to: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
-    },
+    }
   );
 
   const comparisonBenchmark: ComparisonBenchmark = {
     id: benchmark.code,
     label: benchmark.label,
     kind: benchmark.kind,
-    series: benchmark.kind === 'index' ? (indexQuery.data?.historicalData ?? []) : benchmarkStockHistory,
+    series:
+      benchmark.kind === 'index' ? (indexQuery.data?.historicalData ?? []) : benchmarkStockHistory,
   };
 
   const [addOpen, setAddOpen] = useState(false);
@@ -140,7 +174,7 @@ export function PortfolioDetail() {
    * position, and the dialog has to show that new position immediately.
    */
   const liveEditingHolding = editingHolding
-    ? portfolio.holdings.find((h) => h.id === editingHolding.id) ?? editingHolding
+    ? (portfolio.holdings.find((h) => h.id === editingHolding.id) ?? editingHolding)
     : null;
 
   const handleAdd = async (values: HoldingFormValues) => {
@@ -162,7 +196,10 @@ export function PortfolioDetail() {
    * and average from the whole log. The dialog stays open — the history it
    * shows has just changed — and the notification reports the new position.
    */
-  const handleUpdateBuy = async (buyId: string, patch: { shares: number; pricePerShare: number }) => {
+  const handleUpdateBuy = async (
+    buyId: string,
+    patch: { shares: number; pricePerShare: number }
+  ) => {
     if (!editingHolding) return;
     try {
       const updated = await updateBuy(id, editingHolding.id, buyId, patch);
@@ -304,12 +341,18 @@ export function PortfolioDetail() {
   };
 
   /** Correcting a logged sale: the position re-derives from the whole ledger. */
-  const handleUpdateSell = async (sellId: string, patch: { shares: number; pricePerShare: number; fees: number }) => {
+  const handleUpdateSell = async (
+    sellId: string,
+    patch: { shares: number; pricePerShare: number; fees: number }
+  ) => {
     if (!editingHolding) return;
     const existing = (editingHolding.sells ?? []).find((s) => s.id === sellId);
     if (!existing) return;
     try {
-      const updated = await updateSell(id, editingHolding.id, sellId, { ...patch, date: existing.date });
+      const updated = await updateSell(id, editingHolding.id, sellId, {
+        ...patch,
+        date: existing.date,
+      });
       if (!updated) return;
       addNotification({
         type: 'success',
@@ -351,7 +394,10 @@ export function PortfolioDetail() {
     if (!editingHolding) return;
     try {
       await addCorporateAction(id, editingHolding.id, input);
-      addNotification({ type: 'success', title: `${input.type} applied to ${editingHolding.symbol}` });
+      addNotification({
+        type: 'success',
+        title: `${input.type} applied to ${editingHolding.symbol}`,
+      });
     } catch (err) {
       addNotification({
         type: 'error',
@@ -381,7 +427,12 @@ export function PortfolioDetail() {
     const amount = Number(cashAmount);
     if (!Number.isFinite(amount) || amount <= 0) return;
     try {
-      await addCash(id, { date: cashDate, type: cashType, amount, notes: cashNotes.trim() || undefined });
+      await addCash(id, {
+        date: cashDate,
+        type: cashType,
+        amount,
+        notes: cashNotes.trim() || undefined,
+      });
       addNotification({
         type: 'success',
         title: `${cashType === 'deposit' ? 'Deposit' : 'Withdrawal'} of ${formatCurrency(amount)} recorded`,
@@ -390,7 +441,11 @@ export function PortfolioDetail() {
       setCashAmount('');
       setCashNotes('');
     } catch (err) {
-      addNotification({ type: 'error', title: 'Could not record the cash entry', message: (err as Error).message });
+      addNotification({
+        type: 'error',
+        title: 'Could not record the cash entry',
+        message: (err as Error).message,
+      });
     }
   };
 
@@ -398,7 +453,11 @@ export function PortfolioDetail() {
     try {
       await deleteCash(id, cashId);
     } catch (err) {
-      addNotification({ type: 'error', title: 'Could not remove the cash entry', message: (err as Error).message });
+      addNotification({
+        type: 'error',
+        title: 'Could not remove the cash entry',
+        message: (err as Error).message,
+      });
     }
   };
 
@@ -452,7 +511,11 @@ export function PortfolioDetail() {
   // "Dividends — Total received" figure in the band.
   const dividends = portfolio.holdings
     .flatMap((h) =>
-      (h.dividendsReceived ?? []).map((d) => ({ ...d, symbol: h.symbol, companyName: h.companyName })),
+      (h.dividendsReceived ?? []).map((d) => ({
+        ...d,
+        symbol: h.symbol,
+        companyName: h.companyName,
+      }))
     )
     .sort((a, b) => b.date.localeCompare(a.date));
 
@@ -460,7 +523,7 @@ export function PortfolioDetail() {
   const cashTransactions = portfolio.cashTransactions ?? [];
   const cashBalance = cashTransactions.reduce(
     (sum, c) => sum + (c.type === 'deposit' ? c.amount : -c.amount),
-    0,
+    0
   );
 
   // One card, two breakdowns: whichever the switch has selected is the pie that
@@ -468,10 +531,26 @@ export function PortfolioDetail() {
   // `gain` rides along so the pie can colour a slice green or red by whether the
   // holding (or the sector's holdings) is up or down, and pick a tone within that
   // family so neighbouring slices stay distinguishable.
-  const allocationData = allocationView === 'holdings'
-    ? holdingAlloc.map((h) => ({ name: h.name, value: h.value, percent: h.percent, color: h.color, gain: h.gain, gainPercent: h.gainPercent }))
-    : sectorAlloc.map((s) => ({ name: s.sector, value: s.value, percent: s.percent, color: s.color, gain: s.gain, gainPercent: s.gainPercent }));
-  const allocationTitle = allocationView === 'holdings' ? 'Holdings Allocation' : 'Sector Allocation';
+  const allocationData =
+    allocationView === 'holdings'
+      ? holdingAlloc.map((h) => ({
+          name: h.name,
+          value: h.value,
+          percent: h.percent,
+          color: h.color,
+          gain: h.gain,
+          gainPercent: h.gainPercent,
+        }))
+      : sectorAlloc.map((s) => ({
+          name: s.sector,
+          value: s.value,
+          percent: s.percent,
+          color: s.color,
+          gain: s.gain,
+          gainPercent: s.gainPercent,
+        }));
+  const allocationTitle =
+    allocationView === 'holdings' ? 'Holdings Allocation' : 'Sector Allocation';
 
   const totalPL = metrics?.totalPL ?? 0;
   const tone = totalPL > 0 ? 'profit' : totalPL < 0 ? 'loss' : 'neutral';
@@ -483,12 +562,25 @@ export function PortfolioDetail() {
     {
       label: "Today's P&L",
       value: formatCurrency(todayPL),
-      hint: metrics?.todayPLPercent !== undefined ? formatPercent(metrics.todayPLPercent) : undefined,
+      hint:
+        metrics?.todayPLPercent !== undefined ? formatPercent(metrics.todayPLPercent) : undefined,
       tone: todayTone,
     },
-    { label: 'Dividends', value: formatCurrency(metrics?.totalDividendIncome ?? 0), hint: 'Total received' },
-    { label: 'Realized P/L', value: formatCurrency(metrics?.totalRealizedPL ?? 0), hint: 'Booked on sales' },
-    { label: 'Holdings', value: String(portfolio.holdings.length), hint: `${holdingAlloc.length} priced` },
+    {
+      label: 'Dividends',
+      value: formatCurrency(metrics?.totalDividendIncome ?? 0),
+      hint: 'Total received',
+    },
+    {
+      label: 'Realized P/L',
+      value: formatCurrency(metrics?.totalRealizedPL ?? 0),
+      hint: 'Booked on sales',
+    },
+    {
+      label: 'Holdings',
+      value: String(portfolio.holdings.length),
+      hint: `${holdingAlloc.length} priced`,
+    },
   ];
 
   return (
@@ -515,127 +607,157 @@ export function PortfolioDetail() {
         }
       />
       <ScrollReveal className="space-y-6">
+        {/* Answer first, then the supporting figures — the same band as the Dashboard. */}
+        <MetricBand
+          label="Current value"
+          value={formatCurrency(metrics?.currentValue ?? 0)}
+          animateValue={metrics?.currentValue}
+          animateFormat={(n) => formatCurrency(n)}
+          change={{
+            amount: formatCurrency(totalPL),
+            percent:
+              metrics?.totalPLPercent !== undefined
+                ? formatPercent(metrics.totalPLPercent)
+                : undefined,
+            tone,
+          }}
+          stats={stats}
+          isLoading={isLoading}
+          notice={
+            metrics && metrics.unpricedHoldings > 0 ? (
+              <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning-light p-3 text-xs text-warning-dark">
+                <TriangleAlert aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>
+                  <span className="font-medium">
+                    {metrics.unpricedHoldings} of {portfolio.holdings.length} holdings have no price
+                  </span>{' '}
+                  ({metrics.unpricedSymbols.join(', ')}) — the figures above cover the other{' '}
+                  {portfolio.holdings.length - metrics.unpricedHoldings}. A holding with no price is
+                  left out rather than counted as zero.
+                </p>
+              </div>
+            ) : undefined
+          }
+        />
 
-      {/* Answer first, then the supporting figures — the same band as the Dashboard. */}
-      <MetricBand
-        label="Current value"
-        value={formatCurrency(metrics?.currentValue ?? 0)}
-        animateValue={metrics?.currentValue}
-        animateFormat={(n) => formatCurrency(n)}
-        change={{
-          amount: formatCurrency(totalPL),
-          percent: metrics?.totalPLPercent !== undefined ? formatPercent(metrics.totalPLPercent) : undefined,
-          tone,
-        }}
-        stats={stats}
-        isLoading={isLoading}
-        notice={
-          metrics && metrics.unpricedHoldings > 0 ? (
-            <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning-light p-3 text-xs text-warning-dark">
-              <TriangleAlert aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
-              <p>
-                <span className="font-medium">
-                  {metrics.unpricedHoldings} of {portfolio.holdings.length} holdings have no price
-                </span>{' '}
-                ({metrics.unpricedSymbols.join(', ')}) — the figures above cover the other{' '}
-                {portfolio.holdings.length - metrics.unpricedHoldings}. A holding with no price is
-                left out rather than counted as zero.
-              </p>
-            </div>
-          ) : undefined
-        }
-      />
-
-      {/* Leaders: the question "which of my holdings is doing the work?" — one row
+        {/* Leaders: the question "which of my holdings is doing the work?" — one row
           each, and a way through to the full story for that stock. */}
-      {metrics?.bestPerformer && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle>Performance leaders</CardTitle>
-          </CardHeader>
-          <CardContent className="pb-3">
-            <ul className="divide-y">
-              {[
-                { label: 'Best', holding: metrics.bestPerformer },
-                { label: 'Worst', holding: metrics.worstPerformer },
-              ]
-                .filter((row): row is { label: string; holding: NonNullable<typeof row.holding> } => Boolean(row.holding))
-                .map(({ label, holding }) => (
-                  <li key={label}>
-                    <button
-                      type="button"
-                      onClick={() => navigate(ROUTES.STOCK_DETAIL_PATH(id, holding.symbol))}
-                      className="flex min-h-11 w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors duration-base ease-standard hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <span className="w-12 shrink-0 text-xs uppercase tracking-wide text-muted-foreground">
-                        {label}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="font-mono text-sm font-semibold">{holding.symbol}</span>
-                        <span className="ml-2 text-xs text-muted-foreground">unrealised return</span>
-                      </span>
-                      <PLValue value={holding.returnPercent} />
-                      {label === 'Best' ? (
-                        <Award aria-hidden="true" className="h-4 w-4 shrink-0 text-profit" />
-                      ) : (
-                        <TrendingUp aria-hidden="true" className="h-4 w-4 shrink-0 text-loss" />
-                      )}
-                    </button>
-                  </li>
-                ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
+        {metrics?.bestPerformer && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle>Performance leaders</CardTitle>
+            </CardHeader>
+            <CardContent className="pb-3">
+              <ul className="divide-y">
+                {[
+                  { label: 'Best', holding: metrics.bestPerformer },
+                  { label: 'Worst', holding: metrics.worstPerformer },
+                ]
+                  .filter(
+                    (row): row is { label: string; holding: NonNullable<typeof row.holding> } =>
+                      Boolean(row.holding)
+                  )
+                  .map(({ label, holding }) => (
+                    <li key={label}>
+                      <button
+                        type="button"
+                        onClick={() => navigate(ROUTES.STOCK_DETAIL_PATH(id, holding.symbol))}
+                        className="flex min-h-11 w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors duration-base ease-standard hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <span className="w-12 shrink-0 text-xs uppercase tracking-wide text-muted-foreground">
+                          {label}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="font-mono text-sm font-semibold">{holding.symbol}</span>
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            unrealised return
+                          </span>
+                        </span>
+                        <PLValue value={holding.returnPercent} />
+                        {label === 'Best' ? (
+                          <Award aria-hidden="true" className="h-4 w-4 shrink-0 text-profit" />
+                        ) : (
+                          <TrendingUp aria-hidden="true" className="h-4 w-4 shrink-0 text-loss" />
+                        )}
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
 
-      {/* Underline tabs: these are views of one portfolio, not modes of the app. */}
-      <Tabs defaultValue="holdings">
-        <TabsList variant="underline">
-          <TabsTrigger value="holdings">Holdings</TabsTrigger>
-          <TabsTrigger value="charts">Value & allocation</TabsTrigger>
-          <TabsTrigger
-            value="comparison"
-            className="max-w-[20rem]"
-            title={`${portfolio.name} vs ${benchmark.label}`}
+        {/* Underline tabs: these are views of one portfolio, not modes of the app. */}
+        <Tabs defaultValue="holdings">
+          <TabsList
+            variant="underline"
+            className="max-lg:flex-nowrap max-lg:overflow-x-auto no-scrollbar"
           >
-            {/* The portfolio's own name leads, so it's clear which portfolio is
+            <TabsTrigger value="holdings">Holdings</TabsTrigger>
+            <TabsTrigger value="dividends" title="Dividend calendar and received payouts">
+              Dividends
+            </TabsTrigger>
+            <TabsTrigger value="risk" title="Risk analytics">
+              Risk
+            </TabsTrigger>
+            <TabsTrigger value="scenario" title="Scenario analysis">
+              Scenario
+            </TabsTrigger>
+            <TabsTrigger value="target" title="Target allocation">
+              Target
+            </TabsTrigger>
+            <TabsTrigger value="cash" title="Cash balance and transactions">
+              Cash
+            </TabsTrigger>
+            <TabsTrigger value="charts">Value & allocation</TabsTrigger>
+            <TabsTrigger
+              value="comparison"
+              className="max-w-[20rem]"
+              title={`${portfolio.name} vs ${benchmark.label}`}
+            >
+              {/* The portfolio's own name leads, so it's clear which portfolio is
                 being compared; long names truncate rather than stretching the tab
                 strip, and the benchmark always stays visible. */}
-            <span className="truncate">{portfolio.name}</span>
-            <span className="ml-1 shrink-0">vs {benchmark.label}</span>
-          </TabsTrigger>
-        </TabsList>
+              <span className="truncate">{portfolio.name}</span>
+              <span className="ml-1 shrink-0">vs {benchmark.label}</span>
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="holdings" className="mt-4">
-          {portfolio.holdings.length === 0 ? (
-            <EmptyState
-              icon={<DollarSign className="h-6 w-6" />}
-              title="No holdings yet"
-              description="Record what you bought and what you paid — the value, profit and allocation figures all come from here."
-              action={
-                <Button onClick={() => setAddOpen(true)}>
-                  <Plus aria-hidden="true" />
-                  Add holding
-                </Button>
-              }
-            />
-          ) : (
-            <>
-              <HoldingsTable
-                holdings={portfolio.holdings}
-                metrics={metrics?.holdingMetrics ?? []}
-                portfolioId={id}
-                isLoading={isLoading}
-                onEdit={setEditingHolding}
-                onDelete={(holdingId) =>
-                  setHoldingToDelete(portfolio.holdings.find((h) => h.id === holdingId) ?? null)
+          <TabsContent value="holdings" className="mt-4">
+            {portfolio.holdings.length === 0 ? (
+              <EmptyState
+                icon={<DollarSign className="h-6 w-6" />}
+                title="No holdings yet"
+                description="Record what you bought and what you paid — the value, profit and allocation figures all come from here."
+                action={
+                  <Button onClick={() => setAddOpen(true)}>
+                    <Plus aria-hidden="true" />
+                    Add holding
+                  </Button>
                 }
               />
+            ) : (
+              <>
+                <HoldingsTable
+                  holdings={portfolio.holdings}
+                  metrics={metrics?.holdingMetrics ?? []}
+                  portfolioId={id}
+                  isLoading={isLoading}
+                  onEdit={setEditingHolding}
+                  onDelete={(holdingId) =>
+                    setHoldingToDelete(portfolio.holdings.find((h) => h.id === holdingId) ?? null)
+                  }
+                />
+              </>
+            )}
+          </TabsContent>
 
+          <TabsContent value="dividends" className="mt-4">
+            <div className="space-y-4">
               {/* The detail behind "Dividends — Total received": one row per payout,
-                  newest first, with the per-share rate and the cash it paid. */}
+                newest first, with the per-share rate and the cash it paid. */}
               {dividends.length > 0 && (
-                <Card className="mt-4">
+                <Card>
                   <CardHeader className="pb-2">
                     <CardTitle>Dividends</CardTitle>
                   </CardHeader>
@@ -646,10 +768,13 @@ export function PortfolioDetail() {
                           <div className="min-w-0">
                             <p className="font-mono text-sm font-semibold">
                               {d.symbol}
-                              <span className="ml-2 text-xs font-normal text-muted-foreground">{d.companyName}</span>
+                              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                {d.companyName}
+                              </span>
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {format(parseISO(d.date), 'dd MMM yyyy')} · {formatCurrency(d.amountPerShare)} per share · {d.type}
+                              {format(parseISO(d.date), 'dd MMM yyyy')} ·{' '}
+                              {formatCurrency(d.amountPerShare)} per share · {d.type}
                             </p>
                           </div>
                           <span className="shrink-0 font-mono text-sm font-medium tabular-nums">
@@ -667,259 +792,284 @@ export function PortfolioDetail() {
                 onAdd={handleAddDeclaredDividend}
                 onDelete={handleDeleteDeclaredDividend}
               />
+            </div>
+          </TabsContent>
 
-              <div className="mt-4">
-                <RiskAnalytics holdings={portfolio.holdings} />
-              </div>
+          <TabsContent value="risk" className="mt-4">
+            <RiskAnalytics holdings={portfolio.holdings} />
+          </TabsContent>
 
-              <div className="mt-4">
-                <ScenarioAnalysis holdingMetrics={metrics?.holdingMetrics ?? []} />
-              </div>
+          <TabsContent value="scenario" className="mt-4">
+            <ScenarioAnalysis holdingMetrics={metrics?.holdingMetrics ?? []} />
+          </TabsContent>
 
-              <div className="mt-4">
-                <TargetAllocation portfolio={portfolio} holdingMetrics={metrics?.holdingMetrics ?? []} />
-              </div>
+          <TabsContent value="target" className="mt-4">
+            <TargetAllocation
+              portfolio={portfolio}
+              holdingMetrics={metrics?.holdingMetrics ?? []}
+            />
+          </TabsContent>
 
-              {/* Cash movements: a balance, the entries behind it, and an inline
-                  form to add one. Net cash = deposits − withdrawals. */}
-              <Card className="mt-4">
-                <CardHeader className="pb-2">
-                  <CardTitle>Cash</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 pb-3">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <p className="text-sm text-muted-foreground">Net cash (deposits − withdrawals)</p>
-                    <p className="font-mono text-sm font-semibold tabular-nums">{formatCurrency(cashBalance)}</p>
-                  </div>
+          <TabsContent value="cash" className="mt-4">
+            {/* Cash movements: a balance, the entries behind it, and an inline
+              form to add one. Net cash = deposits − withdrawals. */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle>Cash</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pb-3">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-sm text-muted-foreground">Net cash (deposits − withdrawals)</p>
+                  <p className="font-mono text-sm font-semibold tabular-nums">
+                    {formatCurrency(cashBalance)}
+                  </p>
+                </div>
 
-                  {cashTransactions.length > 0 && (
-                    <ul className="divide-y">
-                      {cashTransactions.map((c) => (
-                        <li key={c.id} className="flex items-center justify-between gap-3 py-2">
-                          <div className="min-w-0">
-                            <p className="text-sm">
-                              <span className="font-medium">{c.type === 'deposit' ? 'Deposit' : 'Withdrawal'}</span>
-                              {c.notes && <span className="ml-2 text-xs text-muted-foreground">{c.notes}</span>}
-                            </p>
-                            <p className="text-xs text-muted-foreground">{format(parseISO(c.date), 'dd MMM yyyy')}</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`font-mono text-sm tabular-nums ${c.type === 'deposit' ? 'text-profit' : 'text-loss'}`}>
-                              {c.type === 'deposit' ? '+' : '−'}{formatCurrency(c.amount)}
+                {cashTransactions.length > 0 && (
+                  <ul className="divide-y">
+                    {cashTransactions.map((c) => (
+                      <li key={c.id} className="flex items-center justify-between gap-3 py-2">
+                        <div className="min-w-0">
+                          <p className="text-sm">
+                            <span className="font-medium">
+                              {c.type === 'deposit' ? 'Deposit' : 'Withdrawal'}
                             </span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              aria-label={`Remove ${c.type}`}
-                              onClick={() => handleDeleteCash(c.id)}
-                            >
-                              <Trash2 aria-hidden="true" className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                            {c.notes && (
+                              <span className="ml-2 text-xs text-muted-foreground">{c.notes}</span>
+                            )}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(parseISO(c.date), 'dd MMM yyyy')}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`font-mono text-sm tabular-nums ${c.type === 'deposit' ? 'text-profit' : 'text-loss'}`}
+                          >
+                            {c.type === 'deposit' ? '+' : '−'}
+                            {formatCurrency(c.amount)}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Remove ${c.type}`}
+                            onClick={() => handleDeleteCash(c.id)}
+                          >
+                            <Trash2 aria-hidden="true" className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
 
-                  {cashOpen ? (
-                    <div className="space-y-3 rounded-lg border border-border p-3">
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={cashType === 'deposit' ? 'default' : 'outline'}
-                          onClick={() => setCashType('deposit')}
-                        >
-                          Deposit
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={cashType === 'withdrawal' ? 'default' : 'outline'}
-                          onClick={() => setCashType('withdrawal')}
-                        >
-                          Withdrawal
-                        </Button>
-                      </div>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="cashAmount">Amount (PKR) *</Label>
-                          <Input
-                            id="cashAmount"
-                            type="number"
-                            step="0.01"
-                            className="h-11 tabular-nums"
-                            placeholder="0"
-                            value={cashAmount}
-                            onChange={(e) => setCashAmount(e.target.value)}
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="cashDate">Date *</Label>
-                          <Input
-                            id="cashDate"
-                            type="date"
-                            className="h-11"
-                            value={cashDate}
-                            onChange={(e) => setCashDate(e.target.value)}
-                          />
-                        </div>
-                      </div>
+                {cashOpen ? (
+                  <div className="space-y-3 rounded-lg border border-border p-3">
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={cashType === 'deposit' ? 'default' : 'outline'}
+                        onClick={() => setCashType('deposit')}
+                      >
+                        Deposit
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={cashType === 'withdrawal' ? 'default' : 'outline'}
+                        onClick={() => setCashType('withdrawal')}
+                      >
+                        Withdrawal
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className="space-y-1.5">
-                        <Label htmlFor="cashNotes">Notes</Label>
+                        <Label htmlFor="cashAmount">Amount (PKR) *</Label>
                         <Input
-                          id="cashNotes"
-                          className="h-11"
-                          placeholder="Optional"
-                          value={cashNotes}
-                          onChange={(e) => setCashNotes(e.target.value)}
+                          id="cashAmount"
+                          type="number"
+                          step="0.01"
+                          className="h-11 tabular-nums"
+                          placeholder="0"
+                          value={cashAmount}
+                          onChange={(e) => setCashAmount(e.target.value)}
                         />
                       </div>
-                      <div className="flex justify-end gap-2">
-                        <Button type="button" variant="ghost" onClick={() => setCashOpen(false)}>
-                          Cancel
-                        </Button>
-                        <Button
-                          type="button"
-                          onClick={handleAddCash}
-                          disabled={!Number(cashAmount) || Number(cashAmount) <= 0}
-                        >
-                          Record {cashType}
-                        </Button>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="cashDate">Date *</Label>
+                        <Input
+                          id="cashDate"
+                          type="date"
+                          className="h-11"
+                          value={cashDate}
+                          onChange={(e) => setCashDate(e.target.value)}
+                        />
                       </div>
                     </div>
-                  ) : (
-                    <Button type="button" variant="outline" onClick={() => setCashOpen(true)}>
-                      <Plus aria-hidden="true" className="h-4 w-4" />
-                      Add cash
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            </>
-          )}
-        </TabsContent>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="cashNotes">Notes</Label>
+                      <Input
+                        id="cashNotes"
+                        className="h-11"
+                        placeholder="Optional"
+                        value={cashNotes}
+                        onChange={(e) => setCashNotes(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button type="button" variant="ghost" onClick={() => setCashOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={handleAddCash}
+                        disabled={!Number(cashAmount) || Number(cashAmount) <= 0}
+                      >
+                        Record {cashType}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button type="button" variant="outline" onClick={() => setCashOpen(true)}>
+                    <Plus aria-hidden="true" className="h-4 w-4" />
+                    Add cash
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <TabsContent value="charts" className="mt-4">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {/* A single allocation slot: the switch in the card header decides whether
+          <TabsContent value="charts" className="mt-4">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {/* A single allocation slot: the switch in the card header decides whether
                 the pie breaks the portfolio down by holding or by sector, so the row
                 never spends two cards on the same question. */}
-            {allocationData.length > 0 && (
-              <AllocationPieChart
-                data={allocationData}
-                title={allocationTitle}
-                headerExtra={
-                  <Tabs
-                    value={allocationView}
-                    onValueChange={(value) => setAllocationView(value as AllocationView)}
-                  >
-                    <TabsList variant="segmented">
-                      <TabsTrigger value="holdings">Holdings</TabsTrigger>
-                      <TabsTrigger value="sector">Sector</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                }
+              {allocationData.length > 0 && (
+                <AllocationPieChart
+                  data={allocationData}
+                  title={allocationTitle}
+                  headerExtra={
+                    <Tabs
+                      value={allocationView}
+                      onValueChange={(value) => setAllocationView(value as AllocationView)}
+                    >
+                      <TabsList variant="segmented">
+                        <TabsTrigger value="holdings">Holdings</TabsTrigger>
+                        <TabsTrigger value="sector">Sector</TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  }
+                />
+              )}
+              <PortfolioValueChart
+                series={portfolioSeries}
+                title="Portfolio Value"
+                rangeDays={rangeDaysValue}
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="comparison" className="mt-4">
+            {/* Rendered unconditionally so the section always names the portfolio;
+              the chart itself owns the "no data" states. */}
+            <BenchmarkComparisonChart
+              title={`${portfolio.name} vs ${benchmark.label}`}
+              portfolioLabel={portfolio.name}
+              portfolioData={portfolioSeries}
+              benchmark={comparisonBenchmark}
+              range={range}
+              onRangeChange={setRange}
+              portfolioLoading={portfolioHistoryLoading}
+              benchmarkLoading={
+                benchmark.kind === 'index' ? indexQuery.isLoading : benchmarkStockLoading
+              }
+              benchmarkSelector={
+                <CompanySearch
+                  className="w-full sm:w-60"
+                  placeholder="Compare with an index or stock…"
+                  extraOptions={INDEX_OPTIONS}
+                  onSelect={(company) => setBenchmark(toBenchmark(company))}
+                />
+              }
+            />
+          </TabsContent>
+        </Tabs>
+
+        {/* Add holding dialog */}
+        <Dialog open={addOpen} onOpenChange={setAddOpen}>
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle>Add Holding</DialogTitle>
+            </DialogHeader>
+            <HoldingForm onSubmit={handleAdd} onCancel={() => setAddOpen(false)} />
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit holding dialog */}
+        <Dialog open={!!editingHolding} onOpenChange={(o) => !o && setEditingHolding(null)}>
+          {/* Wider only when it has a transactions table to show. */}
+          <DialogContent className={liveEditingHolding?.buys?.length ? 'max-w-2xl' : 'max-w-xl'}>
+            <DialogHeader>
+              <DialogTitle>Edit Holding</DialogTitle>
+            </DialogHeader>
+            {liveEditingHolding && (
+              <HoldingForm
+                defaultValues={liveEditingHolding}
+                onSubmit={handleUpdate}
+                onCancel={() => setEditingHolding(null)}
+                isEditing
+                position={{
+                  symbol: liveEditingHolding.symbol,
+                  shares: liveEditingHolding.shares,
+                  averagePurchasePrice: liveEditingHolding.averagePurchasePrice,
+                }}
+                onBuy={handleBuy}
+                buys={liveEditingHolding.buys ?? []}
+                onUpdateBuy={handleUpdateBuy}
+                onDeleteBuy={handleDeleteBuy}
+                sells={liveEditingHolding.sells ?? []}
+                onSell={handleSell}
+                onUpdateSell={handleUpdateSell}
+                onDeleteSell={handleDeleteSell}
+                actions={liveEditingHolding.corporateActions ?? []}
+                onAddAction={handleAddCorporateAction}
+                onDeleteAction={handleDeleteCorporateAction}
               />
             )}
-            <PortfolioValueChart series={portfolioSeries} title="Portfolio Value" rangeDays={rangeDaysValue} />
-          </div>
-        </TabsContent>
+          </DialogContent>
+        </Dialog>
 
-        <TabsContent value="comparison" className="mt-4">
-          {/* Rendered unconditionally so the section always names the portfolio;
-              the chart itself owns the "no data" states. */}
-          <BenchmarkComparisonChart
-            title={`${portfolio.name} vs ${benchmark.label}`}
-            portfolioLabel={portfolio.name}
-            portfolioData={portfolioSeries}
-            benchmark={comparisonBenchmark}
-            range={range}
-            onRangeChange={setRange}
-            portfolioLoading={portfolioHistoryLoading}
-            benchmarkLoading={benchmark.kind === 'index' ? indexQuery.isLoading : benchmarkStockLoading}
-            benchmarkSelector={
-              <CompanySearch
-                className="w-full sm:w-60"
-                placeholder="Compare with an index or stock…"
-                extraOptions={INDEX_OPTIONS}
-                onSelect={(company) => setBenchmark(toBenchmark(company))}
-              />
-            }
-          />
-        </TabsContent>
-      </Tabs>
-
-      {/* Add holding dialog */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader><DialogTitle>Add Holding</DialogTitle></DialogHeader>
-          <HoldingForm onSubmit={handleAdd} onCancel={() => setAddOpen(false)} />
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit holding dialog */}
-      <Dialog open={!!editingHolding} onOpenChange={(o) => !o && setEditingHolding(null)}>
-        {/* Wider only when it has a transactions table to show. */}
-        <DialogContent className={liveEditingHolding?.buys?.length ? 'max-w-2xl' : 'max-w-xl'}>
-          <DialogHeader><DialogTitle>Edit Holding</DialogTitle></DialogHeader>
-          {liveEditingHolding && (
-            <HoldingForm
-              defaultValues={liveEditingHolding}
-              onSubmit={handleUpdate}
-              onCancel={() => setEditingHolding(null)}
-              isEditing
-              position={{
-                symbol: liveEditingHolding.symbol,
-                shares: liveEditingHolding.shares,
-                averagePurchasePrice: liveEditingHolding.averagePurchasePrice,
-              }}
-              onBuy={handleBuy}
-              buys={liveEditingHolding.buys ?? []}
-              onUpdateBuy={handleUpdateBuy}
-              onDeleteBuy={handleDeleteBuy}
-              sells={liveEditingHolding.sells ?? []}
-              onSell={handleSell}
-              onUpdateSell={handleUpdateSell}
-              onDeleteSell={handleDeleteSell}
-              actions={liveEditingHolding.corporateActions ?? []}
-              onAddAction={handleAddCorporateAction}
-              onDeleteAction={handleDeleteCorporateAction}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Removing a holding is destructive and irreversible in this app (there is
+        {/* Removing a holding is destructive and irreversible in this app (there is
           no undo), so it asks first and says what will be lost. */}
-      <Dialog open={!!holdingToDelete} onOpenChange={(o) => !o && setHoldingToDelete(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Remove {holdingToDelete?.symbol}?</DialogTitle>
-            <DialogDescription>
-              {holdingToDelete && (
-                <>
-                  {holdingToDelete.shares.toLocaleString()} shares at{' '}
-                  {formatCurrency(holdingToDelete.averagePurchasePrice)} average
-                  {holdingToDelete.buys?.length
-                    ? `, with ${holdingToDelete.buys.length} logged purchase${holdingToDelete.buys.length === 1 ? '' : 's'}`
-                    : ''}
-                  . This cannot be undone.
-                </>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button variant="ghost" onClick={() => setHoldingToDelete(null)}>
-              Keep holding
-            </Button>
-            <Button variant="destructive" onClick={confirmDeleteHolding}>
-              Remove holding
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        <Dialog open={!!holdingToDelete} onOpenChange={(o) => !o && setHoldingToDelete(null)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Remove {holdingToDelete?.symbol}?</DialogTitle>
+              <DialogDescription>
+                {holdingToDelete && (
+                  <>
+                    {holdingToDelete.shares.toLocaleString()} shares at{' '}
+                    {formatCurrency(holdingToDelete.averagePurchasePrice)} average
+                    {holdingToDelete.buys?.length
+                      ? `, with ${holdingToDelete.buys.length} logged purchase${holdingToDelete.buys.length === 1 ? '' : 's'}`
+                      : ''}
+                    . This cannot be undone.
+                  </>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2">
+              <Button variant="ghost" onClick={() => setHoldingToDelete(null)}>
+                Keep holding
+              </Button>
+              <Button variant="destructive" onClick={confirmDeleteHolding}>
+                Remove holding
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </ScrollReveal>
     </div>
   );
