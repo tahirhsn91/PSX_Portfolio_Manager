@@ -20,10 +20,11 @@ export function BottomNav() {
       aria-label="Primary"
       className="shrink-0 border-t bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
     >
-      {/* Five destinations, five columns — `grid-cols-4` here dropped the fifth
-          (Profile) onto a second row and made the bar twice as tall. */}
+      {/* Five primary destinations, five columns — the bottom bar caps at five
+          (the ui-ux-pro "≤5" rule). Profile stays in the sidebar/drawer so nothing
+          wraps onto a second row. */}
       <ul className="grid grid-cols-5">
-        {NAV_ITEMS.filter((item) => !item.adminOnly).map(({ label, icon: Icon, to }) => {
+        {NAV_ITEMS.filter((item) => !item.adminOnly && item.inBottomNav !== false).map(({ label, icon: Icon, to }) => {
           const isActive = isNavItemActive(pathname, to);
           return (
             <li key={to} className="min-w-0">
