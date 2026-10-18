@@ -80,6 +80,21 @@ export const portfoliosApi = {
     return portfolio;
   },
 
+  // ─── Archive (issue #98) ───────────────────────────────────────────────────
+  archive: async (id: string): Promise<Portfolio> => {
+    const { portfolio } = await request<PortfolioEnvelope>(`${BASE}/${id}/archive`, {
+      method: 'POST',
+    });
+    return portfolio;
+  },
+
+  restore: async (id: string): Promise<Portfolio> => {
+    const { portfolio } = await request<PortfolioEnvelope>(`${BASE}/${id}/restore`, {
+      method: 'POST',
+    });
+    return portfolio;
+  },
+
   // ─── Holdings ──────────────────────────────────────────────────────────────
   addHolding: async (portfolioId: string, input: CreateHoldingInput): Promise<Portfolio> => {
     const { portfolio } = await request<PortfolioEnvelope>(`${BASE}/${portfolioId}/holdings`, {

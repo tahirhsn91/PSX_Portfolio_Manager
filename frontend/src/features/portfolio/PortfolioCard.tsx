@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { MoreVertical, Copy, Pencil, Trash2 } from 'lucide-react';
+import { MoreVertical, Copy, Pencil, Trash2, Archive, ArchiveRestore } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +21,8 @@ interface PortfolioCardProps {
   onEdit: (portfolio: Portfolio) => void;
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
+  onArchive: (id: string) => void;
+  onRestore: (id: string) => void;
 }
 
 /**
@@ -43,9 +45,10 @@ const moneyInk = (value: number) =>
  * on hover is a control half the users never see).
  */
 export function PortfolioCard({
-  portfolio, metrics, isLoading, onEdit, onDelete, onDuplicate,
+  portfolio, metrics, isLoading, onEdit, onDelete, onDuplicate, onArchive, onRestore,
 }: PortfolioCardProps) {
   const holdingCount = portfolio.holdings.length;
+  const isArchived = !!portfolio.archivedAt;
 
   return (
     <Card
@@ -153,6 +156,15 @@ export function PortfolioCard({
               <Copy aria-hidden="true" /> Duplicate
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            {isArchived ? (
+              <DropdownMenuItem className="h-11" onClick={() => onRestore(portfolio.id)}>
+                <ArchiveRestore aria-hidden="true" /> Restore
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem className="h-11" onClick={() => onArchive(portfolio.id)}>
+                <Archive aria-hidden="true" /> Archive
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               className="h-11 text-destructive focus:text-destructive"
               onClick={() => onDelete(portfolio.id)}

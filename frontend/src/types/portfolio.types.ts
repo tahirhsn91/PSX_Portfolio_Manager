@@ -15,6 +15,8 @@ export interface Portfolio {
   cashTransactions?: CashTransaction[];
   /** Concentration threshold as a percentage (a holding/sector above it is flagged). */
   concentrationThreshold?: number;
+  /** When set, the portfolio is archived (hidden by default, recoverable). */
+  archivedAt?: string | null;
 }
 
 /** The scope of an allocation target — per holding (symbol) or per sector. */

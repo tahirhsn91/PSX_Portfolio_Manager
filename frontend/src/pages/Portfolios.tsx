@@ -20,7 +20,7 @@ import type { Portfolio } from '@/types';
 import type { PortfolioFormValues } from '@/utils';
 
 type SortKey = 'updated' | 'created' | 'name' | 'name-asc' | 'holdings';
-type FilterKey = 'all' | 'with-holdings' | 'empty';
+type FilterKey = 'all' | 'with-holdings' | 'empty' | 'archived';
 type ViewKey = 'grid' | 'list';
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
@@ -35,6 +35,7 @@ const FILTER_OPTIONS: { value: FilterKey; label: string }[] = [
   { value: 'all', label: 'All portfolios' },
   { value: 'with-holdings', label: 'With holdings' },
   { value: 'empty', label: 'Empty portfolios' },
+  { value: 'archived', label: 'Archived' },
 ];
 
 /** `Date.parse` of a stored timestamp, with a value that can be compared. */
@@ -66,11 +67,13 @@ function readStorageError(): string | null {
   }
 }
 
-function PortfolioCardWithMetrics({ portfolio, onEdit, onDelete, onDuplicate }: {
+function PortfolioCardWithMetrics({ portfolio, onEdit, onDelete, onDuplicate, onArchive, onRestore }: {
   portfolio: Portfolio;
   onEdit: (p: Portfolio) => void;
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
+  onArchive: (id: string) => void;
+  onRestore: (id: string) => void;
 }) {
   const { metrics, isLoading } = usePortfolioMetrics(portfolio.id);
   return (
@@ -81,12 +84,14 @@ function PortfolioCardWithMetrics({ portfolio, onEdit, onDelete, onDuplicate }: 
       onEdit={onEdit}
       onDelete={onDelete}
       onDuplicate={onDuplicate}
+      onArchive={onArchive}
+      onRestore={onRestore}
     />
   );
 }
 
 export function Portfolios() {
-  const { portfolios, createPortfolio, updatePortfolio, deletePortfolio, duplicatePortfolio } =
+  const { portfolios, createPortfolio, updatePortfolio, deletePortfolio, duplicatePortfolio, archivePortfolio, restorePortfolio } =
     usePortfolioStore();
   const addNotification = useUIStore((s) => s.addNotification);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -160,6 +165,40 @@ export function Portfolios() {
     }
   };
 
+  const handleArchive = async (id: string) => {
+    const p = portfolios.find((x) => x.id === id);
+    if (!p) return;
+    try {
+      await archivePortfolio(id);
+      addNotification({
+        type: 'info',
+        title: `Archived "${p.name}"`,
+        message: 'Its data is kept — restore it anytime from the Archived filter.',
+      });
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: 'Could not archive the portfolio',
+        message: (err as Error).message,
+      });
+    }
+  };
+
+  const handleRestore = async (id: string) => {
+    const p = portfolios.find((x) => x.id === id);
+    if (!p) return;
+    try {
+      await restorePortfolio(id);
+      addNotification({ type: 'success', title: `Restored "${p.name}"` });
+    } catch (err) {
+      addNotification({
+        type: 'error',
+        title: 'Could not restore the portfolio',
+        message: (err as Error).message,
+      });
+    }
+  };
+
   const clearFilters = () => {
     setQuery('');
     setFilter('all');
@@ -178,9 +217,13 @@ export function Portfolios() {
     if (!next && !hasPortfolios) window.location.reload();
   };
 
+  const activePortfolios = useMemo(() => portfolios.filter((p) => !p.archivedAt), [portfolios]);
+  const archivedPortfolios = useMemo(() => portfolios.filter((p) => !!p.archivedAt), [portfolios]);
+
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const matched = portfolios.filter((p) => {
+    const base = filter === 'archived' ? archivedPortfolios : activePortfolios;
+    const matched = base.filter((p) => {
       if (filter === 'with-holdings' && p.holdings.length === 0) return false;
       if (filter === 'empty' && p.holdings.length > 0) return false;
       if (!q) return true;
@@ -212,10 +255,10 @@ export function Portfolios() {
         sorted.sort((a, b) => time(b.updatedAt) - time(a.updatedAt));
     }
     return sorted;
-  }, [portfolios, query, sort, filter]);
+  }, [activePortfolios, archivedPortfolios, query, sort, filter]);
 
-  const count = portfolios.length;
-  const hasPortfolios = count > 0;
+  const count = activePortfolios.length;
+  const hasPortfolios = portfolios.length > 0;
   // A read failure with nothing on screen is the one case where "empty" would be
   // a lie, so the error state replaces the empty state instead of joining it.
   const showStorageError = !!storageError && !hasPortfolios;
@@ -358,6 +401,8 @@ export function Portfolios() {
               onEdit={setEditingPortfolio}
               onDelete={handleDelete}
               onDuplicate={handleDuplicate}
+              onArchive={handleArchive}
+              onRestore={handleRestore}
             />
           ))}
         </div>
@@ -372,6 +417,8 @@ export function Portfolios() {
               onEdit={setEditingPortfolio}
               onDelete={handleDelete}
               onDuplicate={handleDuplicate}
+              onArchive={handleArchive}
+              onRestore={handleRestore}
             />
           ))}
         </div>
