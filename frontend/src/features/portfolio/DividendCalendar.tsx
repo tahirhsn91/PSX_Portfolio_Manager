@@ -5,12 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { formatCurrency } from '@/utils';
-import { useStockPrediction } from '@/hooks/usePrediction';
+import { formatCurrency, forecastDividend } from '@/utils';
 import type {
   Portfolio,
   Holding,
-  HoldingMetrics,
   DeclaredDividend,
   DeclaredDividendInput,
 } from '@/types';
@@ -31,15 +29,14 @@ function dateLabel(value?: string): string {
 }
 
 /**
- * One holding's estimate from the rule-based prediction engine. A forecast is a
- * pattern, never a promise: it is rendered only when the engine actually produced
- * an amount, always under the "Estimate" banner, and never beside a declared row.
+ * One holding's estimate from its own dividend history. A forecast is a pattern,
+ * never a promise: it is rendered only when a history produced an amount, always
+ * under the "Estimate" banner, and never beside a declared row.
  */
-function DividendForecastRow({ holding, currentPrice }: { holding: Holding; currentPrice?: number }) {
-  const { data } = useStockPrediction(holding.symbol, currentPrice, holding.dividendsReceived ?? []);
-  const forecast = data?.dividendPrediction;
+function DividendForecastRow({ holding }: { holding: Holding }) {
+  const forecast = forecastDividend(holding.dividendsReceived ?? []);
 
-  if (!forecast || forecast.expectedAmountPerShare == null) return null;
+  if (forecast.expectedAmountPerShare == null) return null;
 
   return (
     <li className="flex items-baseline justify-between gap-3 py-2">
@@ -64,18 +61,16 @@ function DividendForecastRow({ holding, currentPrice }: { holding: Holding; curr
 
 /**
  * The portfolio's dividend calendar: declared (user-entered, not yet received)
- * rows with dates and expected income, plus per-holding estimates from the
- * prediction engine. Declared and forecast stay in separate sections and never
- * blur into "paid" — only the received-dividend log records a payout.
+ * rows with dates and expected income, plus per-holding estimates from each
+ * holding's own dividend history. Declared and forecast stay in separate sections
+ * and never blur into "paid" — only the received-dividend log records a payout.
  */
 export function DividendCalendar({
   portfolio,
-  holdingMetrics,
   onAdd,
   onDelete,
 }: {
   portfolio: Portfolio;
-  holdingMetrics: HoldingMetrics[];
   onAdd: (holdingId: string, input: Omit<DeclaredDividendInput, 'holdingId'>) => Promise<void>;
   onDelete: (holdingId: string, dividendId: string) => Promise<void>;
 }) {
@@ -95,8 +90,6 @@ export function DividendCalendar({
         .sort((a, b) => (nextDate(a) ?? '9999').localeCompare(nextDate(b) ?? '9999')),
     [portfolio],
   );
-
-  const priceOf = (id: string) => holdingMetrics.find((m) => m.holdingId === id)?.currentPrice;
 
   const submit = async () => {
     const parsed = Number(amount);
@@ -297,7 +290,7 @@ export function DividendCalendar({
           </p>
           <ul className="divide-y">
             {portfolio.holdings.map((h) => (
-              <DividendForecastRow key={h.id} holding={h} currentPrice={priceOf(h.id)} />
+              <DividendForecastRow key={h.id} holding={h} />
             ))}
           </ul>
         </section>

@@ -1,7 +1,6 @@
 import {
   LayoutDashboard,
   Briefcase,
-  BarChart2,
   Settings,
   UserRound,
   Users,
@@ -41,13 +40,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: Briefcase,
     to: ROUTES.PORTFOLIOS,
     description: 'Every portfolio you track',
-    group: 'Workspace',
-  },
-  {
-    label: 'Market',
-    icon: BarChart2,
-    to: ROUTES.MARKET,
-    description: 'Prices, movers and sectors',
     group: 'Workspace',
   },
   {

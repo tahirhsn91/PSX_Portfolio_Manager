@@ -18,7 +18,6 @@
  *   GET /eod/{symbol}?from=&to=           → getHistoricalData()
  *   GET /market/index/KSE100 +
  *       /eod/KSE100                       → getKSE100()
- *   GET /sectors                          → getSectorPerformance()
  *   GET /market/status                    → getMarketStatus()
  *   GET /market/stocks?search={q}         → searchCompanies()
  */
@@ -31,7 +30,6 @@ import type {
   KSE100Data,
   IndexData,
   CandleQuery,
-  SectorPerformance,
   MarketStatus,
   PSXCompany,
 } from '@/types';
@@ -110,15 +108,6 @@ interface CSIndexData {
   prev_close?: number;
   volume?: number;
   timestamp?: string;
-}
-
-interface CSSector {
-  sector: string;
-  change_p?: number;
-  market_cap?: number;
-  stock_count?: number;
-  top_gainer?: string;
-  top_loser?: string;
 }
 
 interface CSMarketStatus {
@@ -302,20 +291,6 @@ export class CapitalStakeMarketDataProvider implements IMarketDataProvider {
     };
   }
 
-  async getSectorPerformance(): Promise<SectorPerformance[]> {
-    // Docs: GET /sectors or GET /sector/overview
-    const data = await this.cs<CSSector[]>('sectors');
-    const sectors = Array.isArray(data) ? data : [];
-    return sectors.map((s) => ({
-      sector: s.sector,
-      changePercent: s.change_p ?? 0,
-      marketCap: s.market_cap ?? 0,
-      stockCount: s.stock_count ?? 0,
-      topGainer: s.top_gainer ?? '',
-      topLoser: s.top_loser ?? '',
-    }));
-  }
-
   async getMarketStatus(): Promise<MarketStatus> {
     // Docs: GET /market/status
     const data = await this.cs<CSMarketStatus>('market/status');
@@ -325,16 +300,6 @@ export class CapitalStakeMarketDataProvider implements IMarketDataProvider {
       nextClose: data?.next_close ?? null,
       timezone: 'PKT',
     };
-  }
-
-  /**
-   * The provider's own tracked list, in the order it returns them. Its list payload
-   * carries no volume, so there is nothing to rank by and nothing is invented.
-   */
-  async getTopSymbols(limit = 20): Promise<string[]> {
-    const data = await this.cs<CSStock[]>('market/stocks');
-    const stocks = Array.isArray(data) ? data : [];
-    return stocks.map((s) => s.symbol).filter(Boolean).slice(0, limit);
   }
 
   async searchCompanies(query: string): Promise<PSXCompany[]> {
