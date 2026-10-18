@@ -2,7 +2,6 @@
 export * from './auth.types';
 export * from './portfolio.types';
 export * from './market.types';
-export * from './prediction.types';
 export * from './alert.types';
 
 // UI / app-level types

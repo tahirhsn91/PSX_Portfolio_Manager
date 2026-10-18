@@ -4,14 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, MetricBand, PLValue, PageHeader } from '@/components/shared';
 import type { BandStat } from '@/components/shared';
-import { AllocationPieChart, SectorBarChart, BenchmarkComparisonChart, rangeDays } from '@/features/charts';
+import { AllocationPieChart, BenchmarkComparisonChart, rangeDays } from '@/features/charts';
 import type { ComparisonBenchmark, ComparisonRange } from '@/features/charts';
 import { useAllPortfoliosMetrics } from '@/hooks';
-import { useKSE100, usePortfolioHistory, useSectorPerformance } from '@/hooks';
+import { useKSE100, usePortfolioHistory } from '@/hooks';
 import { usePortfolioStore } from '@/store';
 import { ROUTES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
 import { formatCurrency, formatPercent } from '@/utils';
-import { cn } from '@/lib/utils';
 import { ScrollReveal } from '@/components/animations';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useState } from 'react';
@@ -30,7 +29,6 @@ export function Dashboard() {
   const portfolios = usePortfolioStore((s) => s.portfolios);
   const { aggregate, isLoading, metricsPerPortfolio } = useAllPortfoliosMetrics();
   const { data: kse100, isLoading: kseLoading } = useKSE100();
-  const { data: sectorData = [], isLoading: sectorLoading } = useSectorPerformance();
   const [range, setRange] = useState<ComparisonRange>('3M');
   const reduced = useReducedMotion();
 
@@ -236,22 +234,11 @@ export function Dashboard() {
       </div>
       </ScrollReveal>
 
-      {/* Holdings composition and the market's own sector performance, side by side:
-          one is "where my money is", the other is "what the market did" — but only
-          when both exist. With one, it takes the full width instead of leaving a
-          dead column beside it. */}
-      {(pieData.length > 0 || sectorLoading || sectorData.length > 0) && (
+      {/* Holdings composition — "where my money is". The market's own sector
+          performance lived here beside it and has moved out to MyPortfolio365. */}
+      {pieData.length > 0 && (
         <ScrollReveal delay={0.05}>
-        <div className={cn('grid grid-cols-1 gap-4', pieData.length > 0 && (sectorLoading || sectorData.length > 0) && 'lg:grid-cols-2')}>
-          {pieData.length > 0 && (
-            <AllocationPieChart data={pieData} title="Where your money is" />
-          )}
-          {/* Sector performance arrives async, so it shows a skeleton during the
-              first fetch instead of simply being absent until the data lands. */}
-          {(sectorLoading || sectorData.length > 0) && (
-            <SectorBarChart data={sectorData} title="Sector performance (market)" isLoading={sectorLoading} />
-          )}
-        </div>
+          <AllocationPieChart data={pieData} title="Where your money is" />
         </ScrollReveal>
       )}
 

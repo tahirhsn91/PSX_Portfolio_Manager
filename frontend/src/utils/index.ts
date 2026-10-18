@@ -4,3 +4,7 @@ export * from './validators';
 export * from './sectors';
 export * from './marketSession';
 export * from './portfolioImport';
+export * from './riskAnalytics';
+export * from './scenarioAnalysis';
+export * from './supportResistance';
+export * from './dividendForecast';

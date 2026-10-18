@@ -38,7 +38,6 @@ import type {
   IndexData,
   CandleQuery,
   KSE100Data,
-  SectorPerformance,
   MarketStatus,
   PSXCompany,
 } from '@/types';
@@ -808,74 +807,6 @@ export class PSXScraperProvider implements IMarketDataProvider {
 
     this.trackedListCache = { at: now, items };
     return items;
-  }
-
-  /**
-   * The feed's own most-traded tracked symbols, by volume.
-   *
-   * The Market overview used to rank a *bundled* catalogue by hardcoded market caps
-   * (the feed publishes none), so its order was fiction that never changed. This
-   * ranks what the feed actually traded, and falls back to an empty list — never to
-   * the catalogue — so a caller can see the ranking is unavailable.
-   */
-  async getTopSymbols(limit = 20): Promise<string[]> {
-    try {
-      return (await this.fetchAllTracked())
-        .filter((s) => Number.isFinite(s.currentPrice) && (s.currentPrice ?? 0) > 0)
-        .sort((a, b) => (b.volume ?? 0) - (a.volume ?? 0))
-        .slice(0, limit)
-        .map((s) => s.symbol);
-    } catch {
-      return [];
-    }
-  }
-
-  async getSectorPerformance(): Promise<SectorPerformance[]> {
-    let stocks: ScraperListItem[];
-    try {
-      stocks = await this.fetchAllTracked();
-    } catch {
-      return [];
-    }
-    if (!stocks.length) return [];
-
-    // Only members the feed prices take part in an average: averaging in a symbol
-    // with no price would drag every sector's move toward zero.
-    const priced = stocks.filter((s) => Number.isFinite(s.currentPrice) && (s.currentPrice ?? 0) > 0);
-    if (!priced.length) return [];
-
-    // Group by sector
-    const bySector = new Map<string, ScraperListItem[]>();
-    for (const s of priced) {
-      const sector   = s.sector ?? 'Unknown';
-      const existing = bySector.get(sector) ?? [];
-      existing.push(s);
-      bySector.set(sector, existing);
-    }
-
-    const result: SectorPerformance[] = [];
-    for (const [sector, members] of bySector.entries()) {
-      const changes     = members.map(s => s.changePercent).filter((c): c is number => typeof c === 'number');
-      const avgChange   = changes.length ? changes.reduce((a, b) => a + b, 0) / changes.length : 0;
-      // The feed publishes no market cap for any symbol, so a sector total is null
-      // rather than a sum of zeros pretending to be measured.
-      const caps        = members.map(s => s.marketCap).filter((c): c is number => typeof c === 'number');
-      const totalCap    = caps.length ? caps.reduce((a, b) => a + b, 0) : null;
-      const sorted      = [...members].sort(
-        (a, b) => (b.changePercent ?? 0) - (a.changePercent ?? 0),
-      );
-
-      result.push({
-        sector,
-        changePercent: avgChange,
-        marketCap:     totalCap,
-        stockCount:    members.length,
-        topGainer:     sorted[0]?.symbol ?? '',
-        topLoser:      sorted[sorted.length - 1]?.symbol ?? '',
-      });
-    }
-
-    return result.sort((a, b) => b.changePercent - a.changePercent);
   }
 
   /**

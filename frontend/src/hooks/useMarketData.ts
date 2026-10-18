@@ -18,50 +18,9 @@ export const MARKET_QUERY_KEYS = {
   historical: (symbol: string, from: string, to: string) => ['market', 'historical', symbol, from, to] as const,
   kse100: () => ['market', 'kse100'] as const,
   index: (symbol: string) => ['market', 'index', symbol.toUpperCase()] as const,
-  sector: () => ['market', 'sector'] as const,
-  topSymbols: (limit: number) => ['market', 'top-symbols', limit] as const,
   status: () => ['market', 'status'] as const,
   search: (query: string) => ['market', 'search', query] as const,
-  /** sarmaaya.pk's snapshot — its own key: a second source, not another provider call. */
-  sarmaayaMarket: (limit: number) => ['market', 'sarmaaya', limit] as const,
 } as const;
-
-/**
- * The feed's most-active tracked symbols — the Market overview's fallback ranking.
- *
- * A stale time of five minutes rather than one: this decides *which* twenty symbols
- * the page shows, and re-ranking under the reader as volume moves would be worse
- * than a ranking that lags the tape slightly.
- *
- * `enabled` exists because this walk is expensive — the feed serves its list
- * alphabetically over three pages — and the Market page only wants it when its primary
- * source is unreachable.
- */
-export function useTopSymbols(limit = 20, enabled = true) {
-  return useQuery({
-    queryKey: MARKET_QUERY_KEYS.topSymbols(limit),
-    queryFn: () => marketDataService.getTopSymbols(limit),
-    enabled: enabled && limit > 0,
-    staleTime: 5 * 60_000,
-  });
-}
-
-/**
- * sarmaaya.pk's snapshot for the Market page's gainers / losers / most-traded lists.
- *
- * Refreshed every minute, which is also the proxy's own cache window — so a reader
- * gets a fresh tape once a minute and the upstream pair is read once a minute, however
- * many tabs are open.
- */
-export function useSarmaayaMarket(limit = 5) {
-  return useQuery({
-    queryKey: MARKET_QUERY_KEYS.sarmaayaMarket(limit),
-    queryFn: () => marketDataService.getSarmaayaMarket(limit),
-    staleTime: 60_000,
-    refetchInterval: 60_000,
-    retry: 1,
-  });
-}
 
 /** Fetch and cache a single stock quote */
 export function useStockQuote(symbol: string | undefined) {
@@ -168,15 +127,6 @@ export function useCandles(symbol: string | undefined, opts: CandleQuery = {}) {
     queryFn: () => marketDataService.getCandles(symbol!, { range, from, to }),
     enabled: !!symbol,
     staleTime: 30 * 60_000,
-  });
-}
-
-/** Fetch sector performance */
-export function useSectorPerformance() {
-  return useQuery({
-    queryKey: MARKET_QUERY_KEYS.sector(),
-    queryFn: () => marketDataService.getSectorPerformance(),
-    staleTime: 300_000,
   });
 }
 
