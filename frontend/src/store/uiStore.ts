@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { AppSettings, Notification, TimeRange } from '@/types';
+import { setPrivacyMode } from '@/utils';
 import { STORAGE_KEYS } from '@/constants';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -11,6 +12,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   decimalPlaces: 2,
   showPercentages: true,
   autoRefreshInterval: 60,
+  privacyMode: false,
 };
 
 interface UIState {
@@ -98,3 +100,12 @@ export const useUIStore = create<UIState>()(
     }
   )
 );
+
+// Keep the formatter's module-level flag in sync with the persisted setting, so a
+// masked amount survives a reload without every component subscribing to the store.
+setPrivacyMode(useUIStore.getState().settings.privacyMode);
+useUIStore.subscribe((state, prev) => {
+  if (state.settings.privacyMode !== prev.settings.privacyMode) {
+    setPrivacyMode(state.settings.privacyMode);
+  }
+});

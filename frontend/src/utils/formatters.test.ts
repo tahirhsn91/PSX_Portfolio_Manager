@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { formatDate, formatDateTime } from './formatters';
+import { describe, expect, it, afterEach } from 'vitest';
+import { formatDate, formatDateTime, formatCurrency, formatPrice, setPrivacyMode } from './formatters';
 
 /**
  * en-GB spells September "Sept" — four letters where the other eleven months use three —
@@ -45,5 +45,22 @@ describe('formatDateTime', () => {
     expect(formatDateTime(null)).toBe('—');
     expect(formatDateTime(null, 'never')).toBe('never');
     expect(formatDateTime('nonsense')).toBe('—');
+  });
+});
+
+describe('privacy mode', () => {
+  afterEach(() => setPrivacyMode(false));
+
+  it('masks every monetary amount while on, and restores them when off', () => {
+    expect(formatCurrency(1234567)).not.toBe('••••••');
+
+    setPrivacyMode(true);
+    expect(formatCurrency(1234567)).toBe('••••••');
+    expect(formatCurrency(0)).toBe('••••••');
+    expect(formatPrice(399.5)).toBe('••••••');
+
+    setPrivacyMode(false);
+    expect(formatCurrency(1234567)).not.toBe('••••••');
+    expect(formatPrice(399.5)).not.toBe('••••••');
   });
 });
