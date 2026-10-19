@@ -11,6 +11,7 @@ import {
 import { EmptyState, ErrorState, PageHeader } from '@/components/shared';
 import { ScrollReveal } from '@/components/animations';
 import { PortfolioCard } from '@/features/portfolio/PortfolioCard';
+import { PortfolioListRow } from '@/features/portfolio/PortfolioListRow';
 import { PortfolioForm } from '@/features/portfolio/PortfolioForm';
 import { usePortfolioStore } from '@/store';
 import { usePortfolioMetrics } from '@/hooks';
@@ -78,6 +79,29 @@ function PortfolioCardWithMetrics({ portfolio, onEdit, onDelete, onDuplicate, on
   const { metrics, isLoading } = usePortfolioMetrics(portfolio.id);
   return (
     <PortfolioCard
+      portfolio={portfolio}
+      metrics={metrics}
+      isLoading={isLoading}
+      onEdit={onEdit}
+      onDelete={onDelete}
+      onDuplicate={onDuplicate}
+      onArchive={onArchive}
+      onRestore={onRestore}
+    />
+  );
+}
+
+function PortfolioListRowWithMetrics({ portfolio, onEdit, onDelete, onDuplicate, onArchive, onRestore }: {
+  portfolio: Portfolio;
+  onEdit: (p: Portfolio) => void;
+  onDelete: (id: string) => void;
+  onDuplicate: (id: string) => void;
+  onArchive: (id: string) => void;
+  onRestore: (id: string) => void;
+}) {
+  const { metrics, isLoading } = usePortfolioMetrics(portfolio.id);
+  return (
+    <PortfolioListRow
       portfolio={portfolio}
       metrics={metrics}
       isLoading={isLoading}
@@ -409,9 +433,9 @@ export function Portfolios() {
         </ScrollReveal>
       ) : (
         <ScrollReveal>
-        <div className="flex flex-col gap-4">
+        <ul className="divide-y overflow-hidden rounded-xl border bg-card">
           {visible.map((portfolio) => (
-            <PortfolioCardWithMetrics
+            <PortfolioListRowWithMetrics
               key={portfolio.id}
               portfolio={portfolio}
               onEdit={setEditingPortfolio}
@@ -421,7 +445,7 @@ export function Portfolios() {
               onRestore={handleRestore}
             />
           ))}
-        </div>
+        </ul>
         </ScrollReveal>
       )}
 
