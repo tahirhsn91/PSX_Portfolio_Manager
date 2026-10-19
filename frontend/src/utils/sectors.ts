@@ -103,3 +103,91 @@ export function sectorMatchesAny(
     return !!held && (held === key || held.includes(key) || key.includes(held));
   });
 }
+
+/**
+ * Axis label for a sector.
+ *
+ * Eleven columns leave ~45px each, so the long PSX names are cut to two or three
+ * short lines instead of being rotated. The full name stays in the tooltip and in
+ * the summary under the chart, so nothing is lost by the abbreviation.
+ */
+const SECTOR_SHORT: Record<string, string> = {
+  'OIL & GAS EXPLORATION COMPANIES': 'OIL & GAS EXPL.',
+  'OIL & GAS MARKETING COMPANIES': 'OIL & GAS MKTG.',
+  'POWER GENERATION & DISTRIBUTION': 'POWER GEN. & DIST.',
+  'FOOD & PERSONAL CARE PRODUCTS': 'FOOD & CARE',
+  'TECHNOLOGY & COMMUNICATION': 'TECH & COMM.',
+  'REAL ESTATE INVESTMENT TRUST': 'REIT',
+  'COMMERCIAL BANKS': 'COMM. BANKS',
+};
+
+/** Words that carry no weight on an axis, or that have an accepted short form. */
+const SECTOR_WORDS: Record<string, string> = {
+  COMPANIES: '',
+  COMPANY: '',
+  LIMITED: '',
+  LTD: '',
+  EXPLORATION: 'EXPL.',
+  MARKETING: 'MKTG.',
+  DISTRIBUTION: 'DIST.',
+  GENERATION: 'GEN.',
+  COMMUNICATION: 'COMM.',
+  COMMERCIAL: 'COMM.',
+  TECHNOLOGY: 'TECH.',
+  AUTOMOBILE: 'AUTO',
+  ASSEMBLER: 'ASM.',
+  INVESTMENT: 'INV.',
+  PERSONAL: 'PERS.',
+  PRODUCTS: 'PROD.',
+  FERTILIZER: 'FERT.',
+  REFINERY: 'REFIN.',
+  ENGINEERING: 'ENGR.',
+  MANUFACTURING: 'MFG.',
+  INTERNATIONAL: 'INTL.',
+  INDUSTRIES: 'IND.',
+  PHARMACEUTICALS: 'PHARMA',
+  CHEMICALS: 'CHEM.',
+  CONSTRUCTION: 'CONSTR.',
+  INSURANCE: 'INS.',
+  TEXTILE: 'TEXT.',
+};
+
+export function shortSectorName(name: string): string {
+  const special = SECTOR_SHORT[name.toUpperCase()];
+  if (special) return special;
+
+  return name
+    .split(/\s+/)
+    .map((word) => {
+      const key = word.replace(/[^A-Z]/gi, '').toUpperCase();
+      if (key in SECTOR_WORDS) return SECTOR_WORDS[key];
+      return word.length > 8 ? `${word.slice(0, 7)}.` : word;
+    })
+    .filter(Boolean)
+    .join(' ');
+}
+
+/**
+ * Three- or four-character axis code for a phone: eleven columns on a 330px card
+ * leave ~26px each, where even `OIL & GAS EXPL.` runs into its neighbours. The
+ * summary and the tooltip still carry the full name.
+ */
+const SECTOR_TINY: Record<string, string> = {
+  'OIL & GAS EXPLORATION COMPANIES': 'OIL EXP',
+  'OIL & GAS MARKETING COMPANIES': 'OIL MKT',
+  'POWER GENERATION & DISTRIBUTION': 'PWR',
+  'FOOD & PERSONAL CARE PRODUCTS': 'F&C',
+  'TECHNOLOGY & COMMUNICATION': 'T&C',
+  'REAL ESTATE INVESTMENT TRUST': 'REIT',
+  'COMMERCIAL BANKS': 'BNK',
+  REFINERY: 'REF',
+  CEMENT: 'CEM',
+  'AUTOMOBILE ASSEMBLER': 'AUT',
+  FERTILIZER: 'FRT',
+};
+
+export function tinySectorName(name: string): string {
+  const special = SECTOR_TINY[name.toUpperCase()];
+  if (special) return special;
+  return shortSectorName(name).replace(/\./g, '').split(/\s+/)[0]?.slice(0, 4) ?? '';
+}
