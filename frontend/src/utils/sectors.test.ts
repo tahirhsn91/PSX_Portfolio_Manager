@@ -10,7 +10,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { sectorKey, sectorMatchesAny } from './sectors';
+import { sectorKey, sectorMatchesAny, shortSectorName, tinySectorName } from './sectors';
 
 describe('sectorKey', () => {
   it('folds case, punctuation and ampersands', () => {
@@ -53,5 +53,41 @@ describe('sectorMatchesAny', () => {
   it('rejects an empty board name', () => {
     expect(sectorMatchesAny('', ['Cement'])).toBe(false);
     expect(sectorMatchesAny('   ', ['Cement'])).toBe(false);
+  });
+});
+
+describe('shortSectorName', () => {
+  it('uses the curated short form for the long PSX names on the axis', () => {
+    expect(shortSectorName('OIL & GAS EXPLORATION COMPANIES')).toBe('OIL & GAS EXPL.');
+    expect(shortSectorName('POWER GENERATION & DISTRIBUTION')).toBe('POWER GEN. & DIST.');
+    expect(shortSectorName('REAL ESTATE INVESTMENT TRUST')).toBe('REIT');
+    expect(shortSectorName('TECHNOLOGY & COMMUNICATION')).toBe('TECH & COMM.');
+  });
+
+  it('is case-insensitive about the curated names', () => {
+    expect(shortSectorName('real estate investment trust')).toBe('REIT');
+  });
+
+  it('drops the company suffix and abbreviates the words it knows', () => {
+    expect(shortSectorName('XYZ COMPANIES')).toBe('XYZ');
+    expect(shortSectorName('PHARMACEUTICALS')).toBe('PHARMA');
+  });
+
+  it('leaves a short, unmapped name alone', () => {
+    expect(shortSectorName('CEMENT')).toBe('CEMENT');
+  });
+});
+
+describe('tinySectorName', () => {
+  it('gives the long names a three- or four-character code for a phone', () => {
+    expect(tinySectorName('OIL & GAS EXPLORATION COMPANIES')).toBe('OIL EXP');
+    expect(tinySectorName('OIL & GAS MARKETING COMPANIES')).toBe('OIL MKT');
+    expect(tinySectorName('REAL ESTATE INVESTMENT TRUST')).toBe('REIT');
+    expect(tinySectorName('POWER GENERATION & DISTRIBUTION')).toBe('PWR');
+    expect(tinySectorName('FOOD & PERSONAL CARE PRODUCTS')).toBe('F&C');
+  });
+
+  it('falls back to the first short word', () => {
+    expect(tinySectorName('SUGAR & ALLIED INDUSTRIES')).toBe('SUGA');
   });
 });
