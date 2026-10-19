@@ -1,18 +1,13 @@
 import { Link } from 'react-router-dom';
-import { MoreVertical, Copy, Pencil, Trash2, Archive, ArchiveRestore } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuSeparator, DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { PLValue } from '@/components/shared';
 import { formatCurrency } from '@/utils';
 import { ROUTES } from '@/constants';
 import type { Portfolio, PortfolioMetrics } from '@/types';
 import { cn } from '@/lib/utils';
+import { PortfolioActionsMenu } from './PortfolioActionsMenu';
 
 interface PortfolioCardProps {
   portfolio: Portfolio;
@@ -30,7 +25,7 @@ interface PortfolioCardProps {
  * to it. `PLValue` renders a percentage only, so the amount beside it has to
  * borrow the same theme-aware tone rather than re-inventing a colour.
  */
-const moneyInk = (value: number) =>
+export const moneyInk = (value: number) =>
   value >= 0 ? 'text-profit-dark dark:text-profit' : 'text-loss-dark dark:text-loss';
 
 /**
@@ -48,7 +43,6 @@ export function PortfolioCard({
   portfolio, metrics, isLoading, onEdit, onDelete, onDuplicate, onArchive, onRestore,
 }: PortfolioCardProps) {
   const holdingCount = portfolio.holdings.length;
-  const isArchived = !!portfolio.archivedAt;
 
   return (
     <Card
@@ -142,37 +136,14 @@ export function PortfolioCard({
           stopPropagation. Every item is 44px tall and the trigger is always
           visible, so the actions are reachable by mouse, touch and keyboard. */}
       <div className="absolute right-2 top-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label={`Actions for ${portfolio.name}`}>
-              <MoreVertical aria-hidden="true" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem className="h-11" onClick={() => onEdit(portfolio)}>
-              <Pencil aria-hidden="true" /> Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem className="h-11" onClick={() => onDuplicate(portfolio.id)}>
-              <Copy aria-hidden="true" /> Duplicate
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            {isArchived ? (
-              <DropdownMenuItem className="h-11" onClick={() => onRestore(portfolio.id)}>
-                <ArchiveRestore aria-hidden="true" /> Restore
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem className="h-11" onClick={() => onArchive(portfolio.id)}>
-                <Archive aria-hidden="true" /> Archive
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem
-              className="h-11 text-destructive focus:text-destructive"
-              onClick={() => onDelete(portfolio.id)}
-            >
-              <Trash2 aria-hidden="true" /> Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <PortfolioActionsMenu
+          portfolio={portfolio}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onDuplicate={onDuplicate}
+          onArchive={onArchive}
+          onRestore={onRestore}
+        />
       </div>
     </Card>
   );
