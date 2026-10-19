@@ -120,7 +120,7 @@ export function AllocationPieChart({ data, title = 'Portfolio Allocation', heade
    *  - With P&L, the slice is green or red by sign and the tone tells one slice from
    *    the next. This is what the portfolio's Holdings and Sector breakdowns use —
    *    one green for every profitable holding made them impossible to tell apart.
-   *  - Without it (the dashboard's allocation card, which counts holdings per
+   *  - Without it (the dashboard's allocation card, which splits money by
    *    sector), the **category ladder** — still tokens, still each step's own ink,
    *    and no `CHART_COLORS` cycling palette painting white 11px labels onto fills
    *    that measured 3.19:1 and 3.68:1 in the light theme.

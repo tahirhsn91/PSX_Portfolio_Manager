@@ -161,24 +161,24 @@
     --chart-flat-ink: #ffffff;
 
     /* The category ladder — for a breakdown that carries no P&L at all (the
-       dashboard's sector composition counts holdings, so no slice is up or down).
-       It stays inside the palette's grey on purpose: painting those slices green and
-       red would claim a direction the data does not have, and green/red belong to
-       money. The scraper reserves grey for exactly this neutral-information role.
-       Six steps, then it wraps; every step carries the ink that clears 4.5:1 on it,
-       and each fill clears 3:1 against the card. */
-    --chart-cat-1: #3f3f3f;
-    --chart-cat-2: #666666; /* = info.main, the palette's grey */
-    --chart-cat-3: #6e6e6e;
-    --chart-cat-4: #737373;
-    --chart-cat-5: #8a8a8a;
-    --chart-cat-6: #9a9a9a;
+       dashboard's sector composition, where no slice is up or down). Six distinct
+       hues, so adjacent sectors read as different things (the ladder wraps beyond
+       six sectors); green and red stay out of it, because those two mean money in
+       this app and a composition chart has no direction to report. Every fill
+       clears 3:1 against the card, and every step carries an ink that clears
+       4.5:1 on it. */
+    --chart-cat-1: #2563eb; /* blue */
+    --chart-cat-2: #0e9f8e; /* teal */
+    --chart-cat-3: #6d4af0; /* violet */
+    --chart-cat-4: #b87400; /* amber */
+    --chart-cat-5: #1f8fcf; /* sky */
+    --chart-cat-6: #c2477e; /* berry */
     --chart-cat-1-ink: #ffffff;
-    --chart-cat-2-ink: #ffffff;
+    --chart-cat-2-ink: #0f1110;
     --chart-cat-3-ink: #ffffff;
-    --chart-cat-4-ink: #ffffff;
+    --chart-cat-4-ink: #0f1110;
     --chart-cat-5-ink: #0f1110;
-    --chart-cat-6-ink: #0f1110;
+    --chart-cat-6-ink: #ffffff;
     /* Named series, so a chart stops carrying a hex of its own. Each one is now a
        named token from the shared palette rather than a third copy of a colour, and
        each was re-measured against the card: benchmark 5.74 (= info), volume 5.33
@@ -273,14 +273,14 @@
     --chart-loss-5-ink: #0f1110;
     --chart-flat: #a8adab; /* = textMuted */
     --chart-flat-ink: #0f1110;
-    /* Same category ladder, lifted for the dark card — the light-theme steps are too
-       close to the background there to read as shapes. Grey stays the neutral family. */
-    --chart-cat-1: #838885;
-    --chart-cat-2: #a8adab; /* = info.main */
-    --chart-cat-3: #b9bdbc;
-    --chart-cat-4: #c9cccb;
-    --chart-cat-5: #d8dbda;
-    --chart-cat-6: #e5e7e6;
+    /* Same six hues, lifted for the dark card: the light-theme steps sit too close
+       to the background there to read as shapes. All six take dark ink. */
+    --chart-cat-1: #6c9bff;
+    --chart-cat-2: #35c2ae;
+    --chart-cat-3: #a48bff;
+    --chart-cat-4: #f0b44c;
+    --chart-cat-5: #56b6e8;
+    --chart-cat-6: #e57aa6;
     --chart-cat-1-ink: #0f1110;
     --chart-cat-2-ink: #0f1110;
     --chart-cat-3-ink: #0f1110;

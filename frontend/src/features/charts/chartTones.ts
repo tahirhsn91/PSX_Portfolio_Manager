@@ -100,17 +100,17 @@ export function assignTones<T extends { gain?: number | null }>(
 
 /**
  * Ladder for a breakdown that carries **no** profit/loss signal at all: the
- * dashboard's sector allocation counts holdings, so no slice is up or down and a
+ * dashboard's allocation splits money by sector, so no slice is up or down and a
  * colour there is a category marker and nothing else.
  *
- * It is the brand-hue category ladder, *not* an alternation of the profit and loss
+ * It is a six-hue categorical ladder, *not* an alternation of the profit and loss
  * ladders. Green and red mean money in this app, and a composition chart has no
  * direction to report — painting half its slices green and half red would state a
- * gain or a loss that does not exist. Six distinguishable steps in the app's own
- * blue, and — the point of the ladder being a tokens object — every step hands over
- * the ink that stays legible *on it*. That is what the old white labels on
- * `CHART_COLORS` (measured 3.19:1 and 3.68:1 in the light theme) had no way to do:
- * a light fill in the dark theme needs dark ink, and only the tone knows.
+ * gain or a loss that does not exist. Six distinguishable hues, and — the point of
+ * the ladder being a tokens object — every step hands over the ink that stays
+ * legible *on it*. That is what the old white labels on `CHART_COLORS` (measured
+ * 3.19:1 and 3.68:1 in the light theme) had no way to do: a light fill in the dark
+ * theme needs dark ink, and only the tone knows.
  */
 export const CATEGORY_TONES: readonly ChartTone[] = [
   { fill: 'fill-chart-cat-1', ink: 'fill-chart-cat-1-ink', swatch: 'bg-chart-cat-1' },
