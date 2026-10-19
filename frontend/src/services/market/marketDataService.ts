@@ -15,6 +15,7 @@ import type {
   KSE100Data,
   IndexData,
   CandleQuery,
+  IndexHistoryQuery,
   MarketStatus,
   PSXCompany,
   SectorPerformance,
@@ -108,12 +109,12 @@ class MarketDataService {
     return this.provider.getCandles(symbol, opts);
   }
 
-  async getIndex(symbol: string): Promise<IndexData | null> {
-    return this.provider.getIndex(symbol);
+  async getIndex(symbol: string, opts: IndexHistoryQuery = {}): Promise<IndexData | null> {
+    return this.provider.getIndex(symbol, opts);
   }
 
-  async getKSE100(): Promise<KSE100Data | null> {
-    return this.provider.getKSE100();
+  async getKSE100(opts: IndexHistoryQuery = {}): Promise<KSE100Data | null> {
+    return this.provider.getKSE100(opts);
   }
 
   async getMarketStatus(): Promise<MarketStatus> {

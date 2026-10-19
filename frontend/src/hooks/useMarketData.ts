@@ -6,7 +6,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { marketDataService } from '@/services';
 import { useMarketStore } from '@/store';
 import { useEffect } from 'react';
-import type { CandleQuery } from '@/types';
+import type { CandleQuery, IndexHistoryQuery } from '@/types';
 
 export const MARKET_QUERY_KEYS = {
   quote: (symbol: string) => ['market', 'quote', symbol] as const,
@@ -80,11 +80,12 @@ export function useHistoricalData(symbol: string | undefined, from: string, to: 
 }
 
 /** Fetch KSE100 index. Resolves to null when the provider has no index to offer. */
-export function useKSE100() {
+export function useKSE100(opts: IndexHistoryQuery = {}) {
   const setKSE100 = useMarketStore((s) => s.setKSE100);
   const query = useQuery({
-    queryKey: MARKET_QUERY_KEYS.kse100(),
-    queryFn: () => marketDataService.getKSE100(),
+    // The window is part of the key: a 1M comparison must not reuse the 1Y series.
+    queryKey: [...MARKET_QUERY_KEYS.kse100(), opts.from ?? '', opts.to ?? ''] as const,
+    queryFn: () => marketDataService.getKSE100(opts),
     staleTime: 60_000,
     // No index available (provider returned null) → stop polling for it. The provider
     // short-circuits those calls anyway; this just stops re-running the query.
@@ -104,10 +105,10 @@ export function useKSE100() {
  * Resolves to `null` when the feed does not track that index yet — callers render
  * "not tracked", never a substituted number.
  */
-export function useIndex(symbol: string | undefined) {
+export function useIndex(symbol: string | undefined, opts: IndexHistoryQuery = {}) {
   return useQuery({
-    queryKey: symbol ? MARKET_QUERY_KEYS.index(symbol) : ['disabled'],
-    queryFn: () => marketDataService.getIndex(symbol!),
+    queryKey: symbol ? [...MARKET_QUERY_KEYS.index(symbol), opts.from ?? '', opts.to ?? ''] : ['disabled'],
+    queryFn: () => marketDataService.getIndex(symbol!, opts),
     enabled: !!symbol,
     staleTime: 60_000,
     // Null means "the feed doesn't track this one" — polling wouldn't change that.
