@@ -9,6 +9,7 @@ export {
 } from './BenchmarkComparisonChart';
 export type { ComparisonBenchmark, ComparisonRange, ComparisonPoint } from './BenchmarkComparisonChart';
 export { StockPriceChart } from './StockPriceChart';
+export { SectorBarChart } from './SectorBarChart';
 /* Shared chart furniture: the token resolver the series read their colours from,
    and the text summary that puts a chart's figures in the DOM. */
 export { useChartTokens } from './useChartTokens';
