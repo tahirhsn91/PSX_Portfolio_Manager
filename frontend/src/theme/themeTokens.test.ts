@@ -79,12 +79,15 @@ const ALIAS_MAP: Record<string, string> = {
  * The chart ladders carry the palette's own trend colours as their anchor. Which rung
  * depends on the theme, because each ladder is ordered by lightness and the palette's
  * `main` is a mid-tone: the 2nd rung of the light ladders, the 5th/4th of the dark ones.
+ *
+ * The category ladder is deliberately not anchored: it is its own six-hue palette,
+ * because a composition chart needs six distinguishable categories rather than six
+ * greys derived from `info.main`.
  */
 const LADDER_ANCHORS = {
   light: {
     '--chart-profit-2': 'up.main',
     '--chart-loss-2': 'down.main',
-    '--chart-cat-2': 'info.main',
     '--chart-benchmark': 'info.main',
     '--chart-volume': 'textMuted',
     '--chart-buy': 'warning.main',
@@ -96,7 +99,6 @@ const LADDER_ANCHORS = {
   dark: {
     '--chart-profit-5': 'up.main',
     '--chart-loss-4': 'down.main',
-    '--chart-cat-2': 'info.main',
     '--chart-benchmark': 'info.main',
     '--chart-volume': 'textMuted',
     '--chart-buy': 'warning.main',
