@@ -115,6 +115,7 @@ export function PortfolioDetail() {
   // as a fixed 1Y clip, so ALL collapsed to the same year as 1Y.
   const {
     series: portfolioSeries,
+    backtestSeries,
     isLoading: portfolioHistoryLoading,
     window: historyWindow,
   } = usePortfolioHistory(portfolio?.holdings, rangeDaysValue);
@@ -980,7 +981,7 @@ export function PortfolioDetail() {
             <BenchmarkComparisonChart
               title={`${portfolio.name} vs ${benchmark.label}`}
               portfolioLabel={portfolio.name}
-              portfolioData={portfolioSeries}
+              portfolioData={backtestSeries}
               benchmark={comparisonBenchmark}
               range={range}
               onRangeChange={setRange}

@@ -75,6 +75,8 @@ interface BenchmarkComparisonChartProps {
   benchmarkSelector?: ReactNode;
   portfolioLoading?: boolean;
   benchmarkLoading?: boolean;
+  /** `basket` means `portfolioData` prices the current holdings back over the period. */
+  portfolioBasis?: 'basket' | 'actual';
 }
 
 const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) => {
@@ -251,6 +253,7 @@ export function BenchmarkComparisonChart({
   range, onRangeChange,
   benchmarkSelector,
   portfolioLoading, benchmarkLoading,
+  portfolioBasis = 'basket',
 }: BenchmarkComparisonChartProps) {
   const reduced = useReducedMotion();
   // Series colours resolve from the tokens at runtime: recharts puts them in SVG
@@ -324,7 +327,7 @@ export function BenchmarkComparisonChart({
               {isLoading
                 ? 'Loading history…'
                 : hasData
-                  ? `${range} — return ${windowDate(points[0])} → ${windowDate(points[points.length - 1])}, both lines normalised to 0% there${limitNote ? ` (${limitNote})` : ''}`
+                  ? `${range} — return ${windowDate(points[0])} → ${windowDate(points[points.length - 1])}, both lines normalised to 0% there${limitNote ? ` (${limitNote})` : ''}${portfolioBasis === 'basket' ? ' · current basket' : ''}`
                   : 'Normalised return comparison'}
             </CardDescription>
           </div>

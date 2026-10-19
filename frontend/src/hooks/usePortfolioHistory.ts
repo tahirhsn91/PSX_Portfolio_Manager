@@ -21,23 +21,22 @@ const DEFAULT_WINDOW_DAYS = 200;
 export function usePortfolioHistory(
   holdings: Pick<Holding, 'symbol' | 'shares' | 'purchaseDate'>[] | undefined,
   windowDays: number = DEFAULT_WINDOW_DAYS,
-): { series: HistoricalDataPoint[]; isLoading: boolean; window: { from: string; to: string } } {
+): {
+  /** Actual account history — nothing before the holding's purchase date. */
+  series: HistoricalDataPoint[];
+  /** Current basket priced back across the whole window, for the vs-benchmark comparison. */
+  backtestSeries: HistoricalDataPoint[];
+  isLoading: boolean;
+  window: { from: string; to: string };
+} {
   const symbols = useMemo(
     () => [...new Set((holdings ?? []).map((h) => h.symbol.toUpperCase()))].sort(),
     [holdings],
   );
 
-  // Nothing exists before the first purchase, so neither side needs fetching from further
-  // back than that: ALL used to pull ten years of candles for an eleven-day-old portfolio.
-  const from = useMemo(() => {
-    const rangeStart = format(subDays(new Date(), windowDays), 'yyyy-MM-dd');
-    const earliest = (holdings ?? []).reduce<string | null>((min, h) => {
-      const day = h.purchaseDate?.slice(0, 10);
-      if (!day) return min;
-      return !min || day < min ? day : min;
-    }, null);
-    return earliest && earliest > rangeStart ? earliest : rangeStart;
-  }, [holdings, windowDays]);
+  // Fetch the whole period even when the portfolio is younger: the comparison chart
+  // prices the current basket back across it, and both sides must share a window.
+  const from = format(subDays(new Date(), windowDays), 'yyyy-MM-dd');
   const to = format(addDays(new Date(), 1), 'yyyy-MM-dd');
 
   const query = useQuery({
@@ -63,5 +62,10 @@ export function usePortfolioHistory(
     [holdings, query.data],
   );
 
-  return { series, isLoading: query.isLoading, window: { from, to } };
+  const backtestSeries = useMemo(
+    () => buildPortfolioValueSeries(holdings ?? [], query.data ?? {}, { ignorePurchaseDates: true }),
+    [holdings, query.data],
+  );
+
+  return { series, backtestSeries, isLoading: query.isLoading, window: { from, to } };
 }
