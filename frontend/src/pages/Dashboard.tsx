@@ -10,7 +10,7 @@ import { useAllPortfoliosMetrics } from '@/hooks';
 import { useKSE100, usePortfolioHistory, useSectorPerformance } from '@/hooks';
 import { usePortfolioStore } from '@/store';
 import { ROUTES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
-import { formatCurrency, formatPercent, sectorMatchesAny } from '@/utils';
+import { allocationBySector, formatCurrency, formatPercent, sectorMatchesAny } from '@/utils';
 import { cn } from '@/lib/utils';
 import { ScrollReveal } from '@/components/animations';
 import { motion, useReducedMotion } from 'framer-motion';
@@ -77,19 +77,13 @@ export function Dashboard() {
     );
   }
 
-  // Build allocation data from all holdings — by sector, under its own name.
-  const sectorAlloc = allHoldings.reduce((acc, h) => {
-    acc[h.sector] = (acc[h.sector] ?? 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const pieData = Object.entries(sectorAlloc).map(([sector, count]) => ({
-    // The feed's sector name, whole: it was truncated to its first word, so
-    // "Commercial Banks" and "Commercial ..." were indistinguishable.
-    name: sector,
-    value: count,
-    percent: (count / allHoldings.length) * 100,
-  }));
+  // "Where your money is" — a **value** split, not a count split. A sector's share
+  // is the money in it (current value where the feed prices it, cost basis where it
+  // cannot), so five small positions cannot outweigh one large one.
+  const pieData = allocationBySector(
+    allHoldings,
+    metricsPerPortfolio.flatMap((m) => m.holdingMetrics),
+  );
 
   // The sector board is market-wide; this dashboard is about one account, so
   // keep only sectors it actually holds. The board names a sector short

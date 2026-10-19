@@ -48,11 +48,11 @@ const INK_BY_FILL: Record<string, { light: string; dark: string }> = {
   'fill-chart-loss-5': { light: '#0f1110', dark: '#0f1110' },
   'fill-chart-flat': { light: '#ffffff', dark: '#0f1110' },
   'fill-chart-cat-1': { light: '#ffffff', dark: '#0f1110' },
-  'fill-chart-cat-2': { light: '#ffffff', dark: '#0f1110' },
+  'fill-chart-cat-2': { light: '#0f1110', dark: '#0f1110' },
   'fill-chart-cat-3': { light: '#ffffff', dark: '#0f1110' },
-  'fill-chart-cat-4': { light: '#ffffff', dark: '#0f1110' },
+  'fill-chart-cat-4': { light: '#0f1110', dark: '#0f1110' },
   'fill-chart-cat-5': { light: '#0f1110', dark: '#0f1110' },
-  'fill-chart-cat-6': { light: '#0f1110', dark: '#0f1110' },
+  'fill-chart-cat-6': { light: '#ffffff', dark: '#0f1110' },
 };
 
 const FILL_BY_TONE: Record<string, { light: string; dark: string }> = {
@@ -67,12 +67,12 @@ const FILL_BY_TONE: Record<string, { light: string; dark: string }> = {
   'fill-chart-loss-4': { light: '#E9686D', dark: '#F4747A' },
   'fill-chart-loss-5': { light: '#F28589', dark: '#F99A9E' },
   'fill-chart-flat': { light: '#6B6B6B', dark: '#A8ADAB' },
-  'fill-chart-cat-1': { light: '#3F3F3F', dark: '#838885' },
-  'fill-chart-cat-2': { light: '#666666', dark: '#A8ADAB' },
-  'fill-chart-cat-3': { light: '#6E6E6E', dark: '#B9BDBC' },
-  'fill-chart-cat-4': { light: '#737373', dark: '#C9CCCB' },
-  'fill-chart-cat-5': { light: '#8A8A8A', dark: '#D8DBDA' },
-  'fill-chart-cat-6': { light: '#9A9A9A', dark: '#E5E7E6' },
+  'fill-chart-cat-1': { light: '#2563EB', dark: '#6C9BFF' },
+  'fill-chart-cat-2': { light: '#0E9F8E', dark: '#35C2AE' },
+  'fill-chart-cat-3': { light: '#6D4AF0', dark: '#A48BFF' },
+  'fill-chart-cat-4': { light: '#B87400', dark: '#F0B44C' },
+  'fill-chart-cat-5': { light: '#1F8FCF', dark: '#56B6E8' },
+  'fill-chart-cat-6': { light: '#C2477E', dark: '#E57AA6' },
 };
 
 function luminance(hex: string): number {
