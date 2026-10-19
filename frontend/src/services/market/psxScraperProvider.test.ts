@@ -7,7 +7,12 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { mapScraperValuation, type ScraperValuationSource } from './psxScraperProvider';
+import {
+  mapScraperValuation,
+  mapSectorPerformance,
+  type ScraperSectorRow,
+  type ScraperValuationSource,
+} from './psxScraperProvider';
 
 /** The card's fields, all null — what an unserved or empty payload must produce. */
 const ALL_NULL = {
@@ -233,5 +238,42 @@ describe('mapScraperValuation', () => {
       'nextDividendDate',
       'peRatio',
     ]);
+  });
+});
+
+describe('mapSectorPerformance', () => {
+  const row: ScraperSectorRow = {
+    sector: 'OIL & GAS EXPLORATION COMPANIES',
+    count: 12,
+    avgChangePercent: 0.135,
+    totalMarketCap: 1_234_567_890,
+    advancers: 5,
+    decliners: 7,
+  };
+
+  it('carries the feed\'s own average move and its counts through', () => {
+    expect(mapSectorPerformance(row)).toEqual({
+      sector: 'OIL & GAS EXPLORATION COMPANIES',
+      changePercent: 0.135,
+      stockCount: 12,
+      marketCap: 1_234_567_890,
+      advancers: 5,
+      decliners: 7,
+    });
+  });
+
+  it('keeps a flat sector at exactly 0% instead of dropping it', () => {
+    expect(mapSectorPerformance({ ...row, avgChangePercent: 0 })?.changePercent).toBe(0);
+  });
+
+  it('drops a row whose move is missing or not a number', () => {
+    expect(mapSectorPerformance({ ...row, avgChangePercent: Number.NaN })).toBeNull();
+    expect(
+      mapSectorPerformance({ ...row, avgChangePercent: undefined as unknown as number }),
+    ).toBeNull();
+  });
+
+  it('drops a row with no sector name', () => {
+    expect(mapSectorPerformance({ ...row, sector: '' })).toBeNull();
   });
 });

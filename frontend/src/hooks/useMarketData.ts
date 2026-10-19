@@ -4,7 +4,6 @@
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { marketDataService } from '@/services';
-import { request } from '@/services/http';
 import { useMarketStore } from '@/store';
 import { useEffect } from 'react';
 import type { CandleQuery } from '@/types';
@@ -155,27 +154,16 @@ export function useCompanySearch(query: string) {
   });
 }
 
-/** One row of the market-wide sector board (`GET /api/yf/sectors`). */
-export interface SectorPerformanceRow {
-  sector: string;
-  changePercent: number;
-  marketCap?: number;
-  stockCount?: number;
-  topGainer?: string;
-  topLoser?: string;
-}
-
 /**
- * Market-wide sector performance, from the backend's Yahoo proxy.
- *
- * The board is market-wide; the dashboard narrows it to the sectors the signed-in
- * account actually holds before plotting. It only changes once per session, so it
- * is cached for five minutes rather than polled with the quotes.
+ * The market-wide sector board, from the PSX scraper: every PSX sector, with the
+ * feed's own average move for the session. The dashboard narrows it to the sectors
+ * the signed-in account actually holds before plotting. It only changes once per
+ * session, so it is cached for five minutes rather than polled with the quotes.
  */
 export function useSectorPerformance() {
   return useQuery({
     queryKey: MARKET_QUERY_KEYS.sectors(),
-    queryFn: () => request<SectorPerformanceRow[]>('/api/yf/sectors'),
+    queryFn: () => marketDataService.getSectorPerformance(),
     staleTime: 300_000,
     refetchInterval: 300_000,
   });
