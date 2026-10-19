@@ -17,6 +17,7 @@ import type {
   CandleQuery,
   MarketStatus,
   PSXCompany,
+  SectorPerformance,
 } from '@/types';
 import { MockMarketDataProvider } from './mockMarketData';
 import { CapitalStakeMarketDataProvider } from './capitalStakeProvider';
@@ -117,6 +118,15 @@ class MarketDataService {
 
   async getMarketStatus(): Promise<MarketStatus> {
     return this.provider.getMarketStatus();
+  }
+
+  /**
+   * Market-wide sector board. A provider without one (mock, Yahoo, Capital Stake)
+   * returns an empty list, and the dashboard simply does not draw the card — it
+   * never substitutes a number.
+   */
+  async getSectorPerformance(): Promise<SectorPerformance[]> {
+    return this.provider.getSectorPerformance?.() ?? [];
   }
 
   async searchCompanies(query: string): Promise<PSXCompany[]> {

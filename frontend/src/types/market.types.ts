@@ -126,6 +126,24 @@ export interface PSXCompany {
 }
 
 // Market data provider interface — swap implementations without changing consumers
+/**
+ * One row of the market-wide sector board.
+ *
+ * `changePercent` is the feed's own average move for the sector that session.
+ * Only the PSX scraper serves this board; providers without one omit
+ * `getSectorPerformance`, and the service returns an empty list for them.
+ */
+export interface SectorPerformance {
+  sector: string;
+  changePercent: number;
+  /** Number of stocks in the sector. */
+  stockCount: number;
+  /** Total market capitalisation, in PKR. */
+  marketCap: number;
+  advancers: number;
+  decliners: number;
+}
+
 export interface IMarketDataProvider {
   getQuote(symbol: string): Promise<StockQuote>;
   getQuotes(symbols: string[]): Promise<StockQuote[]>;
@@ -139,4 +157,6 @@ export interface IMarketDataProvider {
   getKSE100(): Promise<KSE100Data | null>;
   getMarketStatus(): Promise<MarketStatus>;
   searchCompanies(query: string): Promise<PSXCompany[]>;
+  /** Market-wide sector board. Optional: only providers with one implement it. */
+  getSectorPerformance?(): Promise<SectorPerformance[]>;
 }

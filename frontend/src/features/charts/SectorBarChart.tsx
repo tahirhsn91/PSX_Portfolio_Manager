@@ -110,14 +110,14 @@ const SignedBarLabel = ({ x = 0, y = 0, width = 0, height = 0, value = 0, decima
   const gained = value >= 0;
   const centreX = x + width / 2;
   const anchorY = gained ? y - 4 : y + height + 4;
+  // A phone showing 11 sectors leaves an 18px bar, where a 40px `+2.16%` would run
+  // into its neighbours — and rotating it clips against the axis. Too narrow for a
+  // readable label: the summary below and the tooltip carry the figures instead.
+  if (width < 22 && !dense) return null;
   return (
     <text
       x={centreX}
       y={anchorY}
-      /* A session that reports 30+ sectors leaves ~22px a column, which a sideways
-         `+2.2%` (~30px) would overlap its neighbour with. Rotated, the label owns
-         its own column; the padded Y domain leaves the headroom it needs, so it
-         sits entirely outside the bar instead of over another one. */
       transform={dense ? `rotate(-90 ${centreX} ${anchorY})` : undefined}
       textAnchor={dense ? (gained ? 'start' : 'end') : 'middle'}
       fontSize={12}

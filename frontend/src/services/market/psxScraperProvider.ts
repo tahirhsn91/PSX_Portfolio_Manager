@@ -40,6 +40,7 @@ import type {
   KSE100Data,
   MarketStatus,
   PSXCompany,
+  SectorPerformance,
 } from '@/types';
 import { PSX_COMPANIES } from '@/constants';
 
@@ -160,6 +161,36 @@ interface ScraperCandlesResponse {
   from: string | null;
   to: string | null;
   items: ScraperCandle[];
+}
+
+/**
+ * `/api/v1/market/sectors` — one row per PSX sector. The scraper computes the
+ * average move over every stock in the sector, so the app never averages a page
+ * of stocks and calls it a sector.
+ */
+export interface ScraperSectorRow {
+  sector: string;
+  count: number;
+  avgChangePercent: number;
+  totalMarketCap: number;
+  advancers: number;
+  decliners: number;
+}
+
+/**
+ * Map a board row to the app's sector row, or `null` when the feed sent no usable
+ * move. Kept pure so the mapping is testable without a network.
+ */
+export function mapSectorPerformance(row: ScraperSectorRow): SectorPerformance | null {
+  if (!row?.sector || !Number.isFinite(row.avgChangePercent)) return null;
+  return {
+    sector: row.sector,
+    changePercent: row.avgChangePercent,
+    stockCount: row.count,
+    marketCap: row.totalMarketCap,
+    advancers: row.advancers,
+    decliners: row.decliners,
+  };
 }
 
 /**
@@ -564,6 +595,18 @@ export class PSXScraperProvider implements IMarketDataProvider {
 
   async getMarketStatus(): Promise<MarketStatus> {
     return deriveMarketStatus();
+  }
+
+  /**
+   * The market-wide sector board: every PSX sector, with the feed's own average
+   * move for the session. One request — the scraper computes the aggregate over
+   * every stock in the sector, so the API is the source of the percentage.
+   */
+  async getSectorPerformance(): Promise<SectorPerformance[]> {
+    const { items } = await this.get<{ items: ScraperSectorRow[] }>('/api/v1/market/sectors');
+    return (items ?? [])
+      .map(mapSectorPerformance)
+      .filter((row): row is SectorPerformance => row !== null);
   }
 
   async getQuote(symbol: string): Promise<StockQuote> {
