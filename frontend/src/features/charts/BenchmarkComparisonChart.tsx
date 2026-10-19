@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { format } from 'date-fns';
+import { addDays, differenceInCalendarDays, format, startOfYear, subDays } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -34,11 +34,20 @@ export function rangeConfig(range: ComparisonRange) {
 /** The fetch window in days. YTD is calendar-year-to-date, so it cannot be a fixed constant. */
 export function rangeDays(range: ComparisonRange): number {
   if (range === 'YTD') {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), 0, 1);
-    return Math.max(1, Math.ceil((now.getTime() - start.getTime()) / 86_400_000));
+    // Calendar days, not wall-clock: at 18:00 on 19 Oct a ceil() counted 292 and
+    // the fetch began on 31 Dec, pulling the previous year's last session into YTD.
+    return Math.max(0, differenceInCalendarDays(new Date(), startOfYear(new Date())));
   }
   return rangeConfig(range).days;
+}
+
+/** The history window a range needs, as ISO dates. The feed treats `to` as exclusive. */
+export function rangeWindow(range: ComparisonRange): { from: string; to: string } {
+  const now = new Date();
+  return {
+    from: format(subDays(now, rangeDays(range)), 'yyyy-MM-dd'),
+    to: format(addDays(now, 1), 'yyyy-MM-dd'),
+  };
 }
 
 /** Whatever the portfolio is measured against: an index, or another stock. */
@@ -83,7 +92,10 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 };
 
 export interface ComparisonPoint {
+  /** Compact axis label — `MMM dd`, or `MMM ''yy` when the window spans a year. */
   date: string;
+  /** The session itself, for prose that needs an unambiguous date. */
+  iso: string;
   portfolio: number | null;
   benchmark: number | null;
 }
@@ -102,6 +114,8 @@ export function alignReturnsByDate(
   portfolioData: HistoricalDataPoint[],
   benchmarkData: HistoricalDataPoint[],
   maxPoints = 65,
+  /** The period's nominal start; when the portfolio begins later, that is the limit. */
+  rangeStart = '',
 ): {
   points: ComparisonPoint[];
   portfolioReturnPercent: number;
@@ -109,6 +123,8 @@ export function alignReturnsByDate(
   /** Sessions actually plotted, vs the number the range asked for. */
   sessions: number;
   requestedSessions: number;
+  /** Which side starts later, so the card can say why the window is short. */
+  limitedBy: 'portfolio' | 'benchmark' | null;
 } {
   const sortedPortfolio = [...portfolioData].sort((a, b) => a.date.localeCompare(b.date));
   const sortedBenchmark = [...benchmarkData].sort((a, b) => a.date.localeCompare(b.date));
@@ -132,7 +148,7 @@ export function alignReturnsByDate(
     .slice(-maxPoints);
 
   if (requested.length === 0) {
-    return { points: [], portfolioReturnPercent: 0, benchmarkReturnPercent: 0, sessions: 0, requestedSessions: maxPoints };
+    return { points: [], portfolioReturnPercent: 0, benchmarkReturnPercent: 0, sessions: 0, requestedSessions: maxPoints, limitedBy: null };
   }
 
   /** Walk a series in date order, yielding its last known close at or before `date`. */
@@ -158,7 +174,7 @@ export function alignReturnsByDate(
   const firstPortfolio = portfolioValues.findIndex((v) => v !== null);
   const firstBenchmark = benchmarkValues.findIndex((v) => v !== null);
   if (firstPortfolio === -1 || firstBenchmark === -1) {
-    return { points: [], portfolioReturnPercent: 0, benchmarkReturnPercent: 0, sessions: 0, requestedSessions: maxPoints };
+    return { points: [], portfolioReturnPercent: 0, benchmarkReturnPercent: 0, sessions: 0, requestedSessions: maxPoints, limitedBy: null };
   }
 
   // Compare like for like: begin where **both** series have a value, so the two
@@ -170,6 +186,18 @@ export function alignReturnsByDate(
   const pValues = portfolioValues.slice(offset);
   const bValues = benchmarkValues.slice(offset);
 
+  // Whichever side starts later is what shortens the window — the card names it
+  // instead of blaming "the feed". Compare against the nominal range start, not the
+  // fetched window: the fetch itself already stops at the purchase date, so both
+  // series would otherwise appear to begin on the same day.
+  const portfolioFirst = sortedPortfolio[0]?.date ?? '';
+  const benchmarkFirst = sortedBenchmark[0]?.date ?? '';
+  const limitedBy = rangeStart
+    ? portfolioFirst > rangeStart ? 'portfolio' : benchmarkFirst > rangeStart ? 'benchmark' : null
+    : portfolioFirst === benchmarkFirst
+      ? null
+      : portfolioFirst > benchmarkFirst ? 'portfolio' : 'benchmark';
+
   // …and it *ends* at the last session both series cover. A benchmark whose feed has gone
   // quiet (the index series currently stops 15 Sep while quotes run to 21 Sep) must not be
   // compared against a fresher portfolio as though the extra sessions counted: the badge and
@@ -177,7 +205,7 @@ export function alignReturnsByDate(
   let lastBoth = dates.length - 1;
   while (lastBoth >= 0 && (pValues[lastBoth] === null || bValues[lastBoth] === null)) lastBoth -= 1;
   if (lastBoth < 0) {
-    return { points: [], portfolioReturnPercent: 0, benchmarkReturnPercent: 0, sessions: 0, requestedSessions: maxPoints };
+    return { points: [], portfolioReturnPercent: 0, benchmarkReturnPercent: 0, sessions: 0, requestedSessions: maxPoints, limitedBy: null };
   }
 
   const windowDates = dates.slice(0, lastBoth + 1);
@@ -187,11 +215,19 @@ export function alignReturnsByDate(
   const portfolioBase = windowP[0];
   const benchmarkBase = windowB[0];
 
+  // A window that crosses a year needs the year, or "Oct 28 → Oct 19" reads as
+  // eleven months rather than a year.
+  const labelPattern =
+    windowDates[0]?.slice(0, 4) === windowDates[windowDates.length - 1]?.slice(0, 4)
+      ? 'MMM dd'
+      : "MMM ''yy";
+
   const points: ComparisonPoint[] = windowDates.map((date, i) => {
     const p = windowP[i];
     const b = windowB[i];
     return {
-      date: format(new Date(`${date}T00:00:00`), 'MMM dd'),
+      date: format(new Date(`${date}T00:00:00`), labelPattern),
+      iso: date,
       portfolio: p !== null && portfolioBase ? +((p / portfolioBase - 1) * 100).toFixed(2) : null,
       benchmark: b !== null && benchmarkBase ? +((b / benchmarkBase - 1) * 100).toFixed(2) : null,
     };
@@ -204,6 +240,7 @@ export function alignReturnsByDate(
     benchmarkReturnPercent: last?.benchmark ?? 0,
     sessions: points.length,
     requestedSessions: maxPoints,
+    limitedBy,
   };
 }
 
@@ -222,16 +259,29 @@ export function BenchmarkComparisonChart({
   // series, so the value has to be a real colour rather than a class.
   const tokens = useChartTokens();
 
-  const { points, portfolioReturnPercent, benchmarkReturnPercent, sessions, requestedSessions } = alignReturnsByDate(
-    portfolioData, benchmark.series, rangeConfig(range).sessions,
+  const config = rangeConfig(range);
+  // YTD is a calendar window: its fetch already bounds the sessions, so capping it
+  // at a session count (252) would claim the feed was short when it was not.
+  const isCalendarWindow = range === 'YTD';
+  const { points, portfolioReturnPercent, benchmarkReturnPercent, sessions, limitedBy } = alignReturnsByDate(
+    portfolioData,
+    benchmark.series,
+    isCalendarWindow ? Number.POSITIVE_INFINITY : config.sessions,
+    format(subDays(new Date(), rangeDays(range)), 'yyyy-MM-dd'),
   );
 
   const hasPortfolioLine = points.some((p) => p.portfolio !== null);
   const hasBenchmarkLine = points.some((p) => p.benchmark !== null);
   const hasData = hasPortfolioLine && hasBenchmarkLine;
   const isLoading = (portfolioLoading || benchmarkLoading) && !hasData;
-  const limitedByHistory = hasData && sessions < requestedSessions;
+  const limitedByHistory = !isCalendarWindow && hasData && sessions < config.sessions;
   const outperformance = portfolioReturnPercent - benchmarkReturnPercent;
+  const windowDate = (point?: ComparisonPoint) =>
+    point ? format(new Date(`${point.iso}T00:00:00`), 'MMM d, yyyy') : '';
+  // Name what shortened the window: the portfolio's own purchase date is not a feed gap.
+  const limitNote = limitedBy
+    ? `${limitedBy === 'portfolio' ? 'portfolio' : benchmark.label} history begins ${windowDate(points[0])}`
+    : null;
 
   const summaryItems: ChartSummaryItem[] = hasData
     ? [
@@ -250,8 +300,8 @@ export function BenchmarkComparisonChart({
           value: formatPercent(outperformance),
           tone: outperformance > 0 ? 'profit' : outperformance < 0 ? 'loss' : 'flat',
         },
-        { label: `${range} window`, value: `${points[0]?.date} → ${points[points.length - 1]?.date}` },
-        { label: 'Sessions plotted', value: `${sessions}${limitedByHistory ? ` of ${requestedSessions} (all the feed holds)` : ''}` },
+        { label: `${range} window`, value: `${windowDate(points[0])} → ${windowDate(points[points.length - 1])}` },
+        { label: 'Sessions plotted', value: `${sessions}${limitedByHistory ? ` of ${config.sessions}` : ''}` },
       ]
     : [];
 
@@ -271,14 +321,16 @@ export function BenchmarkComparisonChart({
           <div>
             <CardTitle className="text-base">{title}</CardTitle>
             <CardDescription>
-              {hasData
-                ? `${range} — return ${points[0]?.date} → ${points[points.length - 1]?.date}, both lines normalised to 0% there${limitedByHistory ? ' (shorter than the range: that is all the feed holds)' : ''}`
-                : 'Normalised return comparison'}
+              {isLoading
+                ? 'Loading history…'
+                : hasData
+                  ? `${range} — return ${windowDate(points[0])} → ${windowDate(points[points.length - 1])}, both lines normalised to 0% there${limitNote ? ` (${limitNote})` : ''}`
+                  : 'Normalised return comparison'}
             </CardDescription>
           </div>
           {hasData && (
             <Badge variant={outperformance >= 0 ? 'profit' : 'loss'}>
-              {outperformance >= 0 ? '▲' : '▼'} {formatPercent(Math.abs(outperformance))} vs {benchmark.kind === 'index' ? 'index' : 'stock'}
+              {outperformance >= 0 ? '▲' : '▼'} {Math.abs(outperformance).toFixed(2)}% vs {benchmark.kind === 'index' ? 'index' : 'stock'}
             </Badge>
           )}
         </div>

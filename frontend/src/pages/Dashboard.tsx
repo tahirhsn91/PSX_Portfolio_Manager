@@ -29,16 +29,19 @@ export function Dashboard() {
   const navigate = useNavigate();
   const portfolios = usePortfolioStore((s) => s.portfolios);
   const { aggregate, isLoading, metricsPerPortfolio } = useAllPortfoliosMetrics();
-  const { data: kse100, isLoading: kseLoading } = useKSE100();
-  const { data: marketSectors = [], isLoading: sectorsLoading } = useSectorPerformance();
   const [range, setRange] = useState<ComparisonRange>('3M');
-  const reduced = useReducedMotion();
-
   // The portfolio side of the "vs benchmark" comparison, priced from real history.
   const allHoldings = portfolios.flatMap((p) => p.holdings);
-  const { series: portfolioSeries, isLoading: portfolioHistoryLoading } = usePortfolioHistory(
-    allHoldings, rangeDays(range),
-  );
+  // The index series has to cover the same window as the portfolio side; a fixed 1Y
+  // clip made every long range render the same year.
+  const {
+    series: portfolioSeries,
+    isLoading: portfolioHistoryLoading,
+    window: historyWindow,
+  } = usePortfolioHistory(allHoldings, rangeDays(range));
+  const { data: kse100, isLoading: kseLoading } = useKSE100(historyWindow);
+  const { data: marketSectors = [], isLoading: sectorsLoading } = useSectorPerformance();
+  const reduced = useReducedMotion();
 
   // The dashboard aggregates every portfolio, so its benchmark is the index.
   const benchmark: ComparisonBenchmark = {
