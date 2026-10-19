@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -20,6 +21,26 @@ interface SectorBarChartProps {
 /** `+1.23%` / `-0.45%` / `0.00%` — the sign is text, so it survives a colourblind reader. */
 const signedPercent = (value: number, decimals = 2): string =>
   `${value > 0 ? '+' : value < 0 ? '-' : ''}${Math.abs(value).toFixed(decimals)}%`;
+
+/** Left gutter for the full sector names, in px. The plot is what is left of the card. */
+const Y_AXIS_WIDTH = 152;
+
+/**
+ * Round ticks for a diverging percentage axis. Recharts' auto ticks follow the
+ * padded domain (`-1.25% / 0.75% / 4.33%`), which reads like a scale rather than a
+ * set of figures; stepping the 1–2–5 ladder keeps them on round numbers and — the
+ * point of the chart — always puts zero on the axis.
+ */
+function axisTicks(min: number, max: number): number[] {
+  const rough = (max - min || 1) / 6;
+  const magnitude = 10 ** Math.floor(Math.log10(rough));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * magnitude).find((s) => s >= rough) ?? 10 * magnitude;
+  const ticks: number[] = [];
+  for (let value = Math.ceil(min / step) * step; value <= max + 1e-9; value += step) {
+    ticks.push(Number(value.toFixed(6)));
+  }
+  return ticks;
+}
 
 /** Tone for a move's direction — green up, red down, flat grey. A class, so both themes resolve it. */
 const toneClass = (changePercent: number): string =>
@@ -50,12 +71,13 @@ interface AxisTickProps {
 }
 
 /**
- * Wrap a sector name onto at most three lines at 12px. Feed names run to 40
- * characters (`INV. BANKS / INV. COS. / SECURITIES COS.`) against ~26px of column
- * per bar, so anything past three lines is clipped with an ellipsis — the full
- * name is still in the tooltip and in the summary list under the chart.
+ * Wrap a sector name onto at most two lines at 12px. The chart is horizontal, so
+ * the name sits in the left gutter at full length rather than rotated under a
+ * column; 23 characters a line covers the longest PSX names ("OIL & GAS
+ * EXPLORATION COMPANIES"), and anything past two lines is clipped with an
+ * ellipsis — the full name is still in the tooltip and in the summary below.
  */
-function wrapSectorName(name: string, perLine = 14, maxLines = 3): string[] {
+function wrapSectorName(name: string, perLine = 23, maxLines = 2): string[] {
   const words = name.split(/[\s/]+/).filter(Boolean);
   const lines: string[] = [];
   let line = '';
@@ -78,20 +100,18 @@ function wrapSectorName(name: string, perLine = 14, maxLines = 3): string[] {
   return clipped;
 }
 
-const SectorTick = ({ x = 0, y = 0, payload }: AxisTickProps) => (
-  <text
-    transform={`translate(${x},${y}) rotate(-45)`}
-    textAnchor="end"
-    fontSize={12}
-    className="fill-muted-foreground"
-  >
-    {wrapSectorName(payload?.value ?? '').map((line, index) => (
-      <tspan key={`${line}-${index}`} x={0} dy={index === 0 ? 6 : 12}>
-        {line}
-      </tspan>
-    ))}
-  </text>
-);
+const SectorTick = ({ x = 0, y = 0, payload }: AxisTickProps) => {
+  const lines = wrapSectorName(payload?.value ?? '');
+  return (
+    <text x={x} y={y} textAnchor="end" fontSize={12} className="fill-muted-foreground">
+      {lines.map((line, index) => (
+        <tspan key={`${line}-${index}`} x={x} dy={index === 0 ? (lines.length === 1 ? 4 : -2) : 12}>
+          {line}
+        </tspan>
+      ))}
+    </text>
+  );
+};
 
 interface BarLabelProps {
   x?: number;
@@ -99,31 +119,26 @@ interface BarLabelProps {
   width?: number;
   height?: number;
   value?: number;
-  /** Set when the columns are narrow: one decimal fits between two bars, two do not. */
-  decimals?: number;
-  /** Set when the chart carries more bars than a 40px label can sit between sideways. */
-  dense?: boolean;
 }
 
-/** The move, printed at the end of its own bar — the sign never rests on the colour. */
-const SignedBarLabel = ({ x = 0, y = 0, width = 0, height = 0, value = 0, decimals = 2, dense = false }: BarLabelProps) => {
+/** The move, printed just past the end of its own bar — the sign never rests on the colour. */
+const SignedBarLabel = ({ x = 0, y = 0, width = 0, height = 0, value = 0 }: BarLabelProps) => {
   const gained = value >= 0;
-  const centreX = x + width / 2;
-  const anchorY = gained ? y - 4 : y + height + 4;
-  // A phone showing 11 sectors leaves an 18px bar, where a 40px `+2.16%` would run
-  // into its neighbours — and rotating it clips against the axis. Too narrow for a
-  // readable label: the summary below and the tooltip carry the figures instead.
-  if (width < 22 && !dense) return null;
+  // In a diverging horizontal bar Recharts hands `width` the sign of the value, so
+  // the far end is the larger of x and x + width whichever direction the bar runs.
+  const start = Math.min(x, x + width);
+  const end = Math.max(x, x + width);
+  const anchorX = gained ? end + 6 : start - 6;
   return (
     <text
-      x={centreX}
-      y={anchorY}
-      transform={dense ? `rotate(-90 ${centreX} ${anchorY})` : undefined}
-      textAnchor={dense ? (gained ? 'start' : 'end') : 'middle'}
+      x={anchorX}
+      y={y + height / 2}
+      textAnchor={gained ? 'start' : 'end'}
+      dominantBaseline="central"
       fontSize={12}
       className="fill-muted-foreground"
     >
-      {signedPercent(value, decimals)}
+      {signedPercent(value)}
     </text>
   );
 };
@@ -134,6 +149,21 @@ export function SectorBarChart({ data, title = 'Sector Performance', isLoading =
   // `stroke` attribute on a ReferenceLine, and an attribute beats an inherited class.
   const tokens = useChartTokens();
   const toneFills = useToneFills();
+  const chartRef = useRef<HTMLDivElement>(null);
+  const [plotWidth, setPlotWidth] = useState(0);
+
+  // A label printed past the last bar needs a fixed number of pixels, and how many
+  // data units that is depends on the card's width — so the plot is measured rather
+  // than assumed. Without ResizeObserver (jsdom) the 360px fallback is used.
+  useEffect(() => {
+    const node = chartRef.current;
+    if (!node || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => {
+      setPlotWidth(Math.max(0, entry.contentRect.width - Y_AXIS_WIDTH - 16));
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [data.length]);
 
   const rows: Row[] = [...data]
     .sort((a, b) => b.changePercent - a.changePercent)
@@ -144,17 +174,18 @@ export function SectorBarChart({ data, title = 'Sector Performance', isLoading =
   const losers = rows.filter((r) => r.changePercent < 0);
 
   const values = rows.map((r) => r.changePercent);
-  // Pad the domain so the value label at the tallest and deepest bar has room
-  // inside the plot instead of spilling over the axis.
-  const pad = 1.45;
   const dataMax = Math.max(0, ...values);
   const dataMin = Math.min(0, ...values);
-  const domain: [number, number] = [dataMin * pad, dataMax * pad];
-  // Thirty sectors across one card leaves ~22px a column: one decimal keeps two
-  // neighbouring labels from colliding, and past a dozen bars the label turns to
-  // run up its own column.
-  const decimals = rows.length > 20 ? 1 : 2;
-  const dense = rows.length > 12;
+  const span = dataMax - dataMin || 1;
+  // Reserve 56px outside each extreme bar for its label, converted into data units
+  // at the measured plot width: a share of the domain alone clips on a phone.
+  const padUnits = (56 / (plotWidth > 0 ? plotWidth : 360)) * span;
+  const domain: [number, number] = [
+    dataMin === 0 ? -padUnits * 0.2 : dataMin - padUnits,
+    dataMax === 0 ? padUnits * 0.2 : dataMax + padUnits,
+  ];
+  // A row is 30px: two wrapped label lines plus their gap.
+  const height = Math.max(300, rows.length * 30 + 20);
 
   // Best gainers and worst losers: the shape of a session without repeating the chart.
   const movers = [...gainers, ...losers.slice().reverse()];
@@ -194,31 +225,48 @@ export function SectorBarChart({ data, title = 'Sector Performance', isLoading =
         ) : (
           <>
             <div
+              ref={chartRef}
               role="group"
               aria-label={`${title}: percentage change for ${rows.length} sectors, ${gainers.length} up and ${losers.length} down`}
             >
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart accessibilityLayer data={rows} margin={{ top: 16, right: 6, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-                  <XAxis dataKey="fullSector" tick={<SectorTick />} tickLine={false} interval={0} height={104} />
-                  <YAxis
-                    /* Rounded: the padded domain makes the top tick something like
+              <ResponsiveContainer width="100%" height={height}>
+                <BarChart
+                  accessibilityLayer
+                  layout="vertical"
+                  data={rows}
+                  margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                  <XAxis
+                    type="number"
+                    domain={domain}
+                    ticks={axisTicks(domain[0], domain[1])}
+                    /* Rounded: the padded domain makes a tick something like
                        2.8359369%, which is a scale, not a stated figure. */
                     tickFormatter={(v) => `${Number(v.toFixed(2))}%`}
                     tick={{ fontSize: 12, fill: tokens.axis }}
                     tickLine={false}
                     axisLine={false}
                     className="fill-muted-foreground"
-                    domain={domain}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="fullSector"
+                    tick={<SectorTick />}
+                    tickLine={false}
+                    axisLine={false}
+                    width={Y_AXIS_WIDTH}
+                    interval={0}
                   />
                   <Tooltip content={<CustomTooltip />} />
-                  {/* The zero line: a sector that lost ground sits below it, whichever tone it takes. */}
-                  <ReferenceLine y={0} stroke={tokens.neutral} strokeOpacity={0.6} />
+                  {/* The zero line: a sector that lost ground sits left of it, whichever tone it takes. */}
+                  <ReferenceLine x={0} stroke={tokens.neutral} strokeOpacity={0.6} />
                   <Bar
                     dataKey="changePercent"
-                    radius={[4, 4, 0, 0]}
+                    barSize={16}
+                    radius={3}
                     isAnimationActive={!reduced}
-                    label={<SignedBarLabel decimals={decimals} dense={dense} />}
+                    label={<SignedBarLabel />}
                   >
                     {rows.map((entry, index) => (
                       <Cell
