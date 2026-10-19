@@ -65,3 +65,41 @@ export function displaySector(raw: string): string {
     .replace(/\s+/g, ' ')
     .replace(/(^|\s|&)([a-z])/g, (_match, prefix: string, char: string) => `${prefix}${char.toUpperCase()}`);
 }
+
+/**
+ * Comparison key for a sector name: case-, punctuation- and `&`-insensitive.
+ *
+ * The market board names sectors short (`Oil & Gas Exploration`, `Technology`)
+ * while a holding stores PSX's long form (`OIL & GAS EXPLORATION COMPANIES`,
+ * `Technology & Communication`), so the two only line up once both sides are
+ * reduced to this key.
+ */
+export function sectorKey(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * True when a market sector refers to one of the sectors the holdings carry.
+ *
+ * Matched by containment in either direction — the board's short name sits
+ * inside PSX's long name (`oil and gas exploration` ⊂ `oil and gas exploration
+ * companies`) and vice versa — so no alias table is needed when either side
+ * renames a sector.
+ */
+export function sectorMatchesAny(
+  marketSector: string,
+  holdingSectors: readonly string[],
+): boolean {
+  const key = sectorKey(marketSector);
+  if (!key) return false;
+
+  return holdingSectors.some((holdingSector) => {
+    const held = sectorKey(holdingSector);
+    return !!held && (held === key || held.includes(key) || key.includes(held));
+  });
+}

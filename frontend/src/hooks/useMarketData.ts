@@ -4,6 +4,7 @@
 
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { marketDataService } from '@/services';
+import { request } from '@/services/http';
 import { useMarketStore } from '@/store';
 import { useEffect } from 'react';
 import type { CandleQuery } from '@/types';
@@ -20,6 +21,7 @@ export const MARKET_QUERY_KEYS = {
   index: (symbol: string) => ['market', 'index', symbol.toUpperCase()] as const,
   status: () => ['market', 'status'] as const,
   search: (query: string) => ['market', 'search', query] as const,
+  sectors: () => ['market', 'sectors'] as const,
 } as const;
 
 /** Fetch and cache a single stock quote */
@@ -150,5 +152,31 @@ export function useCompanySearch(query: string) {
     // Hold the previous results while the next query is in flight, so the list never blanks
     // out mid-typing.
     placeholderData: keepPreviousData,
+  });
+}
+
+/** One row of the market-wide sector board (`GET /api/yf/sectors`). */
+export interface SectorPerformanceRow {
+  sector: string;
+  changePercent: number;
+  marketCap?: number;
+  stockCount?: number;
+  topGainer?: string;
+  topLoser?: string;
+}
+
+/**
+ * Market-wide sector performance, from the backend's Yahoo proxy.
+ *
+ * The board is market-wide; the dashboard narrows it to the sectors the signed-in
+ * account actually holds before plotting. It only changes once per session, so it
+ * is cached for five minutes rather than polled with the quotes.
+ */
+export function useSectorPerformance() {
+  return useQuery({
+    queryKey: MARKET_QUERY_KEYS.sectors(),
+    queryFn: () => request<SectorPerformanceRow[]>('/api/yf/sectors'),
+    staleTime: 300_000,
+    refetchInterval: 300_000,
   });
 }
