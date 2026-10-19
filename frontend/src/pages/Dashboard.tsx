@@ -4,13 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, MetricBand, PLValue, PageHeader } from '@/components/shared';
 import type { BandStat } from '@/components/shared';
-import { AllocationPieChart, BenchmarkComparisonChart, rangeDays } from '@/features/charts';
+import { AllocationPieChart, BenchmarkComparisonChart, SectorBarChart, rangeDays } from '@/features/charts';
 import type { ComparisonBenchmark, ComparisonRange } from '@/features/charts';
 import { useAllPortfoliosMetrics } from '@/hooks';
-import { useKSE100, usePortfolioHistory } from '@/hooks';
+import { useKSE100, usePortfolioHistory, useSectorPerformance } from '@/hooks';
 import { usePortfolioStore } from '@/store';
 import { ROUTES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
-import { formatCurrency, formatPercent } from '@/utils';
+import { formatCurrency, formatPercent, sectorMatchesAny } from '@/utils';
+import { cn } from '@/lib/utils';
 import { ScrollReveal } from '@/components/animations';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useState } from 'react';
@@ -29,6 +30,7 @@ export function Dashboard() {
   const portfolios = usePortfolioStore((s) => s.portfolios);
   const { aggregate, isLoading, metricsPerPortfolio } = useAllPortfoliosMetrics();
   const { data: kse100, isLoading: kseLoading } = useKSE100();
+  const { data: marketSectors = [], isLoading: sectorsLoading } = useSectorPerformance();
   const [range, setRange] = useState<ComparisonRange>('3M');
   const reduced = useReducedMotion();
 
@@ -88,6 +90,15 @@ export function Dashboard() {
     value: count,
     percent: (count / allHoldings.length) * 100,
   }));
+
+  // The sector board is market-wide; this dashboard is about one account, so
+  // keep only sectors it actually holds. The board names a sector short
+  // ("Oil & Gas Exploration") where a holding carries PSX's long form
+  // ("OIL & GAS EXPLORATION COMPANIES"), hence the normalised match.
+  const heldSectors = allHoldings.map((h) => h.sector);
+  const sectorPerformance = marketSectors.filter((row) =>
+    sectorMatchesAny(row.sector, heldSectors),
+  );
 
   // Movers — priced holdings only. An unpriced holding carries a 0% return that
   // means "unknown", and used to be ranked as a real one.
@@ -234,11 +245,28 @@ export function Dashboard() {
       </div>
       </ScrollReveal>
 
-      {/* Holdings composition — "where my money is". The market's own sector
-          performance lived here beside it and has moved out to MyPortfolio365. */}
-      {pieData.length > 0 && (
+      {/* Holdings composition — "where my money is" — and the market's move in
+          the sectors it holds, side by side. The board is market-wide; only rows
+          whose sector appears in the holdings are plotted. */}
+      {(pieData.length > 0 || sectorPerformance.length > 0) && (
         <ScrollReveal delay={0.05}>
-          <AllocationPieChart data={pieData} title="Where your money is" />
+          <div
+            className={cn(
+              'grid grid-cols-1 gap-4',
+              pieData.length > 0 && sectorPerformance.length > 0 && 'lg:grid-cols-2',
+            )}
+          >
+            {pieData.length > 0 && (
+              <AllocationPieChart data={pieData} title="Where your money is" />
+            )}
+            {sectorPerformance.length > 0 && (
+              <SectorBarChart
+                data={sectorPerformance}
+                title="Sector performance (market)"
+                isLoading={sectorsLoading}
+              />
+            )}
+          </div>
         </ScrollReveal>
       )}
 
