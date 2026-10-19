@@ -581,15 +581,17 @@ export function Settings() {
               </CardHeader>
               <CardContent className="space-y-2 text-sm text-muted-foreground">
                 <p>
-                  A client-side Pakistan Stock Exchange portfolio tracker. Every portfolio, setting
-                  and notification is stored in this browser’s LocalStorage.
+                  A Pakistan Stock Exchange portfolio manager for holdings and trades, dividends
+                  and corporate actions, cash movements, price alerts, and portfolio analytics
+                  (risk, scenario analysis and target allocation). Portfolios are stored on the
+                  server and tied to your account; this browser keeps only device preferences such
+                  as theme and display options.
                 </p>
-                <p className="text-xs">
-                  Market data is simulated. For production use, connect a real data provider in{' '}
-                  <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">
-                    src/services/market/marketDataService.ts
-                  </code>
-                  .
+                <p>
+                  Market data comes from a pluggable provider — live PSX quotes when one is
+                  configured, or a built-in simulator otherwise. Price alerts are delivered in-app
+                  while the app is open, and only while the exchange is trading (Mon–Fri,
+                  09:30–15:30 PKT).
                 </p>
               </CardContent>
             </Card>
