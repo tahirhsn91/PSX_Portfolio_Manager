@@ -473,6 +473,8 @@ export function buildHoldingAllocation(
 export function buildPortfolioValueSeries(
   holdings: Pick<Holding, 'symbol' | 'shares' | 'purchaseDate'>[],
   histories: Record<string, HistoricalDataPoint[]>,
+  /** `ignorePurchaseDates` prices the *current* basket over the whole window (a backtest). */
+  options: { ignorePurchaseDates?: boolean } = {},
 ): HistoricalDataPoint[] {
   const closesBySymbol = new Map<string, Map<string, number>>();
   const dates = new Set<string>();
@@ -497,7 +499,7 @@ export function buildPortfolioValueSeries(
 
     let value = 0;
     for (const holding of holdings) {
-      if (holding.purchaseDate && holding.purchaseDate > date) continue;
+      if (!options.ignorePurchaseDates && holding.purchaseDate && holding.purchaseDate > date) continue;
       const close = lastClose.get(holding.symbol.toUpperCase());
       if (close === undefined) continue;
       value += holding.shares * close;

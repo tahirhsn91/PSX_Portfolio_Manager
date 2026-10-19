@@ -35,7 +35,7 @@ export function Dashboard() {
   // The index series has to cover the same window as the portfolio side; a fixed 1Y
   // clip made every long range render the same year.
   const {
-    series: portfolioSeries,
+    backtestSeries,
     isLoading: portfolioHistoryLoading,
     window: historyWindow,
   } = usePortfolioHistory(allHoldings, rangeDays(range));
@@ -275,7 +275,7 @@ export function Dashboard() {
             ? `${portfolios[0].name} vs ${benchmark.label}`
             : `All portfolios vs ${benchmark.label}`}
           portfolioLabel={portfolios.length === 1 ? portfolios[0].name : 'Portfolio'}
-          portfolioData={portfolioSeries}
+          portfolioData={backtestSeries}
           benchmark={benchmark}
           range={range}
           onRangeChange={setRange}
