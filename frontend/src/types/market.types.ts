@@ -144,6 +144,12 @@ export interface SectorPerformance {
   decliners: number;
 }
 
+/** Window for an index's own history. The feed treats `to` as exclusive. */
+export interface IndexHistoryQuery {
+  from?: string;
+  to?: string;
+}
+
 export interface IMarketDataProvider {
   getQuote(symbol: string): Promise<StockQuote>;
   getQuotes(symbols: string[]): Promise<StockQuote[]>;
@@ -152,9 +158,9 @@ export interface IMarketDataProvider {
   /** Daily candles — the feed's own chart series, stamped with the exchange session day. */
   getCandles(symbol: string, opts?: CandleQuery): Promise<HistoricalDataPoint[]>;
   /** `null` means "this index isn't available from this provider" — consumers must handle it. */
-  getIndex(symbol: string): Promise<IndexData | null>;
+  getIndex(symbol: string, opts?: IndexHistoryQuery): Promise<IndexData | null>;
   /** The headline index. Convenience wrapper over `getIndex('KSE100')`. */
-  getKSE100(): Promise<KSE100Data | null>;
+  getKSE100(opts?: IndexHistoryQuery): Promise<KSE100Data | null>;
   getMarketStatus(): Promise<MarketStatus>;
   searchCompanies(query: string): Promise<PSXCompany[]>;
   /** Market-wide sector board. Optional: only providers with one implement it. */

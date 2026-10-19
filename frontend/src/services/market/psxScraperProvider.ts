@@ -37,6 +37,7 @@ import type {
   HistoricalDataPoint,
   IndexData,
   CandleQuery,
+  IndexHistoryQuery,
   KSE100Data,
   MarketStatus,
   PSXCompany,
@@ -747,8 +748,8 @@ export class PSXScraperProvider implements IMarketDataProvider {
       .filter((d) => Number.isFinite(d.close) && d.close > 0);
   }
 
-  async getKSE100(): Promise<KSE100Data | null> {
-    return this.getIndex('KSE100');
+  async getKSE100(opts?: IndexHistoryQuery): Promise<KSE100Data | null> {
+    return this.getIndex('KSE100', opts);
   }
 
   /**
@@ -759,14 +760,21 @@ export class PSXScraperProvider implements IMarketDataProvider {
    * Never ask for an index on the stock routes — an index is not a listed company,
    * so `/api/v1/stocks/KSE100` can only ever answer 404.
    */
-  async getIndex(symbol: string): Promise<IndexData | null> {
+  async getIndex(symbol: string, opts: IndexHistoryQuery = {}): Promise<IndexData | null> {
     const symbol_ = symbol.trim().toUpperCase();
     if (indexUnavailable.has(symbol_)) return null;
+
+    // The comparison chart asks for the window it is about to plot. Without one,
+    // the banner keeps the old 1Y series — the only caller that wants a headline.
+    const params = new URLSearchParams();
+    if (opts.from) params.set('from', opts.from);
+    if (opts.to) params.set('to', opts.to);
+    const historyQuery = params.toString() ? `?${params.toString()}` : '?range=1Y&limit=252';
 
     try {
       const [summary, history] = await Promise.all([
         this.get<ScraperIndexSummary>(`/api/v1/indices/${symbol_}`),
-        this.get<ScraperHistoryResponse>(`/api/v1/indices/${symbol_}/history?range=1Y&limit=252`).catch(() => null),
+        this.get<ScraperHistoryResponse>(`/api/v1/indices/${symbol_}/history${historyQuery}`).catch(() => null),
       ]);
 
       const value  = summary.value ?? 0;

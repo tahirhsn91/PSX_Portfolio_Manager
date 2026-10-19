@@ -35,7 +35,7 @@ import { ApiError } from '@/services/http';
 import { usePortfolioMetrics, useIndex, usePortfolioHistory, useCandles } from '@/hooks';
 import { buildSectorAllocation, buildHoldingAllocation } from '@/utils';
 import { ROUTES, PSX_INDICES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
-import { format, parseISO, subDays, addDays } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import type { Holding, PSXCompany, DeclaredDividendInput, CorporateActionInput } from '@/types';
 import {
   formatCurrency,
@@ -111,20 +111,23 @@ export function PortfolioDetail() {
   const [benchmark, setBenchmark] = useState<Benchmark>(DEFAULT_BENCHMARK);
 
   const rangeDaysValue = rangeDays(range);
-  const { series: portfolioSeries, isLoading: portfolioHistoryLoading } = usePortfolioHistory(
-    portfolio?.holdings,
-    rangeDaysValue
-  );
+  // One window for both sides of the comparison: the index series used to be fetched
+  // as a fixed 1Y clip, so ALL collapsed to the same year as 1Y.
+  const {
+    series: portfolioSeries,
+    isLoading: portfolioHistoryLoading,
+    window: historyWindow,
+  } = usePortfolioHistory(portfolio?.holdings, rangeDaysValue);
 
   // Whichever the benchmark is, fetch its own series for the selected period from the
   // feed's candles. The feed treats `to` as exclusive, so the window runs to tomorrow.
-  const indexQuery = useIndex(benchmark.kind === 'index' ? benchmark.code : undefined);
+  const indexQuery = useIndex(
+    benchmark.kind === 'index' ? benchmark.code : undefined,
+    historyWindow,
+  );
   const { data: benchmarkStockHistory = [], isLoading: benchmarkStockLoading } = useCandles(
     benchmark.kind === 'stock' ? benchmark.code : undefined,
-    {
-      from: format(subDays(new Date(), rangeDaysValue), 'yyyy-MM-dd'),
-      to: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
-    }
+    historyWindow,
   );
 
   const comparisonBenchmark: ComparisonBenchmark = {
