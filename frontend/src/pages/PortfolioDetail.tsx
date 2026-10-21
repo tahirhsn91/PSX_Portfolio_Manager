@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, TrendingUp, DollarSign, Award, TriangleAlert, Trash2 } from 'lucide-react';
+import { Plus, TrendingUp, DollarSign, Award, TriangleAlert, Trash2, Calculator } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -604,10 +604,19 @@ export function PortfolioDetail() {
           </p>
         }
         actions={
-          <Button onClick={() => setAddOpen(true)}>
-            <Plus aria-hidden="true" />
-            Add holding
-          </Button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => navigate(ROUTES.PLANNER_PATH({ portfolio: portfolio.id }))}
+            >
+              <Calculator aria-hidden="true" />
+              Plan a buy
+            </Button>
+            <Button onClick={() => setAddOpen(true)}>
+              <Plus aria-hidden="true" />
+              Add holding
+            </Button>
+          </div>
         }
       />
       <ScrollReveal className="space-y-6">

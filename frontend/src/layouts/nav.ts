@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   Briefcase,
+  Calculator,
   Settings,
   UserRound,
   Users,
@@ -44,6 +45,16 @@ export const NAV_ITEMS: readonly NavItem[] = [
     to: ROUTES.PORTFOLIOS,
     description: 'Every portfolio you track',
     group: 'Workspace',
+  },
+  {
+    label: 'Planner',
+    icon: Calculator,
+    to: ROUTES.PLANNER,
+    description: 'Shares and cash needed to reach a target average',
+    group: 'Workspace',
+    // The bottom bar caps at five thumb destinations; the planner stays in the
+    // sidebar and drawer, and every portfolio also links to it.
+    inBottomNav: false,
   },
   {
     label: 'Watchlist',
