@@ -12,6 +12,14 @@ export const ROUTES = {
   STOCK_DETAIL_PATH: (portfolioId: string, symbol: string) =>
     `/portfolios/${portfolioId}/stocks/${symbol}`,
   WATCHLIST: '/watchlist',
+  PLANNER: '/planner',
+  PLANNER_PATH: (opts?: { portfolio?: string; symbol?: string }) => {
+    const search = new URLSearchParams();
+    if (opts?.portfolio) search.set('portfolio', opts.portfolio);
+    if (opts?.symbol) search.set('symbol', opts.symbol);
+    const query = search.toString();
+    return query ? `/planner?${query}` : '/planner';
+  },
   ALERTS: '/alerts',
   SETTINGS: '/settings',
   PROFILE: '/profile',
