@@ -3,6 +3,7 @@ import {
   averageAfterBuy,
   averageCurve,
   clampFeePercent,
+  costForShares,
   planAverage,
   sharesForBudget,
   whatIfScenarios,
@@ -235,5 +236,40 @@ describe('sharesForBudget', () => {
     expect(sharesForBudget({ budget: Number.NaN, marketPrice: 121.29 })).toMatchObject({
       ok: false,
     });
+  });
+});
+
+describe('costForShares', () => {
+  it('prices 300 shares at the market price', () => {
+    const cost = costForShares({ shares: 300, marketPrice: 121.29 });
+    expect(cost.ok).toBe(true);
+    if (!cost.ok) return;
+    expect(cost.shares).toBe(300);
+    expect(cost.grossCost).toBeCloseTo(36387, 2);
+    expect(cost.fees).toBe(0);
+    expect(cost.totalCost).toBeCloseTo(36387, 2);
+  });
+
+  it('adds charges on top of the share cost', () => {
+    const cost = costForShares({ shares: 300, marketPrice: 121.29, feePercent: 0.15 });
+    expect(cost.ok).toBe(true);
+    if (!cost.ok) return;
+    expect(cost.fees).toBeCloseTo(54.58, 2);
+    expect(cost.totalCost).toBeCloseTo(36441.58, 2);
+  });
+
+  it('floors a fractional quantity to whole shares', () => {
+    const cost = costForShares({ shares: 300.9, marketPrice: 121.29 });
+    expect(cost.ok).toBe(true);
+    if (!cost.ok) return;
+    expect(cost.shares).toBe(300);
+  });
+
+  it('rejects zero, negative and non-finite input', () => {
+    expect(costForShares({ shares: 0, marketPrice: 121.29 })).toMatchObject({ ok: false });
+    expect(costForShares({ shares: -5, marketPrice: 121.29 })).toMatchObject({ ok: false });
+    expect(costForShares({ shares: 300, marketPrice: 0 })).toMatchObject({ ok: false });
+    expect(costForShares({ shares: Number.NaN, marketPrice: 121.29 })).toMatchObject({ ok: false });
+    expect(costForShares({ shares: 0.4, marketPrice: 121.29 })).toMatchObject({ ok: false });
   });
 });
