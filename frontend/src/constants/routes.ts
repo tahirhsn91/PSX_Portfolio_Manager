@@ -6,6 +6,7 @@ export const ROUTES = {
   HOME: '/',
   DASHBOARD: '/dashboard',
   PORTFOLIOS: '/portfolios',
+  DIVIDENDS: '/dividends',
   PORTFOLIO_DETAIL: '/portfolios/:id',
   PORTFOLIO_DETAIL_PATH: (id: string) => `/portfolios/${id}`,
   STOCK_DETAIL: '/portfolios/:portfolioId/stocks/:symbol',

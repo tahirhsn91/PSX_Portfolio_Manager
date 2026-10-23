@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { formatPkr, formatPrice } from '@/utils/formatters';
 import { averageAfterBuy, costForShares } from '@/utils/averageDown';
-import { AnimatedNumber } from '@/features/planner/AnimatedNumber';
+import { AnimatedNumber } from '@/components/animations';
 
 const PRESETS = [50, 100, 200, 300] as const;
 
@@ -102,7 +102,11 @@ export function ShareQuantityCalculator({
                   data-testid="share-cost-total"
                   className="mt-1 font-mono text-2xl font-semibold leading-none tabular-nums text-foreground sm:text-4xl"
                 >
-                  <AnimatedNumber value={cost.totalCost} format={(v) => formatPkr(v)} />
+                  <AnimatedNumber
+                    value={cost.totalCost}
+                    format={(v) => formatPkr(v)}
+                    duration={0.45}
+                  />
                 </p>
                 <p className="mt-1.5 text-xs text-muted-foreground">
                   {cost.shares.toLocaleString('en-PK')} × {formatPrice(marketPrice)}
