@@ -42,6 +42,8 @@ import type {
   MarketStatus,
   PSXCompany,
   SectorPerformance,
+  DividendAnnouncement,
+  DividendQuery,
 } from '@/types';
 import { PSX_COMPANIES } from '@/constants';
 
@@ -192,6 +194,68 @@ export function mapSectorPerformance(row: ScraperSectorRow): SectorPerformance |
     advancers: row.advancers,
     decliners: row.decliners,
   };
+}
+
+/**
+ * `/api/v1/dividends` — the dividend ledger, one row per announcement. Only the
+ * announcement date, amount and (when the feed prices the stock) the last price
+ * are reliable: ex-date, book closure, payment date and status are frequently
+ * null or "unknown".
+ */
+export interface ScraperDividendRow {
+  symbol: string;
+  companyName: string;
+  amount: number | null;
+  announcementDate: string | null; // yyyy-mm-dd
+  bookClosure: string | null;
+  paymentDate: string | null;
+  exDate: string | null;
+  status: string | null;
+  price: number | null;
+  yieldTtm: number | null;
+}
+
+/**
+ * Map a ledger row, or `null` when it cannot be read honestly — no symbol, no
+ * amount or no announcement date. A dividend with no amount is not a statement
+ * about cash, and one with no date cannot be placed.
+ */
+export function mapDividendAnnouncement(row: ScraperDividendRow): DividendAnnouncement | null {
+  if (!row?.symbol || !row.announcementDate) return null;
+  if (row.amount == null || !Number.isFinite(row.amount) || row.amount <= 0) return null;
+  return {
+    symbol: row.symbol.toUpperCase(),
+    companyName: row.companyName ?? row.symbol,
+    amountPerShare: row.amount,
+    announcementDate: row.announcementDate.slice(0, 10),
+    exDate: row.exDate ? row.exDate.slice(0, 10) : null,
+    bookClosure: row.bookClosure ? row.bookClosure.slice(0, 10) : null,
+    paymentDate: row.paymentDate ? row.paymentDate.slice(0, 10) : null,
+    status: row.status ?? 'unknown',
+    price: row.price != null && Number.isFinite(row.price) ? row.price : null,
+    yieldTtm: row.yieldTtm != null && Number.isFinite(row.yieldTtm) ? row.yieldTtm : null,
+  };
+}
+
+/**
+ * `/api/v1/dividends` — the declared-dividend ledger.
+ *
+ * The ledger is date-filtered on the announcement date. `limit` is capped at 500
+ * by the API, and the upcoming window is small (a handful of rows at a time), so
+ * one request covers it.
+ */
+export async function fetchDividendLedger(
+  get: <T>(path: string) => Promise<T>,
+  query: DividendQuery,
+): Promise<DividendAnnouncement[]> {
+  const params = new URLSearchParams({ limit: '500' });
+  if (query.from) params.set('from', query.from);
+  if (query.to) params.set('to', query.to);
+  if (query.symbol) params.set('symbol', query.symbol.toUpperCase());
+  const { items } = await get<{ items: ScraperDividendRow[] }>(`/api/v1/dividends?${params}`);
+  return (items ?? [])
+    .map(mapDividendAnnouncement)
+    .filter((row): row is DividendAnnouncement => row !== null);
 }
 
 /**
@@ -608,6 +672,11 @@ export class PSXScraperProvider implements IMarketDataProvider {
     return (items ?? [])
       .map(mapSectorPerformance)
       .filter((row): row is SectorPerformance => row !== null);
+  }
+
+  /** The declared-dividend ledger, filtered on the announcement date. */
+  async getDividendLedger(query: DividendQuery = {}): Promise<DividendAnnouncement[]> {
+    return fetchDividendLedger((path) => this.get(path), query);
   }
 
   async getQuote(symbol: string): Promise<StockQuote> {

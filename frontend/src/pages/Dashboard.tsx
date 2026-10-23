@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, MetricBand, PLValue, PageHeader } from '@/components/shared';
 import type { BandStat } from '@/components/shared';
 import { AllocationPieChart, BenchmarkComparisonChart, SectorBarChart, rangeDays } from '@/features/charts';
+import { ExpectedDividendsCard } from '@/features/dividends/ExpectedDividendsCard';
 import type { ComparisonBenchmark, ComparisonRange } from '@/features/charts';
 import { useAllPortfoliosMetrics } from '@/hooks';
 import { useKSE100, usePortfolioHistory, useSectorPerformance } from '@/hooks';
@@ -191,6 +192,9 @@ export function Dashboard() {
           ) : undefined
         }
       />
+
+      {/* Announced payouts against the positions — a summary, the page has the rows. */}
+      <ExpectedDividendsCard />
 
       {/* Movers: which holdings are carrying the return, and which are dragging it. */}
       <ScrollReveal>

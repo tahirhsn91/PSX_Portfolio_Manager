@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { formatPkr, formatPrice } from '@/utils/formatters';
 import { sharesForBudget } from '@/utils/averageDown';
-import { AnimatedNumber } from '@/features/planner/AnimatedNumber';
+import { AnimatedNumber } from '@/components/animations';
 
 const PRESETS = [1000, 5000, 10000, 25000] as const;
 
@@ -104,6 +104,7 @@ export function BudgetCalculator({ symbol, marketPrice, feePercent }: BudgetCalc
                   <AnimatedNumber
                     value={purchase.shares}
                     format={(v) => Math.round(v).toLocaleString('en-PK')}
+                    duration={0.45}
                   />
                 </p>
                 <p className="mt-1.5 text-xs text-muted-foreground">
