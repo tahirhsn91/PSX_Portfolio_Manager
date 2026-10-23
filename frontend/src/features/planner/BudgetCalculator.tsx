@@ -49,7 +49,7 @@ export function BudgetCalculator({ symbol, marketPrice, feePercent }: BudgetCalc
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Spend an amount</CardTitle>
+        <CardTitle className="text-base">Budget calculator</CardTitle>
         <CardDescription>
           How many whole shares your money buys{symbol ? ` in ${symbol}` : ''} — and what is left.
         </CardDescription>
