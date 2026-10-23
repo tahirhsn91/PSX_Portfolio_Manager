@@ -328,3 +328,53 @@ export function sharesForBudget(
     shortfall: shares === 0 ? round2(effectivePrice - budget) : null,
   };
 }
+
+export interface ShareCostInput {
+  /** Whole shares the user wants to buy. */
+  shares: number;
+  marketPrice: number;
+  feePercent?: number;
+}
+
+export interface ShareCost {
+  ok: true;
+  /** Floored to whole shares. */
+  shares: number;
+  effectivePrice: number;
+  grossCost: number;
+  fees: number;
+  totalCost: number;
+}
+
+export type ShareCostResult = ShareCost | { ok: false; message: string };
+
+/**
+ * "I want 300 shares — what does that cost?" Floors a fractional quantity to
+ * whole shares and reports the cash including charges.
+ */
+export function costForShares(input: ShareCostInput): ShareCostResult {
+  const { shares, marketPrice } = input;
+  const feePercent = clampFeePercent(input.feePercent);
+  const fee = feePercent / 100;
+
+  if (!finite(shares) || !finite(marketPrice) || shares <= 0 || marketPrice <= 0) {
+    return { ok: false, message: 'Enter a share quantity and a market price to see the cost.' };
+  }
+
+  const whole = Math.floor(shares);
+  if (whole === 0) {
+    return { ok: false, message: 'Enter at least one whole share.' };
+  }
+
+  const grossCost = round2(whole * marketPrice);
+  const fees = round2(whole * marketPrice * fee);
+
+  return {
+    ok: true,
+    shares: whole,
+    effectivePrice: marketPrice * (1 + fee),
+    grossCost,
+    fees,
+    totalCost: round2(grossCost + fees),
+  };
+}

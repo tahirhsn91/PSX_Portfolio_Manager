@@ -38,6 +38,7 @@ import {
 } from '@/utils/averageDown';
 import { AveragePriceChart } from '@/features/planner/AveragePriceChart';
 import { BudgetCalculator } from '@/features/planner/BudgetCalculator';
+import { ShareQuantityCalculator } from '@/features/planner/ShareQuantityCalculator';
 import type { Holding } from '@/types/portfolio.types';
 
 interface HoldingOption {
@@ -223,7 +224,7 @@ export function AverageDownPlanner() {
   const [feeInput, setFeeInput] = useState('0.15');
   const [applyOpen, setApplyOpen] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [tab, setTab] = useState<'average' | 'spend'>('average');
+  const [tab, setTab] = useState<'average' | 'spend' | 'quantity'>('average');
 
   // Default the holding from the link that brought the user here, then the
   // first holding they own.
@@ -340,17 +341,23 @@ export function AverageDownPlanner() {
     <div className="space-y-6">
       <PageHeader
         title="Average Down Planner"
-        description="Two ways in: plan a buy to a target average, or see how many shares your budget buys."
+        description="Three ways in: target an average, spend a budget, or price a share quantity."
         breadcrumbs={[{ label: 'Portfolios', to: ROUTES.PORTFOLIOS }]}
       />
 
-      <Tabs value={tab} onValueChange={(value) => setTab(value as 'average' | 'spend')}>
+      <Tabs
+        value={tab}
+        onValueChange={(value) => setTab(value as 'average' | 'spend' | 'quantity')}
+      >
         <TabsList className="w-full sm:w-auto" aria-label="Calculator">
-          <TabsTrigger value="average" className="flex-1 sm:flex-none">
+          <TabsTrigger value="average" className="flex-1 px-3 sm:flex-none">
             Average down
           </TabsTrigger>
-          <TabsTrigger value="spend" className="flex-1 sm:flex-none">
+          <TabsTrigger value="spend" className="flex-1 px-3 sm:flex-none">
             Spend an amount
+          </TabsTrigger>
+          <TabsTrigger value="quantity" className="flex-1 px-3 sm:flex-none">
+            Buy shares
           </TabsTrigger>
         </TabsList>
 
@@ -659,6 +666,43 @@ export function AverageDownPlanner() {
               symbol={holding?.symbol ?? ''}
               marketPrice={marketPrice}
               feePercent={feePercent}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="quantity">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)] lg:items-start">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Stock &amp; charges</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <TradeContext
+                  idPrefix="qty"
+                  options={options}
+                  selectedKey={selectedKey}
+                  onHoldingChange={changeHolding}
+                  holding={holding}
+                  priceText={priceText}
+                  onPriceChange={setPriceInput}
+                  onUseLive={() => setPriceInput(null)}
+                  priceOverridden={priceInput !== null}
+                  livePrice={livePrice}
+                  quoteLoading={quote.isLoading}
+                  feeOn={feeOn}
+                  onFeeChange={setFeeOn}
+                  feeInput={feeInput}
+                  onFeeInputChange={setFeeInput}
+                />
+              </CardContent>
+            </Card>
+
+            <ShareQuantityCalculator
+              symbol={holding?.symbol ?? ''}
+              marketPrice={marketPrice}
+              feePercent={feePercent}
+              heldShares={holding?.shares ?? 0}
+              heldAverage={holding?.averagePurchasePrice ?? 0}
             />
           </div>
         </TabsContent>
