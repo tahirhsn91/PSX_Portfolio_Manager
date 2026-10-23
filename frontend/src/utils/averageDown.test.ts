@@ -4,6 +4,7 @@ import {
   averageCurve,
   clampFeePercent,
   planAverage,
+  sharesForBudget,
   whatIfScenarios,
   type AverageDownInput,
 } from './averageDown';
@@ -185,5 +186,54 @@ describe('averageAfterBuy', () => {
     expect(averageAfterBuy(15, 132.49, 121.29, 222)).toBeCloseTo(121.9989, 3);
     expect(averageAfterBuy(15, 132.49, 121.29, 222, 0.15)).toBeCloseTo(122.169, 3);
     expect(averageAfterBuy(15, 132.49, 121.29, 0)).toBe(132.49);
+  });
+});
+
+describe('sharesForBudget', () => {
+  it('buys whole shares and reports the change from PKR 1,000', () => {
+    const plan = sharesForBudget({ budget: 1000, marketPrice: 121.29 });
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.shares).toBe(8);
+    expect(plan.grossCost).toBeCloseTo(970.32, 2);
+    expect(plan.fees).toBe(0);
+    expect(plan.totalCost).toBeCloseTo(970.32, 2);
+    expect(plan.remaining).toBeCloseTo(29.68, 2);
+    expect(plan.shortfall).toBeNull();
+  });
+
+  it('never rounds up: 10 shares exactly consumes the budget', () => {
+    const plan = sharesForBudget({ budget: 1212.9, marketPrice: 121.29 });
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.shares).toBe(10);
+    expect(plan.remaining).toBeCloseTo(0, 2);
+  });
+
+  it('reports the shortfall when the budget buys no share', () => {
+    const plan = sharesForBudget({ budget: 100, marketPrice: 121.29 });
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.shares).toBe(0);
+    expect(plan.remaining).toBe(100);
+    expect(plan.shortfall).toBeCloseTo(21.29, 2);
+  });
+
+  it('charges fees inside the budget, not on top of it', () => {
+    const plan = sharesForBudget({ budget: 1000, marketPrice: 121.29, feePercent: 0.15 });
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.shares).toBe(8);
+    expect(plan.fees).toBeCloseTo(1.46, 2);
+    expect(plan.totalCost).toBeCloseTo(971.78, 2);
+    expect(plan.remaining).toBeCloseTo(28.22, 2);
+  });
+
+  it('rejects zero and non-finite input', () => {
+    expect(sharesForBudget({ budget: 0, marketPrice: 121.29 })).toMatchObject({ ok: false });
+    expect(sharesForBudget({ budget: 1000, marketPrice: 0 })).toMatchObject({ ok: false });
+    expect(sharesForBudget({ budget: Number.NaN, marketPrice: 121.29 })).toMatchObject({
+      ok: false,
+    });
   });
 });
