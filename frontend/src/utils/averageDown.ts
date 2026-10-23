@@ -266,3 +266,65 @@ export function averageCurve(
     };
   });
 }
+
+export interface BudgetPurchaseInput {
+  /** Cash the user wants to put in (PKR). */
+  budget: number;
+  /** Market price per share (PKR), before fees. */
+  marketPrice: number;
+  /** Brokerage + CVT + other charges, as a percentage (0.15 = 0.15%). */
+  feePercent?: number;
+}
+
+export interface BudgetPurchase {
+  ok: true;
+  /** Whole shares the budget buys — always an integer, always rounded down. */
+  shares: number;
+  effectivePrice: number;
+  grossCost: number;
+  fees: number;
+  /** grossCost + fees — what actually leaves the budget. */
+  totalCost: number;
+  /** budget − totalCost; never negative. */
+  remaining: number;
+  /** How much more money one share needs, when the budget buys none. */
+  shortfall: number | null;
+}
+
+export interface BudgetPurchaseInvalid {
+  ok: false;
+  message: string;
+}
+
+/**
+ * The inverse question: given cash, how many whole shares does it buy and what
+ * is left over? Rounds *down* — you cannot buy a fraction of a share.
+ */
+export function sharesForBudget(
+  input: BudgetPurchaseInput,
+): BudgetPurchase | BudgetPurchaseInvalid {
+  const { budget, marketPrice } = input;
+  const feePercent = clampFeePercent(input.feePercent);
+  const fee = feePercent / 100;
+
+  if (!finite(budget) || !finite(marketPrice) || budget <= 0 || marketPrice <= 0) {
+    return { ok: false, message: 'Enter an amount and a market price to see the shares.' };
+  }
+
+  const effectivePrice = marketPrice * (1 + fee);
+  const shares = Math.floor((budget + 1e-9) / effectivePrice);
+  const grossCost = round2(shares * marketPrice);
+  const fees = round2(shares * marketPrice * fee);
+  const totalCost = round2(grossCost + fees);
+
+  return {
+    ok: true,
+    shares,
+    effectivePrice,
+    grossCost,
+    fees,
+    totalCost,
+    remaining: round2(Math.max(0, budget - totalCost)),
+    shortfall: shares === 0 ? round2(effectivePrice - budget) : null,
+  };
+}

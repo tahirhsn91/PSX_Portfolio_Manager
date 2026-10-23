@@ -28,7 +28,7 @@ import { useStockQuote } from '@/hooks/useMarketData';
 import { usePortfolioStore } from '@/store/portfolioStore';
 import { useUIStore } from '@/store/uiStore';
 import { ROUTES } from '@/constants/routes';
-import { formatCurrency, formatPrice } from '@/utils/formatters';
+import { formatPkr, formatPrice } from '@/utils/formatters';
 import {
   planAverage,
   whatIfScenarios,
@@ -36,6 +36,7 @@ import {
   type AverageDownSuccess,
 } from '@/utils/averageDown';
 import { AveragePriceChart } from '@/features/planner/AveragePriceChart';
+import { BudgetCalculator } from '@/features/planner/BudgetCalculator';
 import type { Holding } from '@/types/portfolio.types';
 
 interface HoldingOption {
@@ -47,8 +48,9 @@ interface HoldingOption {
 
 const keyOf = (portfolioId: string, holdingId: string) => `${portfolioId}:${holdingId}`;
 
-/** The house formatter prints the en-PK symbol ("Rs"); the brief asks for PKR. */
-const pkr = (value: number) => formatCurrency(value).replace(/^Rs\s?/, 'PKR ');
+/** Number fields without the browser's stepper arrows — they crowd a money input. */
+const NUMBER_FIELD =
+  'font-mono tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -286,7 +288,7 @@ export function AverageDownPlanner() {
                   value={priceText}
                   onChange={(e) => setPriceInput(e.target.value)}
                   placeholder="0.00"
-                  className="font-mono tabular-nums"
+                  className={NUMBER_FIELD}
                 />
                 <Button
                   type="button"
@@ -318,7 +320,7 @@ export function AverageDownPlanner() {
                 value={targetInput}
                 onChange={(e) => setTargetInput(e.target.value)}
                 placeholder={holding ? holding.averagePurchasePrice.toFixed(2) : '0.00'}
-                className="font-mono tabular-nums"
+                className={NUMBER_FIELD}
               />
             </div>
 
@@ -333,7 +335,7 @@ export function AverageDownPlanner() {
                 value={budgetInput}
                 onChange={(e) => setBudgetInput(e.target.value)}
                 placeholder="No limit"
-                className="font-mono tabular-nums"
+                className={NUMBER_FIELD}
               />
             </div>
 
@@ -358,7 +360,7 @@ export function AverageDownPlanner() {
                   max="10"
                   value={feeInput}
                   onChange={(e) => setFeeInput(e.target.value)}
-                  className="font-mono tabular-nums"
+                  className={NUMBER_FIELD}
                 />
               </div>
             )}
@@ -417,11 +419,11 @@ export function AverageDownPlanner() {
                         data-testid="plan-cash"
                         className="font-mono text-base font-semibold tabular-nums text-foreground sm:text-xl"
                       >
-                        {pkr(ok.cashRequired)}
+                        {formatPkr(ok.cashRequired)}
                       </p>
                       <p className="text-[11px] text-muted-foreground">
                         {ok.fees > 0
-                          ? `${pkr(ok.grossCost)} + ${pkr(ok.fees)} fees`
+                          ? `${formatPkr(ok.grossCost)} + ${formatPkr(ok.fees)} fees`
                           : 'No fees included'}
                       </p>
                     </div>
@@ -461,7 +463,7 @@ export function AverageDownPlanner() {
                       value={ok.totalShares.toLocaleString('en-PK')}
                       hint="Including this buy"
                     />
-                    <Stat label="New invested" value={pkr(ok.newInvested)} />
+                    <Stat label="New invested" value={formatPkr(ok.newInvested)} />
                   </dl>
 
                   {bigInvestment && (
@@ -482,6 +484,14 @@ export function AverageDownPlanner() {
               )}
             </CardContent>
           </Card>
+
+          {holding && (
+            <BudgetCalculator
+              symbol={holding.symbol}
+              marketPrice={marketPrice}
+              feePercent={feePercent}
+            />
+          )}
 
           {ok && (
             <Card>
@@ -529,7 +539,7 @@ export function AverageDownPlanner() {
                         <tr key={row.shares}>
                           <td className="py-2 font-mono">{row.shares.toLocaleString('en-PK')}</td>
                           <td className="py-2 text-right font-mono">
-                            {pkr(row.cashRequired).replace(/\.00$/, '')}
+                            {formatPkr(row.cashRequired).replace(/\.00$/, '')}
                           </td>
                           <td className="py-2 text-right font-mono">{row.newAverage.toFixed(2)}</td>
                           <td
@@ -571,7 +581,7 @@ export function AverageDownPlanner() {
                 <strong>{formatPrice(marketPrice)}</strong> in {selected?.portfolioName}.
               </p>
               <p>
-                Cash: <strong>{pkr(ok.cashRequired)}</strong> · Average:{' '}
+                Cash: <strong>{formatPkr(ok.cashRequired)}</strong> · Average:{' '}
                 <strong>{formatPrice(holding.averagePurchasePrice)}</strong> →{' '}
                 <strong>{formatPrice(ok.newAverage)}</strong>
               </p>

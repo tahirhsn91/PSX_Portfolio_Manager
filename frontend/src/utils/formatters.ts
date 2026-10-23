@@ -40,6 +40,14 @@ export function formatCurrency(value: number | null | undefined, compact = false
 }
 
 /**
+ * Money with the ISO code the brief asks for: the en-PK locale prints the rupee
+ * as "Rs", which reads as an abbreviation rather than the currency.
+ */
+export function formatPkr(value: number | null | undefined): string {
+  return formatCurrency(value).replace(/^Rs\s?/, 'PKR ');
+}
+
+/**
  * Format a percentage with sign
  * e.g. 12.34 → "+12.34%", -3.5 → "-3.50%"
  */
