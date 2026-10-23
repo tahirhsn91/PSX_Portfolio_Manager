@@ -21,7 +21,31 @@ export const MARKET_QUERY_KEYS = {
   status: () => ['market', 'status'] as const,
   search: (query: string) => ['market', 'search', query] as const,
   sectors: () => ['market', 'sectors'] as const,
+  dividends: (from: string) => ['market', 'dividends', from] as const,
 } as const;
+
+/**
+ * The exchange's calendar day, not the viewer's. The dividend ledger is filtered
+ * on the announcement date, and a viewer in another timezone asking at 23:30 UTC
+ * would otherwise ask for "yesterday" relative to Karachi.
+ */
+export function todayInKarachi(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(new Date());
+}
+
+/**
+ * Announced dividends dated today or later. One request covers the window — the
+ * upcoming ledger is a handful of rows — and it is refetched slowly: announcements
+ * are published a few times a day, not tick by tick.
+ */
+export function useDividendAnnouncements(from: string = todayInKarachi()) {
+  return useQuery({
+    queryKey: MARKET_QUERY_KEYS.dividends(from),
+    queryFn: () => marketDataService.getDividendLedger({ from }),
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+}
 
 /** Fetch and cache a single stock quote */
 export function useStockQuote(symbol: string | undefined) {

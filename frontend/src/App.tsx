@@ -13,6 +13,7 @@ import { Portfolios } from '@/pages/Portfolios';
 import { PortfolioDetail } from '@/pages/PortfolioDetail';
 import { StockDetail } from '@/pages/StockDetail';
 import { AverageDownPlanner } from '@/pages/AverageDownPlanner';
+import { Dividends } from '@/pages/Dividends';
 import { Watchlist } from '@/pages/Watchlist';
 import { Alerts } from '@/pages/Alerts';
 import { Settings } from '@/pages/Settings';
@@ -57,6 +58,7 @@ function AppRoutes() {
           <Route path={ROUTES.PORTFOLIO_DETAIL} element={<PortfolioDetail />} />
           <Route path={ROUTES.STOCK_DETAIL} element={<StockDetail />} />
           <Route path={ROUTES.PLANNER} element={<AverageDownPlanner />} />
+          <Route path={ROUTES.DIVIDENDS} element={<Dividends />} />
           <Route path={ROUTES.WATCHLIST} element={<Watchlist />} />
           <Route path={ROUTES.ALERTS} element={<Alerts />} />
           <Route path={ROUTES.SETTINGS} element={<Settings />} />
