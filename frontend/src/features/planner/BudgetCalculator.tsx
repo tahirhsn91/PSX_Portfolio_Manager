@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { motion, useReducedMotion, useSpring, useTransform } from 'framer-motion';
+import { useState } from 'react';
 import { TriangleAlert } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,25 +7,9 @@ import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { formatPkr, formatPrice } from '@/utils/formatters';
 import { sharesForBudget } from '@/utils/averageDown';
+import { AnimatedNumber } from '@/features/planner/AnimatedNumber';
 
 const PRESETS = [1000, 5000, 10000, 25000] as const;
-
-/**
- * The share count springs to its new value so a keystroke in the amount field
- * reads as a result, not a jump. Reduced-motion users get the number directly.
- */
-function CountUp({ value }: { value: number }) {
-  const reduced = useReducedMotion();
-  const spring = useSpring(value, { stiffness: 140, damping: 24, mass: 0.5 });
-  const display = useTransform(spring, (v) => Math.round(v).toLocaleString('en-PK'));
-
-  useEffect(() => {
-    spring.set(value);
-  }, [spring, value]);
-
-  if (reduced) return <span>{value.toLocaleString('en-PK')}</span>;
-  return <motion.span>{display}</motion.span>;
-}
 
 interface BudgetCalculatorProps {
   symbol: string;
@@ -118,7 +101,10 @@ export function BudgetCalculator({ symbol, marketPrice, feePercent }: BudgetCalc
                   data-testid="budget-shares"
                   className="mt-1 font-mono text-4xl font-semibold leading-none tabular-nums text-foreground"
                 >
-                  <CountUp value={purchase.shares} />
+                  <AnimatedNumber
+                    value={purchase.shares}
+                    format={(v) => Math.round(v).toLocaleString('en-PK')}
+                  />
                 </p>
                 <p className="mt-1.5 text-xs text-muted-foreground">
                   {symbol} · {formatPrice(marketPrice)} each
