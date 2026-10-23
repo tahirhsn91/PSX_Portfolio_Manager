@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useStockQuote } from '@/hooks/useMarketData';
 import { usePortfolioStore } from '@/store/portfolioStore';
 import { useUIStore } from '@/store/uiStore';
@@ -62,6 +63,137 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
+interface TradeContextProps {
+  idPrefix: string;
+  options: HoldingOption[];
+  selectedKey: string;
+  onHoldingChange: (key: string) => void;
+  holding?: Holding;
+  priceText: string;
+  onPriceChange: (value: string) => void;
+  onUseLive: () => void;
+  priceOverridden: boolean;
+  livePrice: number | null;
+  quoteLoading: boolean;
+  feeOn: boolean;
+  onFeeChange: (value: boolean) => void;
+  feeInput: string;
+  onFeeInputChange: (value: string) => void;
+}
+
+/** The stock, its price and the charges — shared by both calculators. */
+function TradeContext({
+  idPrefix,
+  options,
+  selectedKey,
+  onHoldingChange,
+  holding,
+  priceText,
+  onPriceChange,
+  onUseLive,
+  priceOverridden,
+  livePrice,
+  quoteLoading,
+  feeOn,
+  onFeeChange,
+  feeInput,
+  onFeeInputChange,
+}: TradeContextProps) {
+  return (
+    <>
+      <div className="space-y-1.5">
+        <Label htmlFor={`${idPrefix}-holding`}>Holding</Label>
+        <Select value={selectedKey} onValueChange={onHoldingChange}>
+          <SelectTrigger id={`${idPrefix}-holding`}>
+            <SelectValue placeholder="Choose a holding" />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((option) => (
+              <SelectItem key={option.key} value={option.key}>
+                {option.holding.symbol} — {option.portfolioName}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-lg bg-muted/50 p-3">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Shares</p>
+          <p className="font-mono text-sm font-semibold tabular-nums">
+            {holding?.shares.toLocaleString('en-PK') ?? '—'}
+          </p>
+        </div>
+        <div className="rounded-lg bg-muted/50 p-3">
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Avg price</p>
+          <p className="font-mono text-sm font-semibold tabular-nums">
+            {holding ? formatPrice(holding.averagePurchasePrice) : '—'}
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor={`${idPrefix}-price`}>Market price</Label>
+        <div className="flex gap-2">
+          <Input
+            id={`${idPrefix}-price`}
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            min="0"
+            value={priceText}
+            onChange={(e) => onPriceChange(e.target.value)}
+            placeholder="0.00"
+            className={NUMBER_FIELD}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onUseLive}
+            disabled={!priceOverridden || livePrice === null}
+            title="Use the live quote"
+          >
+            Live
+          </Button>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          {quoteLoading
+            ? 'Fetching the latest quote…'
+            : livePrice === null
+              ? 'No live quote — enter the price you would pay.'
+              : 'Auto-filled from the live PSX quote; edit it to model a different fill.'}
+        </p>
+      </div>
+
+      <div className="flex items-center justify-between rounded-lg border p-3">
+        <div>
+          <Label htmlFor={`${idPrefix}-fees`} className="text-sm">
+            Include charges
+          </Label>
+          <p className="text-[11px] text-muted-foreground">Brokerage, CVT and other fees</p>
+        </div>
+        <Switch id={`${idPrefix}-fees`} checked={feeOn} onCheckedChange={onFeeChange} />
+      </div>
+      {feeOn && (
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-fee-percent`}>Charges (%)</Label>
+          <Input
+            id={`${idPrefix}-fee-percent`}
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            min="0"
+            max="10"
+            value={feeInput}
+            onChange={(e) => onFeeInputChange(e.target.value)}
+            className={NUMBER_FIELD}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
 export function AverageDownPlanner() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -91,6 +223,7 @@ export function AverageDownPlanner() {
   const [feeInput, setFeeInput] = useState('0.15');
   const [applyOpen, setApplyOpen] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [tab, setTab] = useState<'average' | 'spend'>('average');
 
   // Default the holding from the link that brought the user here, then the
   // first holding they own.
@@ -207,48 +340,44 @@ export function AverageDownPlanner() {
     <div className="space-y-6">
       <PageHeader
         title="Average Down Planner"
-        description="Work out how many shares to buy — and what it costs — to reach a target average."
+        description="Two ways in: plan a buy to a target average, or see how many shares your budget buys."
         breadcrumbs={[{ label: 'Portfolios', to: ROUTES.PORTFOLIOS }]}
       />
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)] lg:items-start">
+      <Tabs value={tab} onValueChange={(value) => setTab(value as 'average' | 'spend')}>
+        <TabsList className="w-full sm:w-auto" aria-label="Calculator">
+          <TabsTrigger value="average" className="flex-1 sm:flex-none">
+            Average down
+          </TabsTrigger>
+          <TabsTrigger value="spend" className="flex-1 sm:flex-none">
+            Spend an amount
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="average">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)] lg:items-start">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Your plan</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="planner-holding">Holding</Label>
-              <Select value={selectedKey} onValueChange={changeHolding}>
-                <SelectTrigger id="planner-holding">
-                  <SelectValue placeholder="Choose a holding" />
-                </SelectTrigger>
-                <SelectContent>
-                  {options.map((option) => (
-                    <SelectItem key={option.key} value={option.key}>
-                      {option.holding.symbol} — {option.portfolioName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-lg bg-muted/50 p-3">
-                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Shares</p>
-                <p className="font-mono text-sm font-semibold tabular-nums">
-                  {holding?.shares.toLocaleString('en-PK') ?? '—'}
-                </p>
-              </div>
-              <div className="rounded-lg bg-muted/50 p-3">
-                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                  Avg price
-                </p>
-                <p className="font-mono text-sm font-semibold tabular-nums">
-                  {holding ? formatPrice(holding.averagePurchasePrice) : '—'}
-                </p>
-              </div>
-            </div>
+            <TradeContext
+              idPrefix="planner"
+              options={options}
+              selectedKey={selectedKey}
+              onHoldingChange={changeHolding}
+              holding={holding}
+              priceText={priceText}
+              onPriceChange={setPriceInput}
+              onUseLive={() => setPriceInput(null)}
+              priceOverridden={priceInput !== null}
+              livePrice={livePrice}
+              quoteLoading={quote.isLoading}
+              feeOn={feeOn}
+              onFeeChange={setFeeOn}
+              feeInput={feeInput}
+              onFeeInputChange={setFeeInput}
+            />
 
             <fieldset className="space-y-1.5">
               <legend className="text-sm font-medium">Direction</legend>
@@ -275,39 +404,6 @@ export function AverageDownPlanner() {
                 ))}
               </div>
             </fieldset>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="planner-price">Market price</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="planner-price"
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  min="0"
-                  value={priceText}
-                  onChange={(e) => setPriceInput(e.target.value)}
-                  placeholder="0.00"
-                  className={NUMBER_FIELD}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setPriceInput(null)}
-                  disabled={priceInput === null || livePrice === null}
-                  title="Use the live quote"
-                >
-                  Live
-                </Button>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                {quote.isLoading
-                  ? 'Fetching the latest quote…'
-                  : livePrice === null
-                    ? 'No live quote — enter the price you would pay.'
-                    : 'Auto-filled from the live PSX quote; edit it to model a different fill.'}
-              </p>
-            </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="planner-target">Target average</Label>
@@ -339,31 +435,6 @@ export function AverageDownPlanner() {
               />
             </div>
 
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <Label htmlFor="planner-fees" className="text-sm">
-                  Include charges
-                </Label>
-                <p className="text-[11px] text-muted-foreground">Brokerage, CVT and other fees</p>
-              </div>
-              <Switch id="planner-fees" checked={feeOn} onCheckedChange={setFeeOn} />
-            </div>
-            {feeOn && (
-              <div className="space-y-1.5">
-                <Label htmlFor="planner-fee-percent">Charges (%)</Label>
-                <Input
-                  id="planner-fee-percent"
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  min="0"
-                  max="10"
-                  value={feeInput}
-                  onChange={(e) => setFeeInput(e.target.value)}
-                  className={NUMBER_FIELD}
-                />
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -485,14 +556,6 @@ export function AverageDownPlanner() {
             </CardContent>
           </Card>
 
-          {holding && (
-            <BudgetCalculator
-              symbol={holding.symbol}
-              marketPrice={marketPrice}
-              feePercent={feePercent}
-            />
-          )}
-
           {ok && (
             <Card>
               <CardHeader>
@@ -562,7 +625,44 @@ export function AverageDownPlanner() {
             </Card>
           )}
         </div>
-      </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="spend">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)] lg:items-start">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Stock &amp; charges</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <TradeContext
+                  idPrefix="spend"
+                  options={options}
+                  selectedKey={selectedKey}
+                  onHoldingChange={changeHolding}
+                  holding={holding}
+                  priceText={priceText}
+                  onPriceChange={setPriceInput}
+                  onUseLive={() => setPriceInput(null)}
+                  priceOverridden={priceInput !== null}
+                  livePrice={livePrice}
+                  quoteLoading={quote.isLoading}
+                  feeOn={feeOn}
+                  onFeeChange={setFeeOn}
+                  feeInput={feeInput}
+                  onFeeInputChange={setFeeInput}
+                />
+              </CardContent>
+            </Card>
+
+            <BudgetCalculator
+              symbol={holding?.symbol ?? ''}
+              marketPrice={marketPrice}
+              feePercent={feePercent}
+            />
+          </div>
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={applyOpen} onOpenChange={setApplyOpen}>
         <DialogContent>
