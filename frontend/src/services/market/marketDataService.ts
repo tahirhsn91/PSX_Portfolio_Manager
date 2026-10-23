@@ -19,6 +19,8 @@ import type {
   MarketStatus,
   PSXCompany,
   SectorPerformance,
+  DividendAnnouncement,
+  DividendQuery,
 } from '@/types';
 import { MockMarketDataProvider } from './mockMarketData';
 import { CapitalStakeMarketDataProvider } from './capitalStakeProvider';
@@ -128,6 +130,15 @@ class MarketDataService {
    */
   async getSectorPerformance(): Promise<SectorPerformance[]> {
     return this.provider.getSectorPerformance?.() ?? [];
+  }
+
+  /**
+   * The declared-dividend ledger. Providers without a ledger return an empty
+   * list rather than an error: "this feed has no dividends" is a fact the UI
+   * can state, and it must not look like a failed request.
+   */
+  async getDividendLedger(query: DividendQuery = {}): Promise<DividendAnnouncement[]> {
+    return this.provider.getDividendLedger?.(query) ?? [];
   }
 
   async searchCompanies(query: string): Promise<PSXCompany[]> {

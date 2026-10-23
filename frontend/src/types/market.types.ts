@@ -144,6 +144,35 @@ export interface SectorPerformance {
   decliners: number;
 }
 
+/**
+ * One announced cash dividend from the market feed.
+ *
+ * Only `announcementDate` is reliably published: the ex-date, book closure and
+ * payment date are null unless the feed carries them, and `status` is the feed's
+ * own word ("unknown" when it does not say). Consumers must not infer a payment
+ * date from the announcement.
+ */
+export interface DividendAnnouncement {
+  symbol: string;
+  companyName: string;
+  amountPerShare: number;
+  /** ISO date (yyyy-mm-dd) the announcement is dated. */
+  announcementDate: string;
+  exDate: string | null;
+  bookClosure: string | null;
+  paymentDate: string | null;
+  status: string;
+  price: number | null;
+  yieldTtm: number | null;
+}
+
+/** Window for the dividend ledger. `from`/`to` compare against the announcement date. */
+export interface DividendQuery {
+  from?: string;
+  to?: string;
+  symbol?: string;
+}
+
 /** Window for an index's own history. The feed treats `to` as exclusive. */
 export interface IndexHistoryQuery {
   from?: string;
@@ -165,4 +194,6 @@ export interface IMarketDataProvider {
   searchCompanies(query: string): Promise<PSXCompany[]>;
   /** Market-wide sector board. Optional: only providers with one implement it. */
   getSectorPerformance?(): Promise<SectorPerformance[]>;
+  /** The dividend ledger. Optional: only the PSX scraper serves one. */
+  getDividendLedger?(query: DividendQuery): Promise<DividendAnnouncement[]>;
 }
