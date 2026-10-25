@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, TrendingUp, DollarSign, Award, TriangleAlert, Trash2, Calculator } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,7 @@ import type { BandStat } from '@/components/shared';
 import { HoldingsTable } from '@/features/portfolio/HoldingsTable';
 import { HoldingForm } from '@/features/portfolio/HoldingForm';
 import { DividendCalendar } from '@/features/portfolio/DividendCalendar';
+import { ExpectedDividendsSection } from '@/features/dividends/ExpectedDividendsSection';
 import { RiskAnalytics } from '@/features/portfolio/RiskAnalytics';
 import { ScenarioAnalysis } from '@/features/portfolio/ScenarioAnalysis';
 import { TargetAllocation } from '@/features/portfolio/TargetAllocation';
@@ -34,7 +35,9 @@ import type { ComparisonBenchmark, ComparisonRange } from '@/features/charts';
 import { usePortfolioStore, useUIStore } from '@/store';
 import { ApiError } from '@/services/http';
 import { usePortfolioMetrics, useIndex, usePortfolioHistory, useCandles } from '@/hooks';
+import { useDividendAnnouncements } from '@/hooks/useMarketData';
 import { buildSectorAllocation, buildHoldingAllocation } from '@/utils';
+import { formatPkr } from '@/utils/formatters';
 import { ROUTES, PSX_INDICES, DEFAULT_INDEX_CODE, indexLabel } from '@/constants';
 import { format, parseISO } from 'date-fns';
 import type { Holding, PSXCompany, DeclaredDividendInput, CorporateActionInput } from '@/types';
@@ -85,6 +88,28 @@ function toBenchmark(company: PSXCompany): Benchmark {
 export function PortfolioDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  // Tabs are URL state: a dashboard or alert link can land on the Dividends tab
+  // directly (?tab=dividends) instead of dropping the user on Holdings.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const TAB_VALUES = ['holdings', 'dividends', 'risk', 'scenario', 'target', 'cash', 'charts', 'comparison'] as const;
+  const tabParam = searchParams.get('tab');
+  const activeTab = (TAB_VALUES as readonly string[]).includes(tabParam ?? '')
+    ? (tabParam as (typeof TAB_VALUES)[number])
+    : 'holdings';
+  const setTab = useCallback(
+    (next: string) => {
+      setSearchParams(
+        (params) => {
+          const copy = new URLSearchParams(params);
+          copy.set('tab', next);
+          return copy;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+  const { data: announcements = [] } = useDividendAnnouncements();
   const portfolio = usePortfolioStore((s) => s.portfolios.find((p) => p.id === id));
   const {
     addHolding,
@@ -740,7 +765,7 @@ export function PortfolioDetail() {
         )}
 
         {/* Underline tabs: these are views of one portfolio, not modes of the app. */}
-        <Tabs defaultValue="holdings">
+        <Tabs value={activeTab} onValueChange={setTab}>
           <TabsList
             ref={setTabListEl}
             onScroll={measureTabs}
@@ -809,8 +834,20 @@ export function PortfolioDetail() {
 
           <TabsContent value="dividends" className="mt-4">
             <div className="space-y-4">
+              {/* What the market has announced, against this portfolio's shares —
+                  above the calendar, so "what is coming" and "when" read together. */}
+              <ExpectedDividendsSection portfolio={portfolio} announcements={announcements} />
+
+              <DividendCalendar
+                portfolio={portfolio}
+                announcements={announcements}
+                onAdd={handleAddDeclaredDividend}
+                onDelete={handleDeleteDeclaredDividend}
+              />
+
               {/* The detail behind "Dividends — Total received": one row per payout,
-                newest first, with the per-share rate and the cash it paid. */}
+                newest first, with the per-share rate and the cash it paid. Paid
+                payouts sit below the calendar, after what is still to come. */}
               {dividends.length > 0 && (
                 <Card>
                   <CardHeader className="pb-2">
@@ -829,11 +866,11 @@ export function PortfolioDetail() {
                             </p>
                             <p className="text-xs text-muted-foreground">
                               {format(parseISO(d.date), 'dd MMM yyyy')} ·{' '}
-                              {formatCurrency(d.amountPerShare)} per share · {d.type}
+                              {formatPkr(d.amountPerShare)} per share · {d.type}
                             </p>
                           </div>
                           <span className="shrink-0 font-mono text-sm font-medium tabular-nums">
-                            {formatCurrency(d.totalAmount)}
+                            {formatPkr(d.totalAmount)}
                           </span>
                         </li>
                       ))}
@@ -841,12 +878,6 @@ export function PortfolioDetail() {
                   </CardContent>
                 </Card>
               )}
-
-              <DividendCalendar
-                portfolio={portfolio}
-                onAdd={handleAddDeclaredDividend}
-                onDelete={handleDeleteDeclaredDividend}
-              />
             </div>
           </TabsContent>
 

@@ -24,7 +24,6 @@ const StockDetail = lazy(() => import('@/pages/StockDetail').then((m) => ({ defa
 const AverageDownPlanner = lazy(() =>
   import('@/pages/AverageDownPlanner').then((m) => ({ default: m.AverageDownPlanner })),
 );
-const Dividends = lazy(() => import('@/pages/Dividends').then((m) => ({ default: m.Dividends })));
 const Watchlist = lazy(() => import('@/pages/Watchlist').then((m) => ({ default: m.Watchlist })));
 const Alerts = lazy(() => import('@/pages/Alerts').then((m) => ({ default: m.Alerts })));
 const Settings = lazy(() => import('@/pages/Settings').then((m) => ({ default: m.Settings })));
@@ -70,7 +69,9 @@ function AppRoutes() {
           <Route path={ROUTES.PORTFOLIO_DETAIL} element={<PortfolioDetail />} />
           <Route path={ROUTES.STOCK_DETAIL} element={<StockDetail />} />
           <Route path={ROUTES.PLANNER} element={<AverageDownPlanner />} />
-          <Route path={ROUTES.DIVIDENDS} element={<Dividends />} />
+          {/* The standalone dividends page folded into each portfolio's Dividends
+              tab; old links keep working instead of 404ing. */}
+          <Route path="/dividends" element={<Navigate to={ROUTES.PORTFOLIOS} replace />} />
           <Route path={ROUTES.WATCHLIST} element={<Watchlist />} />
           <Route path={ROUTES.ALERTS} element={<Alerts />} />
           <Route path={ROUTES.SETTINGS} element={<Settings />} />

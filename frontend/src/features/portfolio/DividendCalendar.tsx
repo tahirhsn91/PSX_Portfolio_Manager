@@ -16,7 +16,8 @@ import {
 } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { formatCurrency, formatDate, forecastDividend } from '@/utils';
+import { formatDate, forecastDividend } from '@/utils';
+import { formatPkr } from '@/utils/formatters';
 import {
   WEEKDAY_LABELS,
   buildMonthGrid,
@@ -30,6 +31,7 @@ import type {
   Portfolio,
   Holding,
   DeclaredDividendInput,
+  DividendAnnouncement,
 } from '@/types';
 
 /**
@@ -38,9 +40,12 @@ import type {
  * under the "Estimate" banner, and never on the grid (estimates are guesses, not
  * dates).
  */
-function DividendForecastRow({ holding }: { holding: Holding }) {
+function DividendForecastRow({ holding, skip = false }: { holding: Holding; skip?: boolean }) {
   const forecast = forecastDividend(holding.dividendsReceived ?? []);
 
+  // A symbol with a real announcement is already listed above; estimating the
+  // same payout from history would read as a second, competing dividend.
+  if (skip) return null;
   if (forecast.expectedAmountPerShare == null) return null;
 
   return (
@@ -54,7 +59,7 @@ function DividendForecastRow({ holding }: { holding: Holding }) {
           {forecast.expectedDate
             ? `around ${format(new Date(`${forecast.expectedDate}T00:00:00`), 'MMM yyyy')} · `
             : ''}
-          {formatCurrency(forecast.expectedAmountPerShare)} per share · {forecast.basedOn}
+          {formatPkr(forecast.expectedAmountPerShare)} per share · {forecast.basedOn}
         </p>
       </div>
       <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
@@ -63,6 +68,19 @@ function DividendForecastRow({ holding }: { holding: Holding }) {
     </li>
   );
 }
+
+/** Per-share amount for any event kind, used by the day tooltip and the detail modal. */
+function eventPerShare(event: DividendCalendarEvent): number {
+  return event.kind === 'announced'
+    ? event.announcement.amountPerShare
+    : event.dividend.amountPerShare;
+}
+
+const EVENT_LABEL: Record<DividendCalendarEvent['kind'], string> = {
+  declared: 'Declared',
+  announced: 'Announced',
+  received: 'Received',
+};
 
 /** A single calendar day cell: date number, dividend markers, hover summary, tap to open. */
 function DayCell({
@@ -80,6 +98,7 @@ function DayCell({
   const isToday = key === todayKey();
   const has = events.length > 0;
   const hasDeclared = events.some((e) => e.kind === 'declared');
+  const hasAnnounced = events.some((e) => e.kind === 'announced');
   const hasReceived = events.some((e) => e.kind === 'received');
 
   const label = has
@@ -104,9 +123,11 @@ function DayCell({
           ? 'bg-accent font-semibold text-accent-foreground'
           : hasDeclared
             ? 'bg-primary/15 ring-1 ring-inset ring-primary/50'
-            : hasReceived
-              ? 'bg-muted ring-1 ring-inset ring-border'
-              : '',
+            : hasAnnounced
+              ? 'border border-dashed border-primary/45 bg-primary/[0.06]'
+              : hasReceived
+                ? 'bg-muted ring-1 ring-inset ring-border'
+                : '',
       )}
     >
       <span className={cn('leading-none', (isToday || hasDeclared) && 'font-semibold')}>
@@ -119,7 +140,11 @@ function DayCell({
               key={i}
               className={cn(
                 'h-1.5 w-1.5 rounded-full',
-                e.kind === 'declared' ? 'bg-primary' : 'bg-muted-foreground/60',
+                e.kind === 'declared'
+                  ? 'bg-primary'
+                  : e.kind === 'announced'
+                    ? 'border border-primary bg-background'
+                    : 'bg-muted-foreground/60',
               )}
             />
           ))}
@@ -145,7 +170,7 @@ function DayCell({
             <li key={i} className="flex items-center justify-between gap-3 text-xs">
               <span className="font-mono font-semibold">{e.holding.symbol}</span>
               <span className="text-muted-foreground">
-                {e.kind === 'declared' ? 'declared' : 'paid'} · {formatCurrency(eventTotal(e))}
+                {EVENT_LABEL[e.kind].toLowerCase()} · {formatPkr(eventTotal(e))}
               </span>
             </li>
           ))}
@@ -164,10 +189,13 @@ function DayCell({
  */
 export function DividendCalendar({
   portfolio,
+  announcements = [],
   onAdd,
   onDelete,
 }: {
   portfolio: Portfolio;
+  /** Feed-driven announcements; they mark their announcement date, never a pay date. */
+  announcements?: DividendAnnouncement[];
   onAdd: (holdingId: string, input: Omit<DeclaredDividendInput, 'holdingId'>) => Promise<void>;
   onDelete: (holdingId: string, dividendId: string) => Promise<void>;
 }) {
@@ -182,7 +210,14 @@ export function DividendCalendar({
   const [paymentDate, setPaymentDate] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const grouped = useMemo(() => groupDividendsByDate(portfolio.holdings), [portfolio]);
+  const grouped = useMemo(
+    () => groupDividendsByDate(portfolio.holdings, announcements),
+    [portfolio, announcements],
+  );
+  const announcedSymbols = useMemo(
+    () => new Set(announcements.map((announcement) => announcement.symbol.toUpperCase())),
+    [announcements],
+  );
   const weeks = useMemo(
     () => buildMonthGrid(viewDate.getFullYear(), viewDate.getMonth()),
     [viewDate],
@@ -276,9 +311,12 @@ export function DividendCalendar({
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" /> Declared (upcoming)
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full border border-primary" aria-hidden="true" /> Announced (feed)
           </span>
           <span className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-muted-foreground/60" aria-hidden="true" /> Received (paid)
@@ -328,7 +366,7 @@ export function DividendCalendar({
                       </span>
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {formatCurrency(dividend.amountPerShare)} per share
+                      {formatPkr(dividend.amountPerShare)} per share
                     </p>
                   </div>
                   <Button
@@ -354,11 +392,16 @@ export function DividendCalendar({
             Estimate
           </h3>
           <p className="text-xs text-muted-foreground">
-            Pattern-based, not confirmed — a company that paid before is not promising to pay again.
+            Pattern-based, not confirmed — a company that paid before is not promising to pay
+            again. Holdings with an announcement above are not estimated here.
           </p>
           <ul className="divide-y">
             {portfolio.holdings.map((h) => (
-              <DividendForecastRow key={h.id} holding={h} />
+              <DividendForecastRow
+                key={h.id}
+                holding={h}
+                skip={announcedSymbols.has(h.symbol.toUpperCase())}
+              />
             ))}
           </ul>
         </section>
@@ -448,18 +491,23 @@ export function DividendCalendar({
                       {event.holding.companyName}
                     </span>
                   </span>
-                  <Badge variant={event.kind === 'declared' ? 'default' : 'secondary'}>
-                    {event.kind === 'declared' ? 'Declared' : 'Received'}
+                  <Badge variant={event.kind === 'received' ? 'secondary' : 'default'}>
+                    {EVENT_LABEL[event.kind]}
                   </Badge>
                 </div>
                 <div className="mt-2 flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">
-                    {formatCurrency(event.dividend.amountPerShare)} / share
+                    {formatPkr(eventPerShare(event))} / share
                   </span>
                   <span className="font-mono font-medium tabular-nums">
-                    {formatCurrency(eventTotal(event))}
+                    {formatPkr(eventTotal(event))}
                   </span>
                 </div>
+                {event.kind === 'announced' && (
+                  <p className="mt-1.5 text-[11px] text-muted-foreground">
+                    Announcement date — the feed has not published a payment date.
+                  </p>
+                )}
                 {event.kind === 'declared' && (
                   <div className="mt-2 flex justify-end">
                     <Button
