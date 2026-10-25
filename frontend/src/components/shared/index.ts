@@ -6,6 +6,7 @@ export { MetricCard } from './MetricCard';
 export { RangeBar } from './RangeBar';
 export { PLValue } from './PLValue';
 export { CompanySearch } from './CompanySearch';
+export { ConfirmDialog } from './ConfirmDialog';
 export { MetricBand } from './MetricBand';
 export type { BandStat } from './MetricBand';
 export { NotificationBell } from './NotificationBell';

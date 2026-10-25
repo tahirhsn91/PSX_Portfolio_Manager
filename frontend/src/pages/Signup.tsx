@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FormError } from '@/components/auth/FormError';
@@ -60,7 +60,7 @@ export function Signup() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-xl">Create an account</CardTitle>
+        <h1 className="text-xl font-semibold tracking-tight">Create an account</h1>
         <CardDescription>
           Accounts are normally created by an administrator. This page is for claiming a new
           instance.
@@ -76,16 +76,36 @@ export function Signup() {
 
           <div className="space-y-2">
             <Label htmlFor="displayName">Name</Label>
-            <Input id="displayName" autoComplete="name" autoFocus {...register('displayName')} />
+            <Input
+              id="displayName"
+              autoComplete="name"
+              autoFocus
+              aria-invalid={Boolean(errors.displayName)}
+              aria-describedby={errors.displayName ? 'displayName-error' : undefined}
+              {...register('displayName')}
+            />
             {errors.displayName && (
-              <p className="text-xs text-destructive">{errors.displayName.message}</p>
+              <p id="displayName-error" className="text-xs text-destructive">
+                {errors.displayName.message}
+              </p>
             )}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" autoComplete="email" {...register('email')} />
-            {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              aria-invalid={Boolean(errors.email)}
+              aria-describedby={errors.email ? 'email-error' : undefined}
+              {...register('email')}
+            />
+            {errors.email && (
+              <p id="email-error" className="text-xs text-destructive">
+                {errors.email.message}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -94,10 +114,14 @@ export function Signup() {
               id="password"
               type="password"
               autoComplete="new-password"
+              aria-invalid={Boolean(errors.password)}
+              aria-describedby={errors.password ? 'password-error' : undefined}
               {...register('password')}
             />
             {errors.password && (
-              <p className="text-xs text-destructive">{errors.password.message}</p>
+              <p id="password-error" className="text-xs text-destructive">
+                {errors.password.message}
+              </p>
             )}
           </div>
 
@@ -107,10 +131,14 @@ export function Signup() {
               id="confirmPassword"
               type="password"
               autoComplete="new-password"
+              aria-invalid={Boolean(errors.confirmPassword)}
+              aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined}
               {...register('confirmPassword')}
             />
             {errors.confirmPassword && (
-              <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>
+              <p id="confirmPassword-error" className="text-xs text-destructive">
+                {errors.confirmPassword.message}
+              </p>
             )}
           </div>
 

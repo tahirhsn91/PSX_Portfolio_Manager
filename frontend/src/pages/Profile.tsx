@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { FormError } from '@/components/auth/FormError';
 import { PageHeader } from '@/components/shared';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollReveal } from '@/components/animations';
 import { ROUTES } from '@/constants';
 import { formatDateTime } from '@/utils';
@@ -65,7 +66,17 @@ export function Profile() {
     defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
   });
 
-  if (!user) return null;
+  // A blank page while the account request is in flight reads as a broken screen;
+  // the heading stays so the shell does not jump when the data lands.
+  if (!user) {
+    return (
+      <div className="space-y-6" aria-busy="true">
+        <PageHeader title="Profile" description="Your account and its password." />
+        <Skeleton className="h-44 w-full rounded-xl" />
+        <Skeleton className="h-72 w-full rounded-xl" />
+      </div>
+    );
+  }
 
   const onSaveProfile = (values: z.infer<typeof profileSchema>) => {
     updateProfile.mutate({

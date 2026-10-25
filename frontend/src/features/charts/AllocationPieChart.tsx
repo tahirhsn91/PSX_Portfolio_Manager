@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -112,6 +112,19 @@ const SliceLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index
 
 export function AllocationPieChart({ data, title = 'Portfolio Allocation', headerExtra, isLoading = false }: AllocationPieChartProps) {
   const reduced = useReducedMotion();
+  const pieRef = useRef<HTMLDivElement>(null);
+
+  // Recharts marks every pie sector `role="img"` and gives it no <title>, so the chart
+  // reached assistive tech as a run of unnamed images (axe: svg-img-alt). The wrapper's
+  // label and the ChartSummary below carry every figure, so the sectors are presentational
+  // rather than hidden: `aria-hidden` would fight recharts' own tabindex on the surface,
+  // and role="presentation" simply takes the slices out of the tree.
+  useEffect(() => {
+    pieRef.current
+      ?.querySelectorAll('svg [role="img"]')
+      .forEach((node) => node.setAttribute('role', 'presentation'));
+  });
+
   const toneFills = useToneFills();
 
   /**
@@ -180,11 +193,12 @@ export function AllocationPieChart({ data, title = 'Portfolio Allocation', heade
                 (~96px), and that space is taken off the plot area *before* the pie is laid
                 out, so the circle had 184px of height to live in. */}
             <div
+              ref={pieRef}
               role="group"
               aria-label={`${title}: ${chartData.length} slices, largest is ${topSlices[0]?.name} at ${formatPercent(topSlices[0]?.percent ?? 0, false)}`}
             >
               <ResponsiveContainer width="100%" height={320}>
-                <PieChart accessibilityLayer>
+                <PieChart>
                   <Pie
                     data={chartData}
                     cx="50%"
@@ -236,7 +250,7 @@ export function AllocationPieChart({ data, title = 'Portfolio Allocation', heade
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <ChartSummary caption="Largest slices" items={summaryItems} />
+            <ChartSummary caption="Largest slices — share of portfolio value" items={summaryItems} />
           </>
         )}
       </CardContent>

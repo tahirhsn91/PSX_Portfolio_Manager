@@ -35,7 +35,7 @@ export function ExpectedDividendsTable({ groups }: { groups: PortfolioDividendGr
 
           <CardContent className="px-0 pb-1">
             {/* Desktop */}
-            <table className="hidden w-full text-sm md:table">
+            <table className="hidden w-full text-sm md:table" aria-label="Expected dividends">
               <caption className="sr-only">
                 Expected dividends for {group.portfolioName}
               </caption>

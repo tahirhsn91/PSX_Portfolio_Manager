@@ -31,7 +31,9 @@ CardHeader.displayName = 'CardHeader';
  */
 const CardTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => (
-    <h3
+    /* h2, not h3: every page has exactly one h1 in its PageHeader, and card titles
+       are that page's sections. As h3 they skipped a level. */
+    <h2
       ref={ref}
       className={cn('text-base font-semibold leading-tight tracking-tight', className)}
       {...props}

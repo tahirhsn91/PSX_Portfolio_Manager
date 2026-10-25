@@ -152,7 +152,7 @@ export function TargetAllocation({
               step="any"
               value={thresholdInput}
               onChange={(e) => setThresholdInput(e.target.value)}
-              className="h-9 w-28"
+              className="h-11 w-28"
             />
           </div>
           <Button type="button" onClick={() => save.mutate()} disabled={save.isPending}>

@@ -335,7 +335,7 @@ export function HoldingsTable({
           </span>
           {densityToggle}
         </div>
-        <table className="w-full text-sm">
+        <table className="w-full text-sm" aria-label="Holdings">
           <thead>
             <tr className="border-b bg-muted/40">
               <SortHeader col="symbol" label="Symbol" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="left" />
