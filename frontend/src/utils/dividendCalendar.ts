@@ -7,12 +7,21 @@
  * the day by one in a negative-offset timezone. Lookups compare strings, so the
  * grouping is timezone-safe by construction.
  */
-import type { Holding, DeclaredDividend, DividendRecord } from '@/types';
+import type { Holding, DeclaredDividend, DividendRecord, DividendAnnouncement } from '@/types';
 
 /** A dividend shown on the calendar, with the holding it belongs to. */
 export type DividendCalendarEvent =
   | { kind: 'declared'; dividend: DeclaredDividend; holding: Holding }
+  /** Feed-driven: positioned on its announcement date, because the feed publishes no pay date. */
+  | { kind: 'announced'; announcement: DividendAnnouncement; holding: Holding }
   | { kind: 'received'; dividend: DividendRecord; holding: Holding };
+
+/** Rank inside a day: an upcoming payout sorts above a paid one. */
+const KIND_RANK: Record<DividendCalendarEvent['kind'], number> = {
+  declared: 0,
+  announced: 1,
+  received: 2,
+};
 
 /** A declared dividend with no payment date — it has no calendar position. */
 export interface UndatedDeclared {
@@ -72,7 +81,10 @@ export function buildMonthGrid(year: number, month: number): Date[][] {
  * with no payment date has no grid position and is returned separately so the UI
  * can show it instead of silently dropping it.
  */
-export function groupDividendsByDate(holdings: Holding[]): GroupedDividends {
+export function groupDividendsByDate(
+  holdings: Holding[],
+  announcements: DividendAnnouncement[] = [],
+): GroupedDividends {
   const byDate = new Map<string, DividendCalendarEvent[]>();
   const undated: UndatedDeclared[] = [];
 
@@ -95,11 +107,28 @@ export function groupDividendsByDate(holdings: Holding[]): GroupedDividends {
     }
   }
 
-  // Deterministic per-day order: declared (upcoming) first, then received (paid),
-  // each by symbol.
+  // Announced payouts from the feed: a holding can carry one, and it lands on the
+  // announcement date — the only date the feed publishes. Never shifted onto a
+  // payment date it did not give.
+  if (announcements.length > 0) {
+    const held = new Map(holdings.map((holding) => [holding.symbol.toUpperCase(), holding]));
+    for (const announcement of announcements) {
+      const holding = held.get(announcement.symbol.toUpperCase());
+      if (!holding || holding.shares <= 0) continue;
+      push(announcement.announcementDate.slice(0, 10), {
+        kind: 'announced',
+        announcement,
+        holding,
+      });
+    }
+  }
+
+  // Deterministic per-day order: declared (upcoming) first, then announced, then
+  // received (paid), each by symbol.
   for (const list of byDate.values()) {
-    list.sort((a, b) =>
-      a.kind === b.kind ? a.holding.symbol.localeCompare(b.holding.symbol) : a.kind === 'declared' ? -1 : 1,
+    list.sort(
+      (a, b) =>
+        KIND_RANK[a.kind] - KIND_RANK[b.kind] || a.holding.symbol.localeCompare(b.holding.symbol),
     );
   }
 
@@ -121,9 +150,14 @@ export function groupDividendsByDate(holdings: Holding[]): GroupedDividends {
   return { byDate, undated, nextDate };
 }
 
-/** Total PKR for a calendar event: declared = shares × per-share; received = stored total. */
+/** Total PKR for a calendar event: shares × per-share, or the stored received total. */
 export function eventTotal(event: DividendCalendarEvent): number {
-  return event.kind === 'declared'
-    ? event.holding.shares * event.dividend.amountPerShare
-    : event.dividend.totalAmount;
+  switch (event.kind) {
+    case 'declared':
+      return event.holding.shares * event.dividend.amountPerShare;
+    case 'announced':
+      return event.holding.shares * event.announcement.amountPerShare;
+    case 'received':
+      return event.dividend.totalAmount;
+  }
 }

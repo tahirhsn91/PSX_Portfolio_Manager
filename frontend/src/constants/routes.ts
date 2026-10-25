@@ -6,9 +6,10 @@ export const ROUTES = {
   HOME: '/',
   DASHBOARD: '/dashboard',
   PORTFOLIOS: '/portfolios',
-  DIVIDENDS: '/dividends',
   PORTFOLIO_DETAIL: '/portfolios/:id',
   PORTFOLIO_DETAIL_PATH: (id: string) => `/portfolios/${id}`,
+  /** The portfolio's Dividends tab, where the announced payouts and calendar live. */
+  PORTFOLIO_DIVIDENDS_PATH: (id: string) => `/portfolios/${id}?tab=dividends`,
   STOCK_DETAIL: '/portfolios/:portfolioId/stocks/:symbol',
   STOCK_DETAIL_PATH: (portfolioId: string, symbol: string) =>
     `/portfolios/${portfolioId}/stocks/${symbol}`,
