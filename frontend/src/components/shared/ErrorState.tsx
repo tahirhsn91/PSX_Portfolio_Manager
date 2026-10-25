@@ -47,7 +47,7 @@ export function ErrorState({
         <AlertTriangle className="h-6 w-6" />
       </div>
       <div className="max-w-md space-y-1">
-        <h3 className="text-base font-semibold text-loss-dark">{title}</h3>
+        <h2 className="text-base font-semibold text-loss-dark">{title}</h2>
         <p className="text-sm text-loss-dark/90">{description}</p>
         {detail && <p className="pt-1 text-xs text-loss-dark/80">{detail}</p>}
       </div>

@@ -198,7 +198,7 @@ export function Dividends() {
             value={portfolioId}
             onChange={(event) => setPortfolioId(event.target.value)}
             aria-label="Filter by portfolio"
-            className="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+            className="h-11 rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <option value="all">All portfolios</option>
             {portfolios.map((portfolio) => (
@@ -285,7 +285,7 @@ export function Dividends() {
           {portfolios[0] && (
             <Link
               to={ROUTES.PORTFOLIO_DETAIL_PATH(portfolios[0].id)}
-              className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+              className="mt-2 inline-flex min-h-11 items-center gap-1 text-xs font-medium text-primary hover:underline"
             >
               Open a portfolio's dividend calendar
               <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />

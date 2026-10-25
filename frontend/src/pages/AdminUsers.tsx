@@ -28,7 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { EmptyState, PageHeader } from '@/components/shared';
+import { ConfirmDialog, EmptyState, PageHeader } from '@/components/shared';
 import { ScrollReveal } from '@/components/animations';
 import { useMe } from '@/hooks';
 import { useUIStore } from '@/store';
@@ -92,10 +92,56 @@ export function AdminUsers() {
     }
   };
 
-  const handleStatus = async (user: ManagedUser) => {
-    if (user.isActive && !window.confirm(`Suspend ${user.email}? They are signed out of the app until you reactivate them.`)) {
+  // Suspension and role changes go through the app's confirmation dialog rather than
+  // `window.confirm`, which blocked the page and could not show the request in flight.
+  const [pendingAction, setPendingAction] = useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    run: () => Promise<void>;
+  } | null>(null);
+  const [actionPending, setActionPending] = useState(false);
+
+  const handleStatus = (user: ManagedUser) => {
+    if (!user.isActive) {
+      void applyStatus(user);
       return;
     }
+    setPendingAction({
+      title: `Suspend ${user.email}?`,
+      description:
+        'They are signed out of the app until you reactivate them. Their portfolios, holdings and history are kept.',
+      confirmLabel: 'Suspend account',
+      run: () => applyStatus(user),
+    });
+  };
+
+  const handleRole = (user: ManagedUser) => {
+    const next = user.role === 'admin' ? 'user' : 'admin';
+    setPendingAction({
+      title:
+        next === 'admin' ? `Make ${user.email} an admin?` : `Remove admin from ${user.email}?`,
+      description:
+        next === 'admin'
+          ? 'Admins can create, suspend and delete accounts, and change roles. Grant this only to people who need it.'
+          : 'They keep their own portfolios and lose access to this screen.',
+      confirmLabel: next === 'admin' ? 'Make admin' : 'Remove admin',
+      run: () => applyRole(user, next),
+    });
+  };
+
+  const runPendingAction = async () => {
+    if (!pendingAction) return;
+    setActionPending(true);
+    try {
+      await pendingAction.run();
+    } finally {
+      setActionPending(false);
+      setPendingAction(null);
+    }
+  };
+
+  const applyStatus = async (user: ManagedUser) => {
     setBusyId(user.id);
     try {
       const updated = await usersApi.setStatus(user.id, !user.isActive);
@@ -115,14 +161,7 @@ export function AdminUsers() {
     }
   };
 
-  const handleRole = async (user: ManagedUser) => {
-    const next = user.role === 'admin' ? 'user' : 'admin';
-    const warning =
-      next === 'admin'
-        ? `Make ${user.email} an admin? They will be able to manage accounts.`
-        : `Remove admin from ${user.email}? They keep their own portfolios and lose the admin screens.`;
-    if (!window.confirm(warning)) return;
-
+  const applyRole = async (user: ManagedUser, next: 'admin' | 'user') => {
     setBusyId(user.id);
     try {
       const updated = await usersApi.setRole(user.id, next);
@@ -315,7 +354,6 @@ export function AdminUsers() {
                           <Button
                             variant="destructive"
                             size="icon"
-                            className="h-8 w-8"
                             disabled={busyId === user.id}
                             onClick={() => setPendingDelete(user)}
                             title="Delete permanently"
@@ -332,7 +370,7 @@ export function AdminUsers() {
 
               {/* The table itself: shown at xl and up, where all six columns fit. */}
               <div className="hidden xl:block">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm" aria-label="Accounts">
                 <thead>
                   <tr className="border-b text-left text-xs uppercase tracking-wider text-muted-foreground">
                     <th scope="col" className="py-2 pr-2 font-semibold">Account</th>
@@ -415,7 +453,6 @@ export function AdminUsers() {
                               <Button
                                 variant="destructive"
                                 size="icon"
-                                className="h-8 w-8"
                                 disabled={busyId === user.id}
                                 onClick={() => setPendingDelete(user)}
                                 title="Delete permanently"
@@ -436,6 +473,19 @@ export function AdminUsers() {
           )}
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={!!pendingAction}
+        onOpenChange={(open) => {
+          if (!open && !actionPending) setPendingAction(null);
+        }}
+        title={pendingAction?.title ?? ''}
+        description={pendingAction?.description ?? ''}
+        confirmLabel={pendingAction?.confirmLabel ?? 'Confirm'}
+        pendingLabel="Applying…"
+        pending={actionPending}
+        onConfirm={() => void runPendingAction()}
+      />
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>

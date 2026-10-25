@@ -37,12 +37,27 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          react: ['react', 'react-dom'],
-          router: ['react-router-dom'],
-          charts: ['recharts'],
-          query: ['@tanstack/react-query'],
-          zustand: ['zustand'],
+        /**
+         * Vendor code is split by package family, not by named import. The old object
+         * form listed `react`/`react-dom`, but the code actually arrives through
+         * `react/jsx-runtime` and `react-dom/client`, so that chunk came out at 0.04 kB
+         * and React stayed in the entry. A function matches every module in the tree.
+         *
+         * Grouping by family also keeps the long-lived vendor chunks identical between
+         * app deploys, so a changed page does not invalidate React or recharts.
+         */
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'react';
+          if (id.includes('react-router')) return 'router';
+          if (id.includes('recharts') || id.includes('d3-')) return 'charts';
+          if (id.includes('@tanstack')) return 'query';
+          if (id.includes('zustand')) return 'zustand';
+          if (id.includes('framer-motion') || id.includes('motion-dom') || id.includes('motion-utils')) return 'motion';
+          if (id.includes('@radix-ui')) return 'radix';
+          if (id.includes('date-fns')) return 'dates';
+          if (id.includes('lucide-react')) return 'icons';
+          return;
         },
       },
     },

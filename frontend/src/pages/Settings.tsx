@@ -16,8 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import {
   Dialog,
   DialogClose,
@@ -101,7 +100,6 @@ export function Settings() {
   const [isImportingStale, setIsImportingStale] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
 
-  const storageInfo = storageService.getStorageInfo();
   const activeTheme = THEME_OPTIONS.find((option) => option.value === theme) ?? THEME_OPTIONS[2];
   const portfolioLabel = `${portfolios.length} portfolio${portfolios.length === 1 ? '' : 's'}`;
 
@@ -265,7 +263,7 @@ export function Settings() {
     <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader
         title="Settings"
-        description="Appearance, the data this browser holds, and what the app is."
+        description="Appearance, your backups, and what the app is."
       />
       <ScrollReveal className="space-y-6">
 
@@ -289,7 +287,7 @@ export function Settings() {
                     className={cn(
                       'flex min-h-11 items-center whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors duration-base ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 lg:w-full',
                       current
-                        ? 'bg-primary/10 text-primary'
+                        ? 'bg-primary-soft text-primary-soft-foreground'
                         : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                     )}
                   >
@@ -326,16 +324,18 @@ export function Settings() {
                    * still writes through useTheme(), so the <html> class, the
                    * colour-scheme and the browser theme colour all follow.
                    */}
-                  <Tabs value={theme} onValueChange={(value) => setTheme(value as ThemeValue)}>
-                    <TabsList variant="segmented" aria-label="Theme" className="h-12">
-                      {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
-                        <TabsTrigger key={value} value={value} className="min-h-11">
-                          <Icon aria-hidden="true" className="h-4 w-4" />
-                          {label}
-                        </TabsTrigger>
-                      ))}
-                    </TabsList>
-                  </Tabs>
+                  <SegmentedControl
+                    label="Theme"
+                    value={theme}
+                    onValueChange={(value) => setTheme(value as ThemeValue)}
+                    compact
+                    className="h-12"
+                    options={THEME_OPTIONS.map(({ value, label, icon: Icon }) => ({
+                      value,
+                      label,
+                      icon: <Icon aria-hidden="true" className="h-4 w-4" />,
+                    }))}
+                  />
                   <p role="status" className="text-xs text-muted-foreground">
                     Currently set to{' '}
                     <span className="font-medium text-foreground">{activeTheme.label}</span>. {activeTheme.hint}
@@ -473,16 +473,10 @@ export function Settings() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
-                    <span className="text-muted-foreground">Browser storage used</span>
-                    <span className="font-medium tabular-nums">
-                      {(storageInfo.used / 1024).toFixed(1)} KB /{' '}
-                      {(storageInfo.total / 1024 / 1024).toFixed(0)} MB ({storageInfo.usedPercent}%)
-                    </span>
-                  </div>
-                  <Progress value={storageInfo.usedPercent} className="h-2" />
-                </div>
+                <p className="text-sm text-muted-foreground">
+                  Preferences (theme, display options, refresh interval) are saved on this device.
+                  Portfolios and their history live in your account.
+                </p>
 
                 <Separator />
 
@@ -552,8 +546,9 @@ export function Settings() {
                  */}
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs text-muted-foreground">
-                    Clearing removes every portfolio from this browser, including holdings and buy
-                    history. It cannot be undone — export a backup first if you might want them back.
+                    Clearing removes every portfolio from your account, including holdings and buy
+                    history, on every device you sign in on. It cannot be undone — export a backup
+                    first if you might want them back.
                   </p>
                   <Button
                     variant="outline"
@@ -625,8 +620,8 @@ export function Settings() {
           <DialogHeader>
             <DialogTitle>Clear all data?</DialogTitle>
             <DialogDescription>
-              This deletes {portfolioLabel} stored in this browser, including every holding and buy
-              record. It cannot be undone.
+              This deletes {portfolioLabel} from your account, including every holding and buy
+              record, on every device you sign in on. It cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-2">

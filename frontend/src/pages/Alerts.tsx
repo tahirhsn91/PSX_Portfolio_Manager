@@ -9,7 +9,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Bell, Trash2, Plus } from 'lucide-react';
-import { PageHeader, EmptyState } from '@/components/shared';
+import { ConfirmDialog, PageHeader, EmptyState, ErrorState } from '@/components/shared';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,7 +32,7 @@ export function Alerts() {
   const queryClient = useQueryClient();
   const addNotification = useUIStore((s) => s.addNotification);
 
-  const { data: alerts = [] } = useQuery({
+  const { data: alerts = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['alerts'],
     queryFn: alertsApi.list,
   });
@@ -40,6 +41,7 @@ export function Alerts() {
   const [kind, setKind] = useState<AlertKind>('price');
   const [direction, setDirection] = useState<AlertDirection>('above');
   const [threshold, setThreshold] = useState('');
+  const [alertToDelete, setAlertToDelete] = useState<Alert | null>(null);
 
   const create = useMutation({
     mutationFn: (input: AlertInput) => alertsApi.create(input),
@@ -55,12 +57,29 @@ export function Alerts() {
 
   const toggle = useMutation({
     mutationFn: ({ id, active }: { id: string; active: boolean }) => alertsApi.update(id, { active }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['alerts'] }),
+    onSuccess: (_alert, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['alerts'] });
+      addNotification({
+        type: 'info',
+        title: variables.active ? 'Alert resumed' : 'Alert paused',
+        message: 'In-app notifications only fire while the PSX market is open.',
+      });
+    },
+    onError: (err) =>
+      addNotification({
+        type: 'error',
+        title: 'Could not update the alert',
+        message: (err as Error).message,
+      }),
   });
 
   const remove = useMutation({
     mutationFn: (id: string) => alertsApi.remove(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['alerts'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['alerts'] });
+      addNotification({ type: 'info', title: 'Alert deleted' });
+      setAlertToDelete(null);
+    },
     onError: (err) =>
       addNotification({ type: 'error', title: 'Could not delete the alert', message: (err as Error).message }),
   });
@@ -102,32 +121,39 @@ export function Alerts() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">Condition</label>
+                <label htmlFor="alert-condition" className="mb-1 block text-sm font-medium">
+                  Condition
+                </label>
                 <select
+                  id="alert-condition"
                   value={kind}
                   onChange={(e) => setKind(e.target.value as AlertKind)}
-                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                  className="h-11 w-full rounded-md border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <option value="price">Price level</option>
                   <option value="percent">Percent move</option>
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">When it</label>
+                <label htmlFor="alert-direction" className="mb-1 block text-sm font-medium">
+                  When it
+                </label>
                 <select
+                  id="alert-direction"
                   value={direction}
                   onChange={(e) => setDirection(e.target.value as AlertDirection)}
-                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                  className="h-11 w-full rounded-md border bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <option value="above">{kind === 'price' ? 'rises to' : 'rises by'}</option>
                   <option value="below">{kind === 'price' ? 'falls to' : 'falls by'}</option>
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">
+                <label htmlFor="alert-threshold" className="mb-1 block text-sm font-medium">
                   {kind === 'price' ? 'Price (Rs)' : 'Percent (%)'}
                 </label>
                 <Input
+                  id="alert-threshold"
                   type="number"
                   min="0"
                   step="any"
@@ -145,7 +171,21 @@ export function Alerts() {
         </CardContent>
       </Card>
 
-      {alerts.length === 0 ? (
+      {isLoading ? (
+        <Card>
+          <CardContent className="space-y-3 pt-4" aria-busy="true">
+            {[0, 1].map((i) => (
+              <Skeleton key={i} className="h-14 w-full rounded-md" />
+            ))}
+          </CardContent>
+        </Card>
+      ) : isError ? (
+        <ErrorState
+          title="Could not load your alerts"
+          description="The alert list did not arrive from the server. Nothing has been deleted."
+          onRetry={() => void refetch()}
+        />
+      ) : alerts.length === 0 ? (
         <EmptyState
           icon={<Bell className="h-6 w-6" />}
           title="No alerts yet"
@@ -168,6 +208,7 @@ export function Alerts() {
                       type="button"
                       variant="ghost"
                       size="sm"
+                      loading={toggle.isPending && toggle.variables?.id === alert.id}
                       onClick={() => toggle.mutate({ id: alert.id, active: !alert.active })}
                     >
                       {alert.active ? 'Pause' : 'Resume'}
@@ -178,7 +219,8 @@ export function Alerts() {
                       size="icon"
                       className="text-destructive hover:text-destructive"
                       aria-label={`Delete ${alert.symbol} alert`}
-                      onClick={() => remove.mutate(alert.id)}
+                      loading={remove.isPending && remove.variables === alert.id}
+                      onClick={() => setAlertToDelete(alert)}
                     >
                       <Trash2 aria-hidden="true" className="h-4 w-4" />
                     </Button>
@@ -189,6 +231,24 @@ export function Alerts() {
           </CardContent>
         </Card>
       )}
+
+      <ConfirmDialog
+        open={!!alertToDelete}
+        onOpenChange={(open) => {
+          if (!open && !remove.isPending) setAlertToDelete(null);
+        }}
+        title={`Delete the ${alertToDelete?.symbol ?? ''} alert?`}
+        description={
+          alertToDelete
+            ? `${describeAlert(alertToDelete)} — this condition and its history are removed. It cannot be undone.`
+            : ''
+        }
+        confirmLabel="Delete alert"
+        pendingLabel="Deleting…"
+        destructive
+        pending={remove.isPending}
+        onConfirm={() => alertToDelete && remove.mutate(alertToDelete.id)}
+      />
     </div>
   );
 }

@@ -2,7 +2,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Activity, ArrowUpRight, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { EmptyState, MetricBand, PLValue, PageHeader } from '@/components/shared';
+import { EmptyState, ErrorState, MetricBand, PLValue, PageHeader } from '@/components/shared';
+import { Skeleton } from '@/components/ui/skeleton';
 import type { BandStat } from '@/components/shared';
 import { AllocationPieChart, BenchmarkComparisonChart, SectorBarChart, rangeDays } from '@/features/charts';
 import { ExpectedDividendsCard } from '@/features/dividends/ExpectedDividendsCard';
@@ -29,6 +30,10 @@ interface Mover {
 export function Dashboard() {
   const navigate = useNavigate();
   const portfolios = usePortfolioStore((s) => s.portfolios);
+  const portfoliosLoading = usePortfolioStore((s) => s.isLoading);
+  const portfoliosLoaded = usePortfolioStore((s) => s.loaded);
+  const portfoliosError = usePortfolioStore((s) => s.error);
+  const reloadPortfolios = usePortfolioStore((s) => s.load);
   const { aggregate, isLoading, metricsPerPortfolio } = useAllPortfoliosMetrics();
   const [range, setRange] = useState<ComparisonRange>('3M');
   // The portfolio side of the "vs benchmark" comparison, priced from real history.
@@ -51,6 +56,40 @@ export function Dashboard() {
     series: kse100?.historicalData ?? [],
     kind: 'index',
   };
+
+  // "Still loading", "failed" and "empty" are three different screens. This page used
+  // to collapse them into "No portfolios yet", which is only true of the third.
+  const awaitingFirstLoad = !portfoliosLoaded && !portfoliosError;
+
+  if (portfoliosError && portfolios.length === 0) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Dashboard"
+          description="Your holdings, what they are worth, and what the market did today."
+        />
+        <ErrorState
+          title="Could not load your portfolios"
+          description="The account data did not arrive, so there is nothing to total up yet. Your saved portfolios are unaffected."
+          detail={portfoliosError}
+          onRetry={() => void reloadPortfolios()}
+        />
+      </div>
+    );
+  }
+
+  if ((portfoliosLoading || awaitingFirstLoad) && portfolios.length === 0) {
+    return (
+      <div className="space-y-6" aria-busy="true">
+        <PageHeader title="Dashboard" description="Loading your portfolios and today's prices…" />
+        <Skeleton className="h-44 w-full rounded-xl" />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Skeleton className="h-44 w-full rounded-xl" />
+          <Skeleton className="h-44 w-full rounded-xl" />
+        </div>
+      </div>
+    );
+  }
 
   if (portfolios.length === 0) {
     return (
@@ -174,6 +213,7 @@ export function Dashboard() {
         animateValue={aggregate.currentValue}
         animateFormat={(n) => formatCurrency(n)}
         change={{
+          label: 'since purchase',
           amount: formatCurrency(aggregate.totalPL),
           percent: plPercent !== undefined ? formatPercent(plPercent) : undefined,
           tone,

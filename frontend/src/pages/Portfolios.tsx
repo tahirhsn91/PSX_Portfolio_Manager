@@ -4,11 +4,11 @@ import { Plus, Briefcase, Search, LayoutGrid, List, Upload, X } from 'lucide-rea
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
-import { EmptyState, ErrorState, PageHeader } from '@/components/shared';
+import { ConfirmDialog, EmptyState, PageHeader } from '@/components/shared';
 import { ScrollReveal } from '@/components/animations';
 import { PortfolioCard } from '@/features/portfolio/PortfolioCard';
 import { PortfolioListRow } from '@/features/portfolio/PortfolioListRow';
@@ -16,7 +16,7 @@ import { PortfolioForm } from '@/features/portfolio/PortfolioForm';
 import { usePortfolioStore } from '@/store';
 import { usePortfolioMetrics } from '@/hooks';
 import { useUIStore } from '@/store';
-import { ROUTES, STORAGE_KEYS } from '@/constants';
+import { ROUTES } from '@/constants';
 import type { Portfolio } from '@/types';
 import type { PortfolioFormValues } from '@/utils';
 
@@ -45,28 +45,6 @@ function time(value: string): number {
   return Number.isNaN(t) ? 0 : t;
 }
 
-/**
- * The portfolios live in `localStorage` and are read back on hydrate. When that
- * read fails — storage blocked in a private window, a quota error, a backup
- * edited by hand — the store comes up empty, and the page would otherwise report
- * "No portfolios yet" over data that exists and merely cannot be read. Asking
- * the same key the store uses lets the page tell those two situations apart, and
- * offer a way out: retry, or restore from a backup file.
- */
-function readStorageError(): string | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEYS.PORTFOLIOS);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { state?: { portfolios?: unknown } };
-    if (parsed && parsed.state && !Array.isArray(parsed.state.portfolios)) {
-      return 'The saved data does not contain a list of portfolios.';
-    }
-    return null;
-  } catch (err) {
-    return err instanceof Error ? err.message : String(err);
-  }
-}
 
 function PortfolioCardWithMetrics({ portfolio, onEdit, onDelete, onDuplicate, onArchive, onRestore }: {
   portfolio: Portfolio;
@@ -120,11 +98,12 @@ export function Portfolios() {
   const addNotification = useUIStore((s) => s.addNotification);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPortfolio, setEditingPortfolio] = useState<Portfolio | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Portfolio | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('updated');
   const [filter, setFilter] = useState<FilterKey>('all');
   const [view, setView] = useState<ViewKey>('grid');
-  const [storageError, setStorageError] = useState<string | null>(() => readStorageError());
 
   /*
    * Every one of these writes to the server now, so they can fail — and a failure
@@ -160,19 +139,37 @@ export function Portfolios() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    const p = portfolios.find((p) => p.id === id);
+  // Deletion opens the app's own dialog instead of `window.confirm`: the browser
+  // modal blocks the page, cannot show a pending state, and looked nothing like the
+  // rest of the app. The actual request runs from the dialog's confirm handler.
+  const handleDelete = (id: string) => {
+    const p = portfolios.find((candidate) => candidate.id === id);
     if (!p) return;
-    if (!window.confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
+    // The row's menu is still closing. Opening the dialog in the same tick made it
+    // record the (now unmounted) menu item as the element to return focus to, so
+    // Escape dropped focus on <body>; one tick later it records the menu's trigger.
+    setTimeout(() => setPendingDelete(p), 0);
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    setDeleting(true);
     try {
-      await deletePortfolio(id);
-      addNotification({ type: 'info', title: 'Portfolio deleted' });
+      await deletePortfolio(pendingDelete.id);
+      addNotification({
+        type: 'info',
+        title: 'Portfolio deleted',
+        message: `"${pendingDelete.name}" and its history are gone.`,
+      });
+      setPendingDelete(null);
     } catch (err) {
       addNotification({
         type: 'error',
         title: 'Could not delete the portfolio',
         message: (err as Error).message,
       });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -228,19 +225,6 @@ export function Portfolios() {
     setFilter('all');
   };
 
-  /**
-   * Re-read the storage probe, and if the data is readable again while the store
-   * is still empty, reload: the store reads `localStorage` once, at boot, so a
-   * repaired file cannot reach it any other way. Without this the retry cleared
-   * the error and then reported the portfolio list as empty — the very lie the
-   * error state exists to avoid.
-   */
-  const retryStorage = () => {
-    const next = readStorageError();
-    setStorageError(next);
-    if (!next && !hasPortfolios) window.location.reload();
-  };
-
   const activePortfolios = useMemo(() => portfolios.filter((p) => !p.archivedAt), [portfolios]);
   const archivedPortfolios = useMemo(() => portfolios.filter((p) => !!p.archivedAt), [portfolios]);
 
@@ -283,9 +267,6 @@ export function Portfolios() {
 
   const count = activePortfolios.length;
   const hasPortfolios = portfolios.length > 0;
-  // A read failure with nothing on screen is the one case where "empty" would be
-  // a lie, so the error state replaces the empty state instead of joining it.
-  const showStorageError = !!storageError && !hasPortfolios;
 
   const importHint = (
     <Button variant="outline" asChild>
@@ -315,7 +296,7 @@ export function Portfolios() {
         ) : undefined}
       />
 
-      {hasPortfolios && !showStorageError && (
+      {hasPortfolios && (
         <div className="space-y-2">
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <div className="relative min-w-0 flex-1 sm:max-w-xs">
@@ -359,16 +340,23 @@ export function Portfolios() {
 
               {/* The view switch is a real 44px tab strip, not two icons: the
                   segmented variant is 40px and would fall under the minimum. */}
-              <Tabs value={view} onValueChange={(value) => setView(value as ViewKey)}>
-                <TabsList aria-label="Portfolio view">
-                  <TabsTrigger value="grid">
-                    <LayoutGrid aria-hidden="true" className="h-4 w-4" /> Grid
-                  </TabsTrigger>
-                  <TabsTrigger value="list">
-                    <List aria-hidden="true" className="h-4 w-4" /> List
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <SegmentedControl
+                label="Portfolio view"
+                value={view}
+                onValueChange={setView}
+                options={[
+                  {
+                    value: 'grid',
+                    label: 'Grid',
+                    icon: <LayoutGrid aria-hidden="true" className="h-4 w-4" />,
+                  },
+                  {
+                    value: 'list',
+                    label: 'List',
+                    icon: <List aria-hidden="true" className="h-4 w-4" />,
+                  },
+                ]}
+              />
             </div>
           </div>
 
@@ -379,15 +367,7 @@ export function Portfolios() {
         </div>
       )}
 
-      {showStorageError ? (
-        <ErrorState
-          title="Your saved portfolios could not be read"
-          description="The browser storage holding them is unavailable or damaged, so this page has nothing to show. Nothing has been deleted."
-          detail={storageError ?? undefined}
-          onRetry={retryStorage}
-          action={importHint}
-        />
-      ) : !hasPortfolios ? (
+      {!hasPortfolios ? (
         <EmptyState
           icon={<Briefcase className="h-8 w-8 text-muted-foreground" aria-hidden="true" />}
           title="No portfolios yet"
@@ -478,6 +458,20 @@ export function Portfolios() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setPendingDelete(null);
+        }}
+        title={`Delete "${pendingDelete?.name ?? 'this portfolio'}"?`}
+        description="Every holding, buy record, dividend and cash entry in this portfolio is deleted with it. This cannot be undone — export a backup first if you might want it back."
+        confirmLabel="Delete portfolio"
+        pendingLabel="Deleting…"
+        destructive
+        pending={deleting}
+        onConfirm={() => void confirmDelete()}
+      />
     </div>
   );
 }

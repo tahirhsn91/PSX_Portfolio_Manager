@@ -59,7 +59,7 @@ export function NotificationBell() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-9 px-2"
+              className="min-h-11 px-2"
               onClick={markAllRead}
               disabled={unreadCount === 0}
             >
@@ -69,7 +69,7 @@ export function NotificationBell() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-9 px-2"
+              className="min-h-11 px-2"
               onClick={clearNotifications}
               disabled={notifications.length === 0}
               aria-label="Clear all notifications"

@@ -75,7 +75,7 @@ export function BudgetCalculator({ symbol, marketPrice, feePercent }: BudgetCalc
                   'h-11 rounded-full border px-4 text-xs font-medium tabular-nums transition-colors duration-fast ease-standard',
                   'motion-safe:active:scale-[0.97]',
                   active
-                    ? 'border-primary/40 bg-primary/10 text-primary'
+                    ? 'border-primary/40 bg-primary-soft text-primary-soft-foreground'
                     : 'bg-background text-muted-foreground hover:border-border hover:text-foreground',
                 )}
               >

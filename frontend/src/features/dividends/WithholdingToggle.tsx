@@ -36,7 +36,7 @@ export function WithholdingToggle({
               aria-checked={active}
               onClick={() => onChange(option)}
               className={cn(
-                'relative h-9 min-w-[3.25rem] rounded-full px-3 text-xs font-medium tabular-nums transition-colors duration-fast ease-standard',
+                'relative h-11 min-w-[3.25rem] rounded-full px-3 text-xs font-medium tabular-nums transition-colors duration-fast ease-standard',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
               )}

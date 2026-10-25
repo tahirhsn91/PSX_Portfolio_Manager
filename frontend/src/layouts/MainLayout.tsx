@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useLocation, useOutlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { MobileNav } from './MobileNav';
 import { BottomNav } from './BottomNav';
 import { EnvBanner, ErrorBoundary } from '@/components/shared';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollRootContext, ScrollProgress, PageTransition } from '@/components/animations';
 import { Toaster } from '@/components/ui/toaster';
 import { useAlertEngine } from '@/hooks/useAlertEngine';
@@ -61,7 +62,22 @@ export function MainLayout() {
                 <div className="mx-auto w-full max-w-[1600px] p-4 md:p-6 lg:p-8">
                   {/* Route transition: keyed by pathname so each navigation
                       cross-fades the outgoing page out and the new one in. */}
-                  <PageTransition>{outlet}</PageTransition>
+                  <PageTransition>
+                    {/* Route chunks load on demand; the shell (nav, header, banner)
+                        stays put while a page arrives. */}
+                    <Suspense
+                      fallback={
+                        <div className="space-y-4" aria-busy="true">
+                          <Skeleton className="h-8 w-52" />
+                          <Skeleton className="h-40 w-full rounded-xl" />
+                          <Skeleton className="h-64 w-full rounded-xl" />
+                          <span className="sr-only">Loading this page…</span>
+                        </div>
+                      }
+                    >
+                      {outlet}
+                    </Suspense>
+                  </PageTransition>
                 </div>
               </ErrorBoundary>
             </main>

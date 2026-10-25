@@ -21,7 +21,7 @@ interface MetricBandProps {
   /** Formats the animated headline; defaults to a locale string. */
   animateFormat?: (n: number) => string;
   /** The change since purchase, shown beside the headline. */
-  change?: { amount?: string; percent?: string; tone: 'neutral' | 'profit' | 'loss' };
+  change?: { amount?: string; percent?: string; tone: 'neutral' | 'profit' | 'loss'; label?: string };
   /** Supporting figures, given equal weight and no card of their own. */
   stats: BandStat[];
   /** A caveat that qualifies every figure in the band. */
@@ -82,6 +82,10 @@ export function MetricBand({ label, value, animateValue, animateFormat, change, 
           </p>
           {change && (
             <p className={cn('mt-2 flex flex-wrap items-center gap-x-2 text-sm font-medium', TONE_CLASS[change.tone])}>
+              {/* A change with no stated basis is a guessing game; the band says what it is measured against. */}
+              {change.label && (
+                <span className="font-normal text-muted-foreground">{change.label}</span>
+              )}
               {change.amount && <span className="tabular-nums">{change.amount}</span>}
               {change.percent && (
                 <span className="tabular-nums">
@@ -100,13 +104,19 @@ export function MetricBand({ label, value, animateValue, animateFormat, change, 
               <dt className="truncate text-xs text-muted-foreground">{stat.label}</dt>
               <dd
                 className={cn(
-                  'mt-0.5 truncate text-base font-medium tabular-nums',
+                  'mt-0.5 text-base font-medium tabular-nums',
                   stat.tone ? TONE_CLASS[stat.tone] : undefined
                 )}
               >
-                {stat.value}
+                <span className="block truncate">{stat.value}</span>
+                {/* The hint belongs to the value, so it lives inside the <dd>: a <p>
+                    between <dd> and </dd>'s siblings is invalid inside a <dl>. */}
+                {stat.hint && (
+                  <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
+                    {stat.hint}
+                  </span>
+                )}
               </dd>
-              {stat.hint && <p className="mt-0.5 truncate text-xs text-muted-foreground">{stat.hint}</p>}
             </Reveal>
           ))}
         </dl>
