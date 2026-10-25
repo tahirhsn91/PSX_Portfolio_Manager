@@ -2,7 +2,6 @@ import {
   LayoutDashboard,
   Briefcase,
   Calculator,
-  Coins,
   Settings,
   UserRound,
   Users,
@@ -48,13 +47,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     group: 'Workspace',
   },
   {
-    label: 'Dividends',
-    icon: Coins,
-    to: ROUTES.DIVIDENDS,
-    description: 'Announced payouts on what you hold',
-    group: 'Workspace',
-  },
-  {
     label: 'Planner',
     icon: Calculator,
     to: ROUTES.PLANNER,
@@ -70,9 +62,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     to: ROUTES.WATCHLIST,
     description: 'Symbols you track but do not own',
     group: 'Workspace',
-    // Dividends took the fifth thumb slot: it reports on money the account
-    // actually owns, where the watchlist is market research and stays in the drawer.
-    inBottomNav: false,
   },
   {
     label: 'Alerts',

@@ -6,19 +6,36 @@ import {
   groupDividendsByDate,
   type DividendCalendarEvent,
 } from './dividendCalendar';
-import type { DeclaredDividend, DividendRecord, Holding } from '@/types';
+import type { DeclaredDividend, DividendAnnouncement, DividendRecord, Holding } from '@/types';
 
 function holding(
   symbol: string,
   declared: DeclaredDividend[] = [],
   received: DividendRecord[] = [],
+  shares = 100,
 ): Holding {
   return {
     symbol,
     companyName: `${symbol} Ltd`,
+    shares,
     declaredDividends: declared,
     dividendsReceived: received,
   } as unknown as Holding;
+}
+
+function announcement(symbol: string, amount: number, date: string): DividendAnnouncement {
+  return {
+    symbol,
+    companyName: `${symbol} Ltd`,
+    amountPerShare: amount,
+    announcementDate: date,
+    exDate: null,
+    bookClosure: null,
+    paymentDate: null,
+    status: 'unknown',
+    price: null,
+    yieldTtm: null,
+  };
 }
 
 function declared(id: string, amountPerShare: number, paymentDate?: string): DeclaredDividend {
@@ -91,6 +108,39 @@ describe('groupDividendsByDate', () => {
     expect(groupDividendsByDate([holding('AAA', [declared('d1', 5, '2000-01-01')])]).nextDate).toBeNull();
     expect(groupDividendsByDate([holding('AAA', [declared('d1', 5, '2099-01-01')])]).nextDate).toBe('2099-01-01');
   });
+
+  it('places feed announcements on their announcement date, for held symbols only', () => {
+    const g = groupDividendsByDate(
+      [holding('EFERT', [], [], 77)],
+      [announcement('EFERT', 5.5, '2026-10-30'), announcement('HUBC', 5, '2026-10-30')],
+    );
+
+    const events = g.byDate.get('2026-10-30') ?? [];
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ kind: 'announced', holding: { symbol: 'EFERT' } });
+    expect(g.nextDate).toBe('2026-10-30');
+  });
+
+  it('orders a day declared, then announced, then received', () => {
+    const g = groupDividendsByDate(
+      [
+        holding('AAA', [declared('d1', 5, '2099-06-10')], [received('r1', '2099-06-10', 3, 300)]),
+        holding('BBB', [], [], 10),
+      ],
+      [announcement('BBB', 2, '2099-06-10')],
+    );
+
+    expect((g.byDate.get('2099-06-10') ?? []).map((e) => e.kind)).toEqual([
+      'declared',
+      'announced',
+      'received',
+    ]);
+  });
+
+  it('does not mark an announcement for a symbol the portfolio no longer holds', () => {
+    const g = groupDividendsByDate([holding('EFERT', [], [], 0)], [announcement('EFERT', 5.5, '2026-10-30')]);
+    expect(g.byDate.size).toBe(0);
+  });
 });
 
 describe('eventTotal', () => {
@@ -108,5 +158,14 @@ describe('eventTotal', () => {
       holding: { symbol: 'X' },
     } as DividendCalendarEvent;
     expect(eventTotal(receivedEvent)).toBe(300);
+  });
+
+  it('multiplies shares for an announced payout too', () => {
+    const announcedEvent = {
+      kind: 'announced',
+      announcement: announcement('X', 2.5, '2026-10-30'),
+      holding: { symbol: 'X', shares: 40 },
+    } as DividendCalendarEvent;
+    expect(eventTotal(announcedEvent)).toBe(100);
   });
 });

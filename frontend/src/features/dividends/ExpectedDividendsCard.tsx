@@ -38,6 +38,13 @@ export function ExpectedDividendsCard() {
     [refs, announcements, rate],
   );
 
+  // Where "Open" goes: the portfolio carrying the largest expected payout, so the
+  // link lands where the money is. Falls back to the first portfolio.
+  const targetPortfolioId = useMemo(() => {
+    const top = [...summary.groups].sort((a, b) => b.gross - a.gross)[0];
+    return top?.portfolioId ?? portfolios[0]?.id;
+  }, [summary.groups, portfolios]);
+
   return (
     <ScrollReveal>
       <Card>
@@ -82,13 +89,15 @@ export function ExpectedDividendsCard() {
                 </p>
               </div>
             )}
-            <Link
-              to={ROUTES.DIVIDENDS}
-              className="inline-flex min-h-11 items-center gap-1 rounded-md border px-3 text-xs font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              View
-              <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
-            </Link>
+            {targetPortfolioId && (
+              <Link
+                to={ROUTES.PORTFOLIO_DIVIDENDS_PATH(targetPortfolioId)}
+                className="inline-flex min-h-9 items-center gap-1 rounded-md border px-3 text-xs font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Open
+                <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
+              </Link>
+            )}
           </div>
         </CardContent>
       </Card>
