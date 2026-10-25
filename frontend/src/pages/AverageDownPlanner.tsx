@@ -166,15 +166,17 @@ function TradeContext({
         </p>
       </div>
 
-      <div className="flex items-center justify-between rounded-lg border p-3">
-        <div>
-          <Label htmlFor={`${idPrefix}-fees`} className="text-sm">
-            Include charges
-          </Label>
-          <p className="text-[11px] text-muted-foreground">Brokerage, CVT and other fees</p>
-        </div>
+      {/* The whole row is the switch's target, not just the 24px pill: the text
+          was a `for`-linked label before, but the padding around it was dead. */}
+      <label className="flex min-h-14 cursor-pointer items-center justify-between gap-3 rounded-lg border p-3">
+        <span>
+          <span className="block text-sm font-medium">Include charges</span>
+          <span className="mt-1 block text-[11px] text-muted-foreground">
+            Brokerage, CVT and other fees
+          </span>
+        </span>
         <Switch id={`${idPrefix}-fees`} checked={feeOn} onCheckedChange={onFeeChange} />
-      </div>
+      </label>
       {feeOn && (
         <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}-fee-percent`}>Charges (%)</Label>
@@ -402,8 +404,8 @@ export function AverageDownPlanner() {
                     onClick={() => setDirection(value)}
                     className={
                       direction === value
-                        ? 'h-10 rounded-lg border border-primary bg-primary/10 text-sm font-medium text-primary'
-                        : 'h-10 rounded-lg border bg-background text-sm text-muted-foreground hover:text-foreground'
+                        ? 'h-11 rounded-lg border border-primary bg-primary/10 text-sm font-medium text-primary'
+                        : 'h-11 rounded-lg border bg-background text-sm text-muted-foreground hover:text-foreground'
                     }
                   >
                     {label}
@@ -592,7 +594,7 @@ export function AverageDownPlanner() {
                 <CardTitle className="text-base">What if?</CardTitle>
               </CardHeader>
               <CardContent>
-                <table className="w-full text-[11px] tabular-nums sm:text-xs">
+                <table className="w-full text-[11px] tabular-nums sm:text-xs" aria-label="What-if scenarios">
                   <thead>
                     <tr className="text-left text-muted-foreground">
                       <th className="pb-2 font-medium">Shares</th>

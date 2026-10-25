@@ -113,7 +113,7 @@ export function PortfolioValueChart({ series, title = 'Portfolio Value', rangeDa
           </p>
         ) : (
           <>
-            <div role="group" aria-label={`${title} over the last ${chartData.length} sessions, ${isPositive ? 'up' : 'down'} ${Math.abs(changePercent).toFixed(2)}% over the window`}>
+            <div role="group" aria-label={`${title} in PKR over the last ${chartData.length} sessions, ${isPositive ? 'up' : 'down'} ${Math.abs(changePercent).toFixed(2)}% over the window`}>
               <ResponsiveContainer width="100%" height={240}>
                 <AreaChart accessibilityLayer data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
                   <defs>
@@ -156,7 +156,7 @@ export function PortfolioValueChart({ series, title = 'Portfolio Value', rangeDa
                 </AreaChart>
               </ResponsiveContainer>
             </div>
-            <ChartSummary caption="Portfolio value — window summary" items={summaryItems} />
+            <ChartSummary caption="Portfolio value in PKR — window summary" items={summaryItems} />
           </>
         )}
       </CardContent>

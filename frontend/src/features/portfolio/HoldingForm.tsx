@@ -253,7 +253,7 @@ function BuyHistory({
 
       {/* Room for a table: one row per purchase, which is the whole point. */}
       <div className="hidden overflow-hidden rounded-lg border border-border sm:block">
-        <table className="w-full text-sm">
+        <table aria-label="Purchase records" className="w-full text-sm">
           <thead className="bg-muted/40">
             <tr>
               <th scope="col" className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Date</th>
@@ -504,7 +504,7 @@ function SellHistory({
       </div>
 
       <div className="hidden overflow-hidden rounded-lg border border-border sm:block">
-        <table className="w-full text-sm">
+        <table aria-label="Sale records" className="w-full text-sm">
           <thead className="bg-muted/40">
             <tr>
               <th scope="col" className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Date</th>
@@ -668,7 +668,7 @@ function CorporateActionsHistory({
               <Label htmlFor="actionType">Type</Label>
               <select
                 id="actionType"
-                className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 value={type}
                 onChange={(e) => setType(e.target.value as CorporateActionType)}
               >

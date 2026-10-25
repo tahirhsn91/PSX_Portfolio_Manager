@@ -94,7 +94,7 @@ function DayCell({
       onClick={() => onSelect(key)}
       aria-label={label}
       className={cn(
-        'flex h-10 w-full flex-col items-center justify-center gap-0.5 rounded-md text-sm transition-colors',
+        'flex min-h-11 w-full flex-col items-center justify-center gap-0.5 rounded-md text-sm transition-colors',
         'hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
         !inMonth && 'text-muted-foreground/50',
         // A day with a dividend is highlighted by its whole cell, not just a dot.
@@ -384,7 +384,7 @@ export function DividendCalendar({
               <Label htmlFor="declaredHolding">Holding *</Label>
               <select
                 id="declaredHolding"
-                className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 value={holdingId}
                 onChange={(e) => setHoldingId(e.target.value)}
               >

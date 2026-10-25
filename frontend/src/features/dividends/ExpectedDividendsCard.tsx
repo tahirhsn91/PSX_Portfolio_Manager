@@ -84,7 +84,7 @@ export function ExpectedDividendsCard() {
             )}
             <Link
               to={ROUTES.DIVIDENDS}
-              className="inline-flex min-h-9 items-center gap-1 rounded-md border px-3 text-xs font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="inline-flex min-h-11 items-center gap-1 rounded-md border px-3 text-xs font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               View
               <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />

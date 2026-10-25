@@ -1,3 +1,4 @@
+import { lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -6,18 +7,29 @@ import { AuthLayout } from '@/layouts/AuthLayout';
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { Login } from '@/pages/Login';
 import { Signup } from '@/pages/Signup';
-import { Profile } from '@/pages/Profile';
-import { AdminUsers } from '@/pages/AdminUsers';
-import { Dashboard } from '@/pages/Dashboard';
-import { Portfolios } from '@/pages/Portfolios';
-import { PortfolioDetail } from '@/pages/PortfolioDetail';
-import { StockDetail } from '@/pages/StockDetail';
-import { AverageDownPlanner } from '@/pages/AverageDownPlanner';
-import { Dividends } from '@/pages/Dividends';
-import { Watchlist } from '@/pages/Watchlist';
-import { Alerts } from '@/pages/Alerts';
-import { Settings } from '@/pages/Settings';
 import { NotFound } from '@/pages/NotFound';
+
+/**
+ * Application pages are loaded per route. Before this the entry chunk carried every
+ * page — and through them recharts, radix and the whole feature tree — so a signed-in
+ * user downloaded the planners and the admin roster before seeing the dashboard.
+ * The signed-out pages stay eager: they are the first paint for a new session.
+ */
+const Dashboard = lazy(() => import('@/pages/Dashboard').then((m) => ({ default: m.Dashboard })));
+const Portfolios = lazy(() => import('@/pages/Portfolios').then((m) => ({ default: m.Portfolios })));
+const PortfolioDetail = lazy(() =>
+  import('@/pages/PortfolioDetail').then((m) => ({ default: m.PortfolioDetail })),
+);
+const StockDetail = lazy(() => import('@/pages/StockDetail').then((m) => ({ default: m.StockDetail })));
+const AverageDownPlanner = lazy(() =>
+  import('@/pages/AverageDownPlanner').then((m) => ({ default: m.AverageDownPlanner })),
+);
+const Dividends = lazy(() => import('@/pages/Dividends').then((m) => ({ default: m.Dividends })));
+const Watchlist = lazy(() => import('@/pages/Watchlist').then((m) => ({ default: m.Watchlist })));
+const Alerts = lazy(() => import('@/pages/Alerts').then((m) => ({ default: m.Alerts })));
+const Settings = lazy(() => import('@/pages/Settings').then((m) => ({ default: m.Settings })));
+const Profile = lazy(() => import('@/pages/Profile').then((m) => ({ default: m.Profile })));
+const AdminUsers = lazy(() => import('@/pages/AdminUsers').then((m) => ({ default: m.AdminUsers })));
 import { ROUTES } from '@/constants';
 import { useTheme } from '@/hooks';
 

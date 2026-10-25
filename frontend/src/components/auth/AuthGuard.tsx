@@ -32,15 +32,18 @@ export function AuthGuard() {
   }, [user, isPending, loadPortfolios, resetPortfolios]);
 
   if (isPending) {
+    // A real <main> and a heading: this screen replaces the whole shell while the
+    // session is read, and without them the document had no landmark and no h1.
+    // `role="status"` lives on the inner node, not on <main>, or it would replace
+    // the landmark role instead of adding to it.
     return (
-      <div
-        className="flex h-dvh items-center justify-center bg-background"
-        role="status"
-        aria-live="polite"
-      >
-        <span className="h-6 w-6 animate-spin rounded-full border-2 border-muted border-t-primary" />
-        <span className="sr-only">Checking your session…</span>
-      </div>
+      <main className="flex h-dvh items-center justify-center bg-background">
+        <h1 className="sr-only">Loading your account</h1>
+        <div role="status" aria-live="polite" className="flex items-center justify-center">
+          <span className="h-6 w-6 animate-spin rounded-full border-2 border-muted border-t-primary" />
+          <span className="sr-only">Checking your session…</span>
+        </div>
+      </main>
     );
   }
 

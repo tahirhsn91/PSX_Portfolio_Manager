@@ -81,7 +81,7 @@ export function StockPriceChart({ data, symbol, supportLevels = [], resistanceLe
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">{symbol} — 90 Day Price</CardTitle>
+        <CardTitle className="text-base">{symbol} — 90-day price (PKR)</CardTitle>
       </CardHeader>
       <CardContent>
         {isLoading && !hasData ? (
@@ -98,7 +98,7 @@ export function StockPriceChart({ data, symbol, supportLevels = [], resistanceLe
           <>
             <div
               role="group"
-              aria-label={`${symbol} close price and volume over the last ${chartData.length} sessions, with support, resistance and purchase-price levels`}
+              aria-label={`${symbol} close price in PKR and volume over the last ${chartData.length} sessions, with support, resistance and purchase-price levels. The price axis is zoomed to this window, not zero-based.`}
             >
               <ResponsiveContainer width="100%" height={300}>
                 <ComposedChart accessibilityLayer data={chartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
@@ -157,7 +157,14 @@ export function StockPriceChart({ data, symbol, supportLevels = [], resistanceLe
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
-            <ChartSummary caption={`${symbol} — last ${chartData.length} of ${data.length} sessions`} items={summaryItems} />
+            <ChartSummary
+              caption={`${symbol} — last ${chartData.length} of ${data.length} sessions · close in PKR`}
+              items={summaryItems}
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              The price axis is zoomed to this window, so the line's slope is not comparable to
+              a zero-based chart; the summary above gives the actual levels.
+            </p>
           </>
         )}
       </CardContent>

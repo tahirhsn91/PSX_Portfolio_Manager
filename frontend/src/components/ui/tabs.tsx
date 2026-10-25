@@ -16,7 +16,7 @@ const Tabs = TabsPrimitive.Root;
  *                under the selected tab. Reads as navigation between views of
  *                one record rather than a mode switch.
  *
- * Every trigger is at least 44px tall (h-11 / h-10), and every list is at least
+ * Every trigger is at least 44px tall (h-11), and every list is at least
  * as tall as its own padding plus its trigger, so a strip never overflows the box
  * it lives in.
  *
@@ -58,12 +58,13 @@ const TabsTrigger = React.forwardRef<
     className={cn(
       // h-11 (44px), not `h-full`: the list no longer has a fixed height — it wraps
       // onto extra lines when the tabs outgrow the viewport — so there is no parent
-      // height for `h-full` to fill. The segmented variant overrides to h-10.
+      // height for `h-full` to fill. The segmented variant keeps the same height
+      // and tightens only its padding and type.
       'inline-flex h-11 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-medium ring-offset-background transition-[color,background-color,border-color,box-shadow] duration-base ease-standard focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
       // default: filled pill track
       'group-data-[variant=default]:hover:text-foreground group-data-[variant=default]:data-[state=active]:bg-primary group-data-[variant=default]:data-[state=active]:text-primary-foreground group-data-[variant=default]:data-[state=active]:shadow-card',
       // segmented: compact switch inside a card header
-      'group-data-[variant=segmented]:h-10 group-data-[variant=segmented]:rounded group-data-[variant=segmented]:px-2.5 group-data-[variant=segmented]:text-xs group-data-[variant=segmented]:hover:bg-muted group-data-[variant=segmented]:data-[state=active]:bg-primary group-data-[variant=segmented]:data-[state=active]:text-primary-foreground',
+      'group-data-[variant=segmented]:rounded group-data-[variant=segmented]:px-2.5 group-data-[variant=segmented]:text-xs group-data-[variant=segmented]:hover:bg-muted group-data-[variant=segmented]:data-[state=active]:bg-primary group-data-[variant=segmented]:data-[state=active]:text-primary-foreground',
       // underline: navigation between views of one record
       'group-data-[variant=underline]:rounded-none group-data-[variant=underline]:border-b-2 group-data-[variant=underline]:border-transparent group-data-[variant=underline]:px-3 group-data-[variant=underline]:hover:text-foreground group-data-[variant=underline]:data-[state=active]:border-primary group-data-[variant=underline]:data-[state=active]:text-foreground',
       className

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Plus, TrendingUp, DollarSign, Award, TriangleAlert, Trash2, Calculator } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState, MetricBand, PLValue, PageHeader, CompanySearch } from '@/components/shared';
 import { ScrollReveal } from '@/components/animations';
+import { cn } from '@/lib/utils';
 import type { BandStat } from '@/components/shared';
 import { HoldingsTable } from '@/features/portfolio/HoldingsTable';
 import { HoldingForm } from '@/features/portfolio/HoldingForm';
@@ -150,6 +151,43 @@ export function PortfolioDetail() {
   const [cashAmount, setCashAmount] = useState('');
   const [cashDate, setCashDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [cashNotes, setCashNotes] = useState('');
+
+  // Eight sections do not fit on a phone. The strip still scrolls — each tab is a
+  // view of the same portfolio — but a mask on the edge says so, rather than a
+  // half-cut label, and it lifts at each end so nothing fades when it needn't.
+  // The strip mounts only once the portfolio has loaded, so this is a callback ref
+  // rather than a mount-only effect: the first measurement has to wait for the node.
+  const [tabListEl, setTabListEl] = useState<HTMLDivElement | null>(null);
+  const [tabEdges, setTabEdges] = useState({ start: false, end: false });
+
+  const measureTabs = useCallback(() => {
+    if (!tabListEl) return;
+    const max = tabListEl.scrollWidth - tabListEl.clientWidth;
+    setTabEdges({ start: tabListEl.scrollLeft > 2, end: max > 2 && tabListEl.scrollLeft < max - 2 });
+  }, [tabListEl]);
+
+  useEffect(() => {
+    if (!tabListEl) return;
+    measureTabs();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measureTabs) : null;
+    ro?.observe(tabListEl);
+    window.addEventListener('resize', measureTabs);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', measureTabs);
+    };
+  }, [measureTabs, tabListEl]);
+
+  const tabMask = cn(
+    'max-lg:flex-nowrap max-lg:overflow-x-auto no-scrollbar',
+    tabEdges.start && tabEdges.end
+      ? '[mask-image:linear-gradient(to_right,transparent,black_1.25rem,black_calc(100%_-_1.25rem),transparent)]'
+      : tabEdges.end
+        ? '[mask-image:linear-gradient(to_right,black_calc(100%_-_1.25rem),transparent)]'
+        : tabEdges.start
+          ? '[mask-image:linear-gradient(to_right,transparent,black_1.25rem)]'
+          : '',
+  );
 
   if (!portfolio || !id) {
     return (
@@ -627,6 +665,7 @@ export function PortfolioDetail() {
           animateValue={metrics?.currentValue}
           animateFormat={(n) => formatCurrency(n)}
           change={{
+            label: 'since purchase',
             amount: formatCurrency(totalPL),
             percent:
               metrics?.totalPLPercent !== undefined
@@ -703,8 +742,11 @@ export function PortfolioDetail() {
         {/* Underline tabs: these are views of one portfolio, not modes of the app. */}
         <Tabs defaultValue="holdings">
           <TabsList
+            ref={setTabListEl}
+            onScroll={measureTabs}
             variant="underline"
-            className="max-lg:flex-nowrap max-lg:overflow-x-auto no-scrollbar"
+            aria-label="Portfolio sections"
+            className={tabMask}
           >
             <TabsTrigger value="holdings">Holdings</TabsTrigger>
             <TabsTrigger value="dividends" title="Dividend calendar and received payouts">

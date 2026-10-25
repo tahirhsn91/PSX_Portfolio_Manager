@@ -8,7 +8,8 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Star, Trash2 } from 'lucide-react';
-import { PageHeader, CompanySearch, EmptyState } from '@/components/shared';
+import { PageHeader, CompanySearch, EmptyState, ErrorState } from '@/components/shared';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { watchlistApi } from '@/services';
@@ -21,7 +22,7 @@ export function Watchlist() {
   const queryClient = useQueryClient();
   const addNotification = useUIStore((s) => s.addNotification);
 
-  const { data: items = [] } = useQuery({
+  const { data: items = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['watchlist'],
     queryFn: watchlistApi.list,
   });
@@ -79,7 +80,21 @@ export function Watchlist() {
         </CardContent>
       </Card>
 
-      {items.length === 0 ? (
+      {isLoading ? (
+        <Card>
+          <CardContent className="space-y-3 pt-4" aria-busy="true">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-14 w-full rounded-md" />
+            ))}
+          </CardContent>
+        </Card>
+      ) : isError ? (
+        <ErrorState
+          title="Could not load your watchlist"
+          description="The list did not arrive from the server. Symbols you saved are unaffected."
+          onRetry={() => void refetch()}
+        />
+      ) : items.length === 0 ? (
         <EmptyState
           icon={<Star className="h-6 w-6" />}
           title="Nothing on your watchlist yet"
