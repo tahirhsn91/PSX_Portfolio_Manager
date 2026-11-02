@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FormError } from '@/components/auth/FormError';
+import { OAuthButtons } from '@/components/auth/OAuthButtons';
 import { ROUTES } from '@/constants';
 import { useSignup } from '@/hooks';
 import { ApiError } from '@/services';
@@ -67,6 +68,9 @@ export function Signup() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {/* Provider sign-up above the divider; renders nothing when unconfigured. */}
+        <OAuthButtons mode="signup" />
+
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
           <FormError>
             {failed?.status === 403

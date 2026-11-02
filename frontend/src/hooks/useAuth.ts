@@ -9,10 +9,11 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { authApi, type ProfilePatch } from '@/services';
+import { authApi, oauthStartUrl, type OAuthProvider, type ProfilePatch } from '@/services';
 import type { AuthUser } from '@/types';
 
 export const AUTH_QUERY_KEY = ['auth', 'me'] as const;
+export const OAUTH_PROVIDERS_KEY = ['auth', 'oauth-providers'] as const;
 
 export function useMe() {
   return useQuery<AuthUser | null>({
@@ -83,4 +84,23 @@ export function useChangePassword() {
     // re-read the account rather than assuming the rest of it is unchanged.
     onSuccess: () => queryClient.invalidateQueries({ queryKey: AUTH_QUERY_KEY }),
   });
+}
+
+/**
+ * The sign-in providers this instance has credentials for. Only these render a
+ * button — an unconfigured provider must not appear at all. A failure here is
+ * non-fatal: the password form still works, so the query does not retry.
+ */
+export function useOAuthProviders() {
+  return useQuery<OAuthProvider[]>({
+    queryKey: OAUTH_PROVIDERS_KEY,
+    queryFn: () => authApi.oauthProviders(),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+
+/** Begin a provider sign-in: a top-level navigation, not a fetch. */
+export function startOAuth(providerId: string, opts: { link?: boolean } = {}) {
+  window.location.assign(oauthStartUrl(providerId, opts));
 }

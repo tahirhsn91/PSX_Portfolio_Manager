@@ -32,6 +32,7 @@ const { createRateLimiter } = require('../middleware/rateLimit');
 const {
   serializeUser,
   findUserById,
+  credentialSummary,
   recordEvent,
   clientIp,
 } = require('../services/users');
@@ -150,7 +151,21 @@ router.post(
     const user = rows[0];
 
     // Always run a compare so an unknown email costs the same as a wrong password.
-    const matches = await bcrypt.compare(password, user ? user.password_hash : DUMMY_HASH);
+    // A provider-only account has a NULL hash: comparing against null throws, so
+    // it falls through to the dummy hash and is refused below (fail closed).
+    const hasPassword = Boolean(user && user.password_hash);
+    const matches = await bcrypt.compare(password, hasPassword ? user.password_hash : DUMMY_HASH);
+
+    // An account that exists but has no password signs in with a provider. Name
+    // the method instead of leaving a dead form; the compare above already ran.
+    if (user && !hasPassword) {
+      return res.status(401).json({
+        error: {
+          code: 'USE_OAUTH',
+          message: 'This account signs in with Google or Facebook — use one of those buttons',
+        },
+      });
+    }
 
     if (!user || !matches) {
       return res.status(401).json({
@@ -227,7 +242,13 @@ router.get(
 
     // Must-change-password is reported here rather than blocking, so the app can
     // route the account to the change-password screen instead of showing a wall.
-    return res.json({ user: serializeUser(row), mustChangePassword: row.must_change_password });
+    // How the account signs in (password + connected providers) rides along, so
+    // Settings can show it without a second request.
+    const credentials = await credentialSummary(row.id);
+    return res.json({
+      user: { ...serializeUser(row), ...credentials },
+      mustChangePassword: row.must_change_password,
+    });
   }),
 );
 
@@ -285,19 +306,26 @@ router.post(
     const current = String(req.body?.currentPassword ?? '');
     const next = String(req.body?.newPassword ?? '');
 
-    if (!current || !next) return invalid(res, 'Current and new password are required');
+    if (!next) return invalid(res, 'New password is required');
     if (next.length < 8) return invalid(res, 'Password must be at least 8 characters');
     if (next.length > 200) return invalid(res, 'Password is too long');
-    if (next === current) return invalid(res, 'Choose a password you have not used here');
 
     const { rows } = await query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
     if (!rows[0]) {
       return res.status(401).json({ error: { code: 'UNAUTHENTICATED', message: 'Sign in to continue' } });
     }
-    if (!(await bcrypt.compare(current, rows[0].password_hash))) {
-      return res.status(401).json({
-        error: { code: 'INVALID_CREDENTIALS', message: 'Current password is incorrect' },
-      });
+
+    // A provider-only account is *setting* its first password, so there is no
+    // current one to demand or compare.
+    const hasPassword = Boolean(rows[0].password_hash);
+    if (hasPassword) {
+      if (!current) return invalid(res, 'Current password is required');
+      if (next === current) return invalid(res, 'Choose a password you have not used here');
+      if (!(await bcrypt.compare(current, rows[0].password_hash))) {
+        return res.status(401).json({
+          error: { code: 'INVALID_CREDENTIALS', message: 'Current password is incorrect' },
+        });
+      }
     }
 
     // Bumping token_version invalidates every other token for this account; the

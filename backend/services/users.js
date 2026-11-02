@@ -63,6 +63,27 @@ async function countAdmins() {
 }
 
 /**
+ * How this account can sign in: whether it has a password, and which providers
+ * are connected. Read by `/api/auth/me` so Settings can show it.
+ */
+async function credentialSummary(userId) {
+  const { rows } = await query(
+    `SELECT (u.password_hash IS NOT NULL) AS has_password,
+            COALESCE(array_agg(oa.provider) FILTER (WHERE oa.provider IS NOT NULL), '{}') AS providers
+       FROM users u
+       LEFT JOIN oauth_accounts oa ON oa.user_id = u.id
+      WHERE u.id = $1
+      GROUP BY u.id, u.password_hash`,
+    [userId],
+  );
+  if (!rows[0]) return { hasPassword: false, connectedProviders: [] };
+  return {
+    hasPassword: rows[0].has_password,
+    connectedProviders: rows[0].providers || [],
+  };
+}
+
+/**
  * Append an account event. Never throws: an audit write must not take down the
  * action it describes, so failures are logged and swallowed.
  */
@@ -88,6 +109,7 @@ module.exports = {
   findSessionUser,
   findUserById,
   countAdmins,
+  credentialSummary,
   recordEvent,
   clientIp,
 };
