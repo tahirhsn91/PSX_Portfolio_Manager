@@ -19,6 +19,10 @@ export interface AuthUser {
   preferences: Record<string, unknown>;
   createdAt: string;
   lastSeenAt: string | null;
+  /** True when the account has a password. Only sent by `/api/auth/me`. */
+  hasPassword?: boolean;
+  /** Provider ids connected to this account (`google`, `facebook`, `stub`). */
+  connectedProviders?: string[];
 }
 
 /** A row in the admin roster: an account plus what it owns. */

@@ -50,6 +50,7 @@ const sarmaaya     = require('./providers/sarmaaya');
 const { runMigrations }   = require('./db/migrate');
 const { ping: pingDb }    = require('./db/pool');
 const authRoutes          = require('./routes/auth');
+const oauthRoutes         = require('./routes/oauth');
 const portfolioRoutes     = require('./routes/portfolios');
 const userRoutes          = require('./routes/users');
 const watchlistRoutes     = require('./routes/watchlist');
@@ -314,6 +315,7 @@ app.use(['/api/auth', '/api/portfolios', '/api/users'], (_req, res, next) => {
   return next();
 });
 
+app.use('/api/auth/oauth', oauthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/portfolios', portfolioRoutes);
 app.use('/api/users', userRoutes);

@@ -17,6 +17,9 @@ const PROXY_BASE = (import.meta.env.VITE_PROXY_BASE_URL ?? 'http://localhost:400
   ''
 );
 
+/** Absolute proxy origin — needed for top-level navigations (OAuth start). */
+export { PROXY_BASE };
+
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;

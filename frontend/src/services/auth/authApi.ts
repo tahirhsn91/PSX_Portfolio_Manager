@@ -12,13 +12,29 @@
  */
 
 import type { AuthUser } from '@/types';
-import { ApiError, request as httpRequest } from '../http';
+import { ApiError, PROXY_BASE, request as httpRequest } from '../http';
 
 export { ApiError };
 
 /** Every call here is scoped to the account API; the shared client does the rest. */
 const request = <T,>(path: string, init: RequestInit = {}): Promise<T> =>
   httpRequest<T>(`/api/auth${path}`, init);
+
+/** A sign-in provider the server has credentials for. No secrets in this shape. */
+export interface OAuthProvider {
+  id: string;
+  label: string;
+  enabled: boolean;
+}
+
+/**
+ * Absolute URL that begins a provider sign-in. This is a top-level navigation,
+ * not a fetch — the provider page has to replace the app origin.
+ */
+export function oauthStartUrl(providerId: string, opts: { link?: boolean } = {}): string {
+  const query = opts.link ? '?link=1' : '';
+  return `${PROXY_BASE}/api/auth/oauth/${encodeURIComponent(providerId)}/start${query}`;
+}
 
 export interface ProfilePatch {
   displayName?: string;
@@ -76,4 +92,16 @@ export const authApi = {
     });
     return user;
   },
+
+  /** Providers with credentials configured; unconfigured ones are absent. */
+  async oauthProviders(): Promise<OAuthProvider[]> {
+    const { providers } = await request<{ providers: OAuthProvider[] }>('/oauth/providers');
+    return providers;
+  },
+
+  /** Disconnect a provider from the signed-in account. */
+  unlinkProvider: (providerId: string) =>
+    request<{ ok: boolean }>(`/oauth/${encodeURIComponent(providerId)}/unlink`, {
+      method: 'POST',
+    }),
 };
