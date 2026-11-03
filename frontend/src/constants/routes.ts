@@ -28,5 +28,10 @@ export const ROUTES = {
   ADMIN_USERS: '/admin/users',
   LOGIN: '/login',
   SIGNUP: '/signup',
+  /** Public: ask for a reset link. */
+  FORGOT_PASSWORD: '/forgot-password',
+  /** Public: the emailed link lands here with `?token=`. */
+  RESET_PASSWORD: '/reset-password',
+  RESET_PASSWORD_PATH: (token: string) => `/reset-password?token=${encodeURIComponent(token)}`,
   NOT_FOUND: '*',
 } as const;

@@ -29,6 +29,8 @@ const {
   ISSUER,
 } = require('../middleware/auth');
 const { createRateLimiter } = require('../middleware/rateLimit');
+const { createReset, consumeReset } = require('../services/passwordReset');
+const { sendPasswordReset } = require('../services/mail');
 const {
   serializeUser,
   findUserById,
@@ -49,6 +51,9 @@ const PUBLIC_SIGNUP = process.env.ALLOW_PUBLIC_SIGNUP === 'true';
 const DUMMY_HASH = bcrypt.hashSync('psx-portfolio-manager-dummy', BCRYPT_COST);
 
 const authLimiter = createRateLimiter({ windowMs: 15 * 60_000, max: 20 });
+// Reset requests get their own budget: a forgotten password should not be
+// blocked because someone mistyped theirs twenty times.
+const resetLimiter = createRateLimiter({ windowMs: 15 * 60_000, max: 10 });
 
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 
@@ -347,7 +352,72 @@ router.post(
   }),
 );
 
+// ── POST /api/auth/forgot ─────────────────────────────────────────────────────
+// Public. Answers { ok: true } for every input — registered, unregistered,
+// suspended, malformed — because anything else is an account-existence oracle.
+router.post(
+  '/forgot',
+  resetLimiter,
+  wrap(async (req, res) => {
+    const email = String(req.body?.email ?? '').trim().toLowerCase();
+    if (!email || !EMAIL_RE.test(email)) return res.json({ ok: true });
+
+    const { rows } = await query(
+      'SELECT id, email, display_name FROM users WHERE lower(email) = $1 AND is_active = TRUE',
+      [email],
+    );
+    const user = rows[0];
+
+    if (user) {
+      const token = await createReset(user.id, clientIp(req));
+      await recordEvent('password_reset_requested', { userId: user.id, ip: clientIp(req) });
+
+      // The link points at the SPA, not the API. ALLOWED_ORIGIN is this app's
+      // own origin (already trusted for CORS); the request origin is a dev
+      // fallback so a bare host works without extra configuration.
+      const origin = (process.env.ALLOWED_ORIGIN || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+
+      // Not awaited: a slow relay must not hold the request open, and a send
+      // failure must not change the answer. sendPasswordReset never throws.
+      void sendPasswordReset({
+        to: user.email,
+        displayName: user.display_name,
+        resetUrl: `${origin}/reset-password?token=${encodeURIComponent(token)}`,
+      });
+    }
+
+    return res.json({ ok: true });
+  }),
+);
+
+// ── POST /api/auth/reset ──────────────────────────────────────────────────────
+// Public. One generic answer for unknown, expired and already-used tokens.
+router.post(
+  '/reset',
+  resetLimiter,
+  wrap(async (req, res) => {
+    const token = String(req.body?.token ?? '');
+    const next = String(req.body?.newPassword ?? '');
+
+    if (next.length < 8) return invalid(res, 'Password must be at least 8 characters');
+    if (next.length > 200) return invalid(res, 'Password is too long');
+
+    const userId = await consumeReset(token, next);
+    if (!userId) {
+      return res.status(400).json({
+        error: { code: 'RESET_TOKEN_INVALID', message: 'This reset link is invalid or has expired' },
+      });
+    }
+
+    await recordEvent('password_reset_completed', { userId, ip: clientIp(req) });
+    return res.json({ ok: true });
+  }),
+);
+
 // The limiter's window, exposed so the test suite can clear it between cases.
-router.resetAuthLimiter = () => authLimiter.reset();
+router.resetAuthLimiter = () => {
+  authLimiter.reset();
+  resetLimiter.reset();
+};
 
 module.exports = router;

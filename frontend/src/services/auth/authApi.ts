@@ -104,4 +104,21 @@ export const authApi = {
     request<{ ok: boolean }>(`/oauth/${encodeURIComponent(providerId)}/unlink`, {
       method: 'POST',
     }),
+
+  /**
+   * Ask for a reset link. The answer is identical whether or not the address
+   * has an account, so the UI must not infer anything from it either.
+   */
+  forgotPassword: (email: string) =>
+    request<{ ok: boolean }>('/forgot', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+
+  /** Exchange a one-time emailed token for a new password. */
+  resetPassword: (token: string, newPassword: string) =>
+    request<{ ok: boolean }>('/reset', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword }),
+    }),
 };
