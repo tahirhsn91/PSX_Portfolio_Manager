@@ -7,6 +7,8 @@ import { AuthLayout } from '@/layouts/AuthLayout';
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { Login } from '@/pages/Login';
 import { Signup } from '@/pages/Signup';
+import { ForgotPassword } from '@/pages/ForgotPassword';
+import { ResetPassword } from '@/pages/ResetPassword';
 import { NotFound } from '@/pages/NotFound';
 
 /**
@@ -55,6 +57,10 @@ function AppRoutes() {
       <Route element={<AuthLayout />}>
         <Route path={ROUTES.LOGIN} element={<Login />} />
         <Route path={ROUTES.SIGNUP} element={<Signup />} />
+        {/* Password recovery is public by definition: the whole point is that
+            you cannot sign in. Both pages share the signed-out shell. */}
+        <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPassword />} />
+        <Route path={ROUTES.RESET_PASSWORD} element={<ResetPassword />} />
       </Route>
 
       {/* Everything else needs an account. AuthGuard reads the session once and
