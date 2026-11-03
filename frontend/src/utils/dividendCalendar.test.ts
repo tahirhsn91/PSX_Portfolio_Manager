@@ -112,13 +112,14 @@ describe('groupDividendsByDate', () => {
   it('places feed announcements on their announcement date, for held symbols only', () => {
     const g = groupDividendsByDate(
       [holding('EFERT', [], [], 77)],
-      [announcement('EFERT', 5.5, '2026-10-30'), announcement('HUBC', 5, '2026-10-30')],
+      // A fixed far-future date keeps this independent of when the suite runs.
+      [announcement('EFERT', 5.5, '2099-01-01'), announcement('HUBC', 5, '2099-01-01')],
     );
 
-    const events = g.byDate.get('2026-10-30') ?? [];
+    const events = g.byDate.get('2099-01-01') ?? [];
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ kind: 'announced', holding: { symbol: 'EFERT' } });
-    expect(g.nextDate).toBe('2026-10-30');
+    expect(g.nextDate).toBe('2099-01-01');
   });
 
   it('orders a day declared, then announced, then received', () => {
