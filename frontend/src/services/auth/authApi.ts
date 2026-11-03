@@ -106,11 +106,17 @@ export const authApi = {
     }),
 
   /**
-   * Ask for a reset link. The answer is identical whether or not the address
-   * has an account, so the UI must not infer anything from it either.
+   * Ask for a reset link. On a dev instance with no mail provider the response
+   * carries `devResetUrl` (delivery: 'stub') so the page can show the link it
+   * could not email. Sign-up-open instances answer 404 EMAIL_NOT_REGISTERED
+   * for an address with no account.
    */
   forgotPassword: (email: string) =>
-    request<{ ok: boolean }>('/forgot', {
+    request<{
+      ok: boolean;
+      delivery?: 'resend' | 'smtp' | 'stub';
+      devResetUrl?: string;
+    }>('/forgot', {
       method: 'POST',
       body: JSON.stringify({ email }),
     }),

@@ -30,7 +30,7 @@ const {
 } = require('../middleware/auth');
 const { createRateLimiter } = require('../middleware/rateLimit');
 const { createReset, consumeReset } = require('../services/passwordReset');
-const { sendPasswordReset } = require('../services/mail');
+const { sendPasswordReset, transportName } = require('../services/mail');
 const {
   serializeUser,
   findUserById,
@@ -45,7 +45,8 @@ const BCRYPT_COST = 12;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 // Default closed: this app's accounts are created by an admin (decision 2), and
 // the first-account exception below is what lets a fresh instance be claimed.
-const PUBLIC_SIGNUP = process.env.ALLOW_PUBLIC_SIGNUP === 'true';
+// Read per call, not at boot: a test (or a restart-free env change) can flip it.
+const publicSignupEnabled = () => process.env.ALLOW_PUBLIC_SIGNUP === 'true';
 // Compared against when the email is unknown, so response time doesn't leak
 // whether an account exists.
 const DUMMY_HASH = bcrypt.hashSync('psx-portfolio-manager-dummy', BCRYPT_COST);
@@ -108,7 +109,7 @@ router.post(
     const { rows: counted } = await query('SELECT COUNT(*)::int AS n FROM users');
     const isFirstAccount = counted[0].n === 0;
 
-    if (!PUBLIC_SIGNUP && !isFirstAccount) {
+    if (!publicSignupEnabled() && !isFirstAccount) {
       return res.status(403).json({
         error: { code: 'SIGNUP_CLOSED', message: 'Sign-up is invite-only' },
       });
@@ -353,14 +354,20 @@ router.post(
 );
 
 // ── POST /api/auth/forgot ─────────────────────────────────────────────────────
-// Public. Answers { ok: true } for every input — registered, unregistered,
-// suspended, malformed — because anything else is an account-existence oracle.
+// Public. When sign-up is open, an unknown address is told plainly to register
+// (there is nothing to hide: anyone can test an address by trying to sign up
+// with it). When sign-up is closed the answer stays generic — there, a 404
+// would be a pure account-existence oracle for an admin-run instance.
 router.post(
   '/forgot',
   resetLimiter,
   wrap(async (req, res) => {
     const email = String(req.body?.email ?? '').trim().toLowerCase();
-    if (!email || !EMAIL_RE.test(email)) return res.json({ ok: true });
+    if (!email || !EMAIL_RE.test(email)) {
+      return res.status(400).json({
+        error: { code: 'EMAIL_INVALID', message: 'Enter a valid email address' },
+      });
+    }
 
     const { rows } = await query(
       'SELECT id, email, display_name FROM users WHERE lower(email) = $1 AND is_active = TRUE',
@@ -368,25 +375,41 @@ router.post(
     );
     const user = rows[0];
 
-    if (user) {
-      const token = await createReset(user.id, clientIp(req));
-      await recordEvent('password_reset_requested', { userId: user.id, ip: clientIp(req) });
-
-      // The link points at the SPA, not the API. ALLOWED_ORIGIN is this app's
-      // own origin (already trusted for CORS); the request origin is a dev
-      // fallback so a bare host works without extra configuration.
-      const origin = (process.env.ALLOWED_ORIGIN || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
-
-      // Not awaited: a slow relay must not hold the request open, and a send
-      // failure must not change the answer. sendPasswordReset never throws.
-      void sendPasswordReset({
-        to: user.email,
-        displayName: user.display_name,
-        resetUrl: `${origin}/reset-password?token=${encodeURIComponent(token)}`,
-      });
+    if (!user) {
+      if (publicSignupEnabled()) {
+        return res.status(404).json({
+          error: {
+            code: 'EMAIL_NOT_REGISTERED',
+            message: 'No account uses this email — create one first.',
+          },
+        });
+      }
+      return res.json({ ok: true });
     }
 
-    return res.json({ ok: true });
+    const token = await createReset(user.id, clientIp(req));
+    await recordEvent('password_reset_requested', { userId: user.id, ip: clientIp(req) });
+
+    // The link points at the SPA, not the API. ALLOWED_ORIGIN is this app's
+    // own origin (already trusted for CORS); the request origin is a dev
+    // fallback so a bare host works without extra configuration.
+    const origin = (process.env.ALLOWED_ORIGIN || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+    const resetUrl = `${origin}/reset-password?token=${encodeURIComponent(token)}`;
+
+    // Not awaited: a slow relay must not hold the request open, and a send
+    // failure must not change the answer. sendPasswordReset never throws.
+    void sendPasswordReset({
+      to: user.email,
+      displayName: user.display_name,
+      resetUrl,
+    });
+
+    // With no provider configured the stub only writes to the server log, so
+    // return the link to the page that asked for it — dev and test only.
+    const delivery = transportName();
+    const devPreview = delivery === 'stub' && process.env.NODE_ENV !== 'production';
+
+    return res.json({ ok: true, delivery, ...(devPreview ? { devResetUrl: resetUrl } : {}) });
   }),
 );
 

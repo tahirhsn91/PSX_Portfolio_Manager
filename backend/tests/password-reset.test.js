@@ -62,7 +62,13 @@ test('a known address mints one token and records the request', async () => {
 
   const res = await client.post('/api/auth/forgot', { email: 'known@example.com' });
   assert.equal(res.status, 200);
-  assert.deepEqual(res.body, { ok: true });
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.delivery, 'stub');
+  assert.match(
+    res.body.devResetUrl,
+    /\/reset-password\?token=/,
+    'the stub returns the link so a dev instance with no mail provider can still finish the flow',
+  );
 
   const rows = await resetRows(user.id);
   assert.equal(rows.length, 1);
@@ -77,19 +83,36 @@ test('a known address mints one token and records the request', async () => {
   assert.equal(events[0].n, 1);
 });
 
-test('an unknown address answers exactly as a known one and mints nothing', async () => {
-  const user = await provision('known@example.com');
+test('with sign-up closed an unknown address stays indistinguishable', async () => {
+  await provision('known@example.com');
   const client = await clientFor(server.baseUrl);
 
-  const known = await client.post('/api/auth/forgot', { email: 'known@example.com' });
+  // The harness boots with ALLOW_PUBLIC_SIGNUP=false: an admin-run instance
+  // must not turn the form into an account-existence oracle.
   const unknown = await client.post('/api/auth/forgot', { email: 'nobody@example.com' });
-
-  assert.equal(known.status, unknown.status);
-  assert.deepEqual(known.body, unknown.body);
+  assert.equal(unknown.status, 200);
+  assert.deepEqual(unknown.body, { ok: true });
 
   const { rows } = await query('SELECT COUNT(*)::int AS n FROM password_resets');
-  assert.equal(rows[0].n, 1, 'only the known address may have a token');
-  assert.equal((await resetRows(user.id)).length, 1);
+  assert.equal(rows[0].n, 0, 'an unknown address mints nothing');
+});
+
+test('with sign-up open an unknown address is told to register', async () => {
+  const previous = process.env.ALLOW_PUBLIC_SIGNUP;
+  process.env.ALLOW_PUBLIC_SIGNUP = 'true';
+  try {
+    const client = await clientFor(server.baseUrl);
+    const res = await client.post('/api/auth/forgot', { email: 'nobody@example.com' });
+
+    assert.equal(res.status, 404);
+    assert.equal(res.body.error.code, 'EMAIL_NOT_REGISTERED');
+    assert.match(res.body.error.message, /create one first/i);
+
+    const { rows } = await query('SELECT COUNT(*)::int AS n FROM password_resets');
+    assert.equal(rows[0].n, 0);
+  } finally {
+    process.env.ALLOW_PUBLIC_SIGNUP = previous;
+  }
 });
 
 test('a suspended account gets no token', async () => {
